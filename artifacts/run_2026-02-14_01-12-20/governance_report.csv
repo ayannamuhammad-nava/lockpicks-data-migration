@@ -1,0 +1,11 @@
+category,item,status,details
+PII,ssn,VIOLATION,Contains PII keywords
+Required Field,customer_id,PASS,Present
+Required Field,email,PASS,Present
+Null Check,customer_id,PASS,0% null
+Null Check,customer_name,PASS,0% null
+Null Check,email,PASS,0% null
+Null Check,phone,PASS,0% null
+Null Check,ssn,PASS,0% null
+Null Check,status,PASS,0% null
+Null Check,created_date,PASS,0% null

@@ -1,0 +1,31 @@
+category,item,status,details
+PII,cl_ssn,VIOLATION,Contains PII keywords
+PII,cl_dob,VIOLATION,Contains PII keywords
+PII,cl_phon,VIOLATION,Contains PII keywords
+PII,cl_emal,VIOLATION,Contains PII keywords
+PII,cl_adr1,VIOLATION,Contains PII keywords
+PII,cl_zip,VIOLATION,Contains PII keywords
+PII,cl_bact,VIOLATION,Contains PII keywords
+PII,cl_brtn,VIOLATION,Contains PII keywords
+Required Field,cl_recid,PASS,Present
+Required Field,cl_fnam,PASS,Present
+Required Field,cl_lnam,PASS,Present
+Required Field,cl_ssn,PASS,Present
+Required Field,cl_emal,PASS,Present
+Null Check,cl_recid,PASS,0.0% null
+Null Check,cl_fnam,PASS,0.0% null
+Null Check,cl_lnam,PASS,0.0% null
+Null Check,cl_ssn,PASS,0.0% null
+Null Check,cl_dob,PASS,2.0% null
+Null Check,cl_phon,PASS,0.0% null
+Null Check,cl_emal,PASS,7.0% null
+Null Check,cl_adr1,PASS,0.0% null
+Null Check,cl_city,PASS,0.0% null
+Null Check,cl_st,PASS,0.0% null
+Null Check,cl_zip,PASS,0.0% null
+Null Check,cl_bact,PASS,0.0% null
+Null Check,cl_brtn,PASS,0.0% null
+Null Check,cl_stat,PASS,0.0% null
+Null Check,cl_rgdt,PASS,0.0% null
+Null Check,cl_dcsd,PASS,0.0% null
+Null Check,cl_fil1,PASS,0.0% null

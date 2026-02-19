@@ -1,0 +1,388 @@
+{
+  "mappings": [
+    {
+      "source": "cl_recid",
+      "target": "claimant_id",
+      "rationale": "Renamed from cl_recid to claimant_id to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "claimants",
+      "type": "rename"
+    },
+    {
+      "source": "cl_fnam",
+      "target": "first_name",
+      "rationale": "Renamed from cl_fnam to first_name to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "claimants",
+      "type": "rename"
+    },
+    {
+      "source": "cl_lnam",
+      "target": "last_name",
+      "rationale": "Renamed from cl_lnam to last_name to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "claimants",
+      "type": "rename"
+    },
+    {
+      "source": "cl_ssn",
+      "target": null,
+      "rationale": "Column removed from modern system. May require data archival or migration to alternate storage.",
+      "confidence": 0.7,
+      "table": "claimants",
+      "type": "removed"
+    },
+    {
+      "source": "cl_dob",
+      "target": "date_of_birth",
+      "rationale": "Renamed from cl_dob to date_of_birth to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "claimants",
+      "type": "rename"
+    },
+    {
+      "source": "cl_phon",
+      "target": "phone_number",
+      "rationale": "Renamed from cl_phon to phone_number to align with modern naming conventions",
+      "confidence": 0.89,
+      "table": "claimants",
+      "type": "rename"
+    },
+    {
+      "source": "cl_emal",
+      "target": "email",
+      "rationale": "Renamed from cl_emal to email to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "claimants",
+      "type": "rename"
+    },
+    {
+      "source": "cl_adr1",
+      "target": "address_line1",
+      "rationale": "Renamed from cl_adr1 to address_line1 to align with modern naming conventions",
+      "confidence": 0.9,
+      "table": "claimants",
+      "type": "rename"
+    },
+    {
+      "source": "cl_city",
+      "target": "city",
+      "rationale": "Renamed from cl_city to city to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "claimants",
+      "type": "rename"
+    },
+    {
+      "source": "cl_st",
+      "target": "state",
+      "rationale": "Renamed from cl_st to state to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "claimants",
+      "type": "rename"
+    },
+    {
+      "source": "cl_zip",
+      "target": "zip_code",
+      "rationale": "Renamed from cl_zip to zip_code to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "claimants",
+      "type": "rename"
+    },
+    {
+      "source": "cl_bact",
+      "target": null,
+      "rationale": "Column removed from modern system. May require data archival or migration to alternate storage.",
+      "confidence": 0.7,
+      "table": "claimants",
+      "type": "removed"
+    },
+    {
+      "source": "cl_brtn",
+      "target": null,
+      "rationale": "Column removed from modern system. May require data archival or migration to alternate storage.",
+      "confidence": 0.7,
+      "table": "claimants",
+      "type": "removed"
+    },
+    {
+      "source": "cl_stat",
+      "target": null,
+      "rationale": "Column removed from modern system. May require data archival or migration to alternate storage.",
+      "confidence": 0.7,
+      "table": "claimants",
+      "type": "removed"
+    },
+    {
+      "source": "cl_rgdt",
+      "target": "registered_at",
+      "rationale": "Renamed from cl_rgdt to registered_at to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "claimants",
+      "type": "rename"
+    },
+    {
+      "source": "cl_dcsd",
+      "target": "is_deceased",
+      "rationale": "Renamed from cl_dcsd to is_deceased to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "claimants",
+      "type": "rename"
+    },
+    {
+      "source": "cl_fil1",
+      "target": null,
+      "rationale": "Column removed from modern system. May require data archival or migration to alternate storage.",
+      "confidence": 0.7,
+      "table": "claimants",
+      "type": "removed"
+    },
+    {
+      "source": "er_recid",
+      "target": null,
+      "rationale": "Column removed from modern system. May require data archival or migration to alternate storage.",
+      "confidence": 0.7,
+      "table": "employers",
+      "type": "removed"
+    },
+    {
+      "source": "er_name",
+      "target": "employer_name",
+      "rationale": "Renamed from er_name to employer_name for improved clarity and naming consistency",
+      "confidence": 0.87,
+      "table": "employers",
+      "type": "rename"
+    },
+    {
+      "source": "er_ein",
+      "target": "employer_ein",
+      "rationale": "Renamed from er_ein to employer_ein to align with modern naming conventions",
+      "confidence": 0.86,
+      "table": "employers",
+      "type": "rename"
+    },
+    {
+      "source": "er_ind",
+      "target": "industry",
+      "rationale": "Renamed from er_ind to industry to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "employers",
+      "type": "rename"
+    },
+    {
+      "source": "er_adr1",
+      "target": "address_line1",
+      "rationale": "Renamed from er_adr1 to address_line1 to align with modern naming conventions",
+      "confidence": 0.9,
+      "table": "employers",
+      "type": "rename"
+    },
+    {
+      "source": "er_city",
+      "target": "city",
+      "rationale": "Renamed from er_city to city to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "employers",
+      "type": "rename"
+    },
+    {
+      "source": "er_st",
+      "target": "state",
+      "rationale": "Renamed from er_st to state to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "employers",
+      "type": "rename"
+    },
+    {
+      "source": "er_zip",
+      "target": "zip_code",
+      "rationale": "Renamed from er_zip to zip_code to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "employers",
+      "type": "rename"
+    },
+    {
+      "source": "er_phon",
+      "target": "phone_number",
+      "rationale": "Renamed from er_phon to phone_number to align with modern naming conventions",
+      "confidence": 0.89,
+      "table": "employers",
+      "type": "rename"
+    },
+    {
+      "source": "er_stat",
+      "target": null,
+      "rationale": "Column removed from modern system. May require data archival or migration to alternate storage.",
+      "confidence": 0.7,
+      "table": "employers",
+      "type": "removed"
+    },
+    {
+      "source": "cm_recid",
+      "target": "claim_id",
+      "rationale": "Renamed from cm_recid to claim_id to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "claims",
+      "type": "rename"
+    },
+    {
+      "source": "cm_clmnt",
+      "target": "claimant_id",
+      "rationale": "Renamed from cm_clmnt to claimant_id to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "claims",
+      "type": "rename"
+    },
+    {
+      "source": "cm_emplr",
+      "target": null,
+      "rationale": "Column removed from modern system. May require data archival or migration to alternate storage.",
+      "confidence": 0.7,
+      "table": "claims",
+      "type": "removed"
+    },
+    {
+      "source": "cm_seprs",
+      "target": "separation_reason",
+      "rationale": "Renamed from cm_seprs to separation_reason to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "claims",
+      "type": "rename"
+    },
+    {
+      "source": "cm_fildt",
+      "target": "filing_date",
+      "rationale": "Renamed from cm_fildt to filing_date to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "claims",
+      "type": "rename"
+    },
+    {
+      "source": "cm_bystr",
+      "target": null,
+      "rationale": "Column removed from modern system. May require data archival or migration to alternate storage.",
+      "confidence": 0.7,
+      "table": "claims",
+      "type": "removed"
+    },
+    {
+      "source": "cm_byend",
+      "target": "benefit_year_end",
+      "rationale": "Renamed from cm_byend to benefit_year_end to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "claims",
+      "type": "rename"
+    },
+    {
+      "source": "cm_wkamt",
+      "target": "weekly_benefit_amount",
+      "rationale": "Renamed from cm_wkamt to weekly_benefit_amount to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "claims",
+      "type": "rename"
+    },
+    {
+      "source": "cm_mxamt",
+      "target": "max_benefit_amount",
+      "rationale": "Renamed from cm_mxamt to max_benefit_amount to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "claims",
+      "type": "rename"
+    },
+    {
+      "source": "cm_totpd",
+      "target": "total_paid",
+      "rationale": "Renamed from cm_totpd to total_paid to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "claims",
+      "type": "rename"
+    },
+    {
+      "source": "cm_wkcnt",
+      "target": "weeks_claimed",
+      "rationale": "Renamed from cm_wkcnt to weeks_claimed to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "claims",
+      "type": "rename"
+    },
+    {
+      "source": "cm_stat",
+      "target": null,
+      "rationale": "Column removed from modern system. May require data archival or migration to alternate storage.",
+      "confidence": 0.7,
+      "table": "claims",
+      "type": "removed"
+    },
+    {
+      "source": "cm_lupdt",
+      "target": "updated_at",
+      "rationale": "Renamed from cm_lupdt to updated_at to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "claims",
+      "type": "rename"
+    },
+    {
+      "source": "bp_recid",
+      "target": "payment_id",
+      "rationale": "Renamed from bp_recid to payment_id to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "benefit_payments",
+      "type": "rename"
+    },
+    {
+      "source": "bp_clmid",
+      "target": "claim_id",
+      "rationale": "Renamed from bp_clmid to claim_id to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "benefit_payments",
+      "type": "rename"
+    },
+    {
+      "source": "bp_paydt",
+      "target": "payment_date",
+      "rationale": "Renamed from bp_paydt to payment_date to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "benefit_payments",
+      "type": "rename"
+    },
+    {
+      "source": "bp_payam",
+      "target": "payment_amount",
+      "rationale": "Renamed from bp_payam to payment_amount to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "benefit_payments",
+      "type": "rename"
+    },
+    {
+      "source": "bp_methd",
+      "target": "payment_method",
+      "rationale": "Renamed from bp_methd to payment_method to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "benefit_payments",
+      "type": "rename"
+    },
+    {
+      "source": "bp_wkedt",
+      "target": "week_ending_date",
+      "rationale": "Renamed from bp_wkedt to week_ending_date to align with modern naming conventions",
+      "confidence": 1.0,
+      "table": "benefit_payments",
+      "type": "rename"
+    },
+    {
+      "source": "bp_stat",
+      "target": null,
+      "rationale": "Column removed from modern system. May require data archival or migration to alternate storage.",
+      "confidence": 0.7,
+      "table": "benefit_payments",
+      "type": "removed"
+    },
+    {
+      "source": "bp_chkno",
+      "target": "check_number",
+      "rationale": "Renamed from bp_chkno to check_number to align with modern naming conventions",
+      "confidence": 0.89,
+      "table": "benefit_payments",
+      "type": "rename"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "phase": "pre",
+  "dataset": "customers",
+  "sample_size": 1000,
+  "structure_score": 58.0,
+  "governance_score": 90.0,
+  "confidence_score": 81.2,
+  "status": "YELLOW",
+  "generated_at": "2026-02-15T12:28:14.977541"
+}

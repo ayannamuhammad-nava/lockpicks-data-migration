@@ -1,0 +1,29 @@
+category,item,status,details
+PII,clmt_ssn,VIOLATION,Contains PII keywords
+PII,clmt_dob,VIOLATION,Contains PII keywords
+PII,clmt_phone,VIOLATION,Contains PII keywords
+PII,clmt_email,VIOLATION,Contains PII keywords
+PII,clmt_zip,VIOLATION,Contains PII keywords
+PII,bank_acct_num,VIOLATION,Contains PII keywords
+PII,bank_routing_num,VIOLATION,Contains PII keywords
+Required Field,clmt_id,PASS,Present
+Required Field,clmt_first_nm,PASS,Present
+Required Field,clmt_last_nm,PASS,Present
+Required Field,clmt_ssn,PASS,Present
+Required Field,clmt_email,PASS,Present
+Null Check,clmt_id,PASS,0.0% null
+Null Check,clmt_first_nm,PASS,0.0% null
+Null Check,clmt_last_nm,PASS,0.0% null
+Null Check,clmt_ssn,PASS,0.0% null
+Null Check,clmt_dob,PASS,4.0% null
+Null Check,clmt_phone,PASS,0.0% null
+Null Check,clmt_email,PASS,7.5% null
+Null Check,clmt_addr,PASS,0.0% null
+Null Check,clmt_city,PASS,0.0% null
+Null Check,clmt_state,PASS,0.0% null
+Null Check,clmt_zip,PASS,0.0% null
+Null Check,bank_acct_num,PASS,0.0% null
+Null Check,bank_routing_num,PASS,0.0% null
+Null Check,clmt_status,PASS,0.0% null
+Null Check,registration_dt,PASS,0.0% null
+Null Check,is_deceased,PASS,0.0% null

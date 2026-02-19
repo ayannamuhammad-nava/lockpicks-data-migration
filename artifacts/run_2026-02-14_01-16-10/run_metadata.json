@@ -1,0 +1,9 @@
+{
+  "phase": "during",
+  "dataset": "customers",
+  "num_batches": 0,
+  "drift_events": 0,
+  "confidence_score": 100.0,
+  "status": "GREEN",
+  "generated_at": "2026-02-14T01:16:10.885989"
+}

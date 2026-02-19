@@ -1,0 +1,8 @@
+{
+  "phase": "post",
+  "dataset": "claims",
+  "integrity_score": 45.64,
+  "confidence_score": 78.26,
+  "status": "YELLOW",
+  "generated_at": "2026-02-15T23:04:31.746942"
+}

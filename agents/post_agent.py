@@ -1,0 +1,442 @@
+"""
+Post-Migration Reconciliation Agent
+Proves data integrity and equivalence after migration completes.
+"""
+import json
+import logging
+from typing import Dict, List, Optional
+from tools import db_utils, sampler
+import pandas as pd
+
+logger = logging.getLogger(__name__)
+
+
+def _load_column_mappings(mappings_path: str = './metadata/mappings.json') -> list:
+    """Load mappings.json for column name resolution."""
+    try:
+        with open(mappings_path, 'r') as f:
+            data = json.load(f)
+        return data.get('mappings', [])
+    except FileNotFoundError:
+        logger.warning("mappings.json not found, using direct column matching")
+        return []
+
+
+def _build_column_pairs(legacy_cols, modern_cols, mappings, table) -> list:
+    """Build list of (legacy_col, modern_col) pairs from mappings."""
+    pairs = []
+    mapped_legacy = set()
+
+    for m in mappings:
+        if m.get('table') == table and m.get('target') and m.get('type') != 'removed':
+            if m['source'] in legacy_cols and m['target'] in modern_cols:
+                pairs.append((m['source'], m['target']))
+                mapped_legacy.add(m['source'])
+
+    for col in legacy_cols:
+        if col not in mapped_legacy and col in modern_cols:
+            pairs.append((col, col))
+
+    return pairs
+
+
+def _values_equivalent(val1, val2) -> bool:
+    """Compare values with type tolerance."""
+    if pd.isna(val1) and pd.isna(val2):
+        return True
+    if pd.isna(val1) or pd.isna(val2):
+        return False
+    try:
+        return abs(float(val1) - float(val2)) < 0.001
+    except (ValueError, TypeError):
+        pass
+    return str(val1).strip() == str(val2).strip()
+
+
+def run_post_migration_reconciliation(
+    legacy_conn,
+    modern_conn,
+    dataset: str,
+    config: Dict
+) -> Dict:
+    """
+    Run post-migration reconciliation checks.
+
+    Args:
+        legacy_conn: Legacy database connection
+        modern_conn: Modern database connection
+        dataset: Dataset name
+        config: Configuration dict
+
+    Returns:
+        Dict with reconciliation results and integrity score
+    """
+    logger.info(f"Starting post-migration reconciliation for {dataset}")
+
+    results = {
+        'dataset': dataset
+    }
+
+    # 1. Row count verification
+    logger.info("Verifying row counts...")
+    row_count_check = verify_row_counts(legacy_conn, modern_conn, dataset)
+    results['row_count_check'] = row_count_check
+
+    # 2. Column checksums
+    logger.info("Computing checksums...")
+    checksum_results = compute_checksums(legacy_conn, modern_conn, dataset)
+    results['checksum_results'] = checksum_results
+
+    # 3. Referential integrity checks (config-driven)
+    logger.info("Checking referential integrity...")
+    integrity_results = check_referential_integrity(modern_conn, dataset, config)
+    results['integrity_results'] = integrity_results
+
+    # 4. Random sample comparison
+    logger.info("Comparing random samples...")
+    sample_comparison = compare_random_samples(
+        legacy_conn,
+        modern_conn,
+        dataset,
+        sample_size=100
+    )
+    results['sample_comparison'] = sample_comparison
+
+    # 5. Business aggregate validation (config-driven)
+    logger.info("Validating business aggregates...")
+    aggregate_validation = validate_business_aggregates(legacy_conn, modern_conn, dataset, config)
+    results['aggregate_validation'] = aggregate_validation
+
+    # 6. Calculate integrity score
+    integrity_score = calculate_integrity_score(results)
+    results['integrity_score'] = integrity_score
+
+    logger.info(f"Post-migration reconciliation complete. Integrity score: {integrity_score}/100")
+
+    return results
+
+
+def verify_row_counts(legacy_conn, modern_conn, dataset: str) -> Dict:
+    """Verify row counts match between legacy and modern."""
+    legacy_count = db_utils.get_row_count(legacy_conn, dataset)
+    modern_count = db_utils.get_row_count(modern_conn, dataset)
+
+    match = legacy_count == modern_count
+
+    return {
+        'legacy_count': legacy_count,
+        'modern_count': modern_count,
+        'match': match,
+        'difference': abs(legacy_count - modern_count)
+    }
+
+
+def compute_checksums(legacy_conn, modern_conn, dataset: str) -> Dict:
+    """
+    Compute and compare checksums for common columns between legacy and modern.
+    Uses column mappings from metadata to resolve renames.
+    """
+    results = {}
+    mappings = _load_column_mappings()
+
+    try:
+        legacy_schema = db_utils.get_table_schema(legacy_conn, dataset)
+        modern_schema = db_utils.get_table_schema(modern_conn, dataset)
+
+        legacy_cols = [col['column_name'] for col in legacy_schema]
+        modern_cols = [col['column_name'] for col in modern_schema]
+
+        col_pairs = _build_column_pairs(legacy_cols, modern_cols, mappings, dataset)
+
+        matches = 0
+        mismatches = 0
+        for legacy_col, modern_col in col_pairs:
+            try:
+                legacy_hash = db_utils.get_column_hash(legacy_conn, dataset, legacy_col)
+                modern_hash = db_utils.get_column_hash(modern_conn, dataset, modern_col)
+
+                is_match = legacy_hash == modern_hash
+                if is_match:
+                    matches += 1
+                else:
+                    mismatches += 1
+
+                results[f"{legacy_col}->{modern_col}"] = {
+                    'legacy_checksum': legacy_hash[:12] + '...' if legacy_hash else 'N/A',
+                    'modern_checksum': modern_hash[:12] + '...' if modern_hash else 'N/A',
+                    'match': is_match
+                }
+            except Exception as e:
+                logger.warning(f"Checksum failed for {legacy_col}->{modern_col}: {e}")
+                # Rollback to clear aborted transaction state
+                try:
+                    legacy_conn.rollback()
+                    modern_conn.rollback()
+                except Exception:
+                    pass
+                results[f"{legacy_col}->{modern_col}"] = {
+                    'match': False,
+                    'error': str(e)
+                }
+
+        results['_summary'] = {
+            'total_columns': len(col_pairs),
+            'matches': matches,
+            'mismatches': mismatches,
+            'match_rate': (matches / len(col_pairs) * 100) if col_pairs else 0
+        }
+
+    except Exception as e:
+        logger.error(f"Checksum computation failed: {e}")
+        results['error'] = str(e)
+
+    return results
+
+
+def check_referential_integrity(modern_conn, dataset: str, config: Dict = None) -> Dict:
+    """Check referential integrity in modern system using config-defined FK relationships."""
+    results = {}
+
+    # Get FK checks from config
+    fk_config = (config or {}).get('referential_integrity', {}).get(dataset, [])
+
+    if fk_config:
+        for fk in fk_config:
+            check_name = f"{fk['child_table']}_{fk['parent_table']}_fk"
+            try:
+                fk_result = db_utils.check_referential_integrity(
+                    modern_conn,
+                    child_table=fk['child_table'],
+                    parent_table=fk['parent_table'],
+                    foreign_key_column=fk['fk_column'],
+                    parent_key_column=fk.get('pk_column', fk['fk_column'])
+                )
+                results[check_name] = fk_result
+            except Exception as e:
+                logger.error(f"FK check '{check_name}' failed: {e}")
+                try:
+                    modern_conn.rollback()
+                except Exception:
+                    pass
+                results[check_name] = {'orphan_count': -1, 'error': str(e)}
+    else:
+        logger.info(f"No referential integrity checks configured for {dataset}")
+
+    return results
+
+
+def compare_random_samples(
+    legacy_conn,
+    modern_conn,
+    dataset: str,
+    sample_size: int = 100
+) -> Dict:
+    """
+    Compare random samples from legacy and modern systems field by field.
+    Uses column mappings to resolve key column and field renames between systems.
+    """
+    try:
+        # Load mappings to resolve key column between systems
+        mappings = _load_column_mappings()
+
+        legacy_schema = db_utils.get_table_schema(legacy_conn, dataset)
+        modern_schema = db_utils.get_table_schema(modern_conn, dataset)
+        if not legacy_schema or not modern_schema:
+            return {'error': f'No schema found for {dataset}', 'match_rate': 0}
+
+        legacy_key = legacy_schema[0]['column_name']
+        modern_cols = [col['column_name'] for col in modern_schema]
+
+        # Resolve modern key column via mappings
+        modern_key = legacy_key  # default
+        for m in mappings:
+            if m.get('table') == dataset and m.get('source') == legacy_key and m.get('target'):
+                modern_key = m['target']
+                break
+        if modern_key not in modern_cols and legacy_key in modern_cols:
+            modern_key = legacy_key
+
+        # Sample IDs from legacy, then fetch matching records from each system
+        legacy_sample = sampler.sample_table(legacy_conn, dataset, sample_size)
+        if legacy_sample.empty:
+            return {'sample_size': 0, 'exact_matches': 0, 'discrepancies': 0,
+                    'match_rate': 0, 'note': 'No records in legacy'}
+
+        sampled_ids = legacy_sample[legacy_key].tolist()
+
+        # Fetch matching modern records using the correct key column
+        from psycopg2 import sql as psql
+        from psycopg2.extras import RealDictCursor
+        placeholders = ', '.join(['%s'] * len(sampled_ids))
+        modern_query = psql.SQL(
+            "SELECT * FROM {tbl} WHERE {col} IN (" + placeholders + ")"
+        ).format(tbl=psql.Identifier(dataset), col=psql.Identifier(modern_key))
+
+        with modern_conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(modern_query, sampled_ids)
+            modern_rows = cur.fetchall()
+        modern_df = pd.DataFrame(modern_rows) if modern_rows else pd.DataFrame()
+
+        if modern_df.empty:
+            return {'sample_size': 0, 'exact_matches': 0, 'discrepancies': 0,
+                    'match_rate': 0, 'note': 'No matching records in modern'}
+
+        # Build column pairs for comparison
+        col_pairs = _build_column_pairs(
+            legacy_sample.columns.tolist(), modern_df.columns.tolist(),
+            mappings, dataset
+        )
+
+        # Match records by key and compare fields
+        modern_indexed = {row[modern_key]: row for _, row in modern_df.iterrows()}
+        exact_matches = 0
+        discrepancies = []
+
+        for _, legacy_row in legacy_sample.iterrows():
+            record_id = legacy_row[legacy_key]
+            if record_id not in modern_indexed:
+                continue
+
+            modern_row = modern_indexed[record_id]
+            row_differences = []
+            for legacy_col, modern_col in col_pairs:
+                if legacy_col == legacy_key and modern_col == modern_key:
+                    continue  # Skip key column comparison
+                legacy_val = legacy_row.get(legacy_col)
+                modern_val = modern_row.get(modern_col)
+
+                if not _values_equivalent(legacy_val, modern_val):
+                    row_differences.append({
+                        'legacy_column': legacy_col,
+                        'modern_column': modern_col,
+                        'legacy_value': str(legacy_val)[:50],
+                        'modern_value': str(modern_val)[:50]
+                    })
+
+            if not row_differences:
+                exact_matches += 1
+            else:
+                discrepancies.append({
+                    'id': record_id,
+                    'differences': row_differences[:5]
+                })
+
+        total = len(modern_indexed)
+        return {
+            'sample_size': total,
+            'exact_matches': exact_matches,
+            'discrepancies': len(discrepancies),
+            'match_rate': (exact_matches / total * 100) if total else 0,
+            'sample_discrepancies': discrepancies[:10]
+        }
+
+    except Exception as e:
+        logger.error(f"Sample comparison failed: {e}")
+        modern_conn.rollback()
+        return {
+            'sample_size': 0, 'exact_matches': 0,
+            'discrepancies': 0, 'match_rate': 0,
+            'error': str(e)
+        }
+
+
+def validate_business_aggregates(legacy_conn, modern_conn, dataset: str, config: Dict = None) -> Dict:
+    """
+    Validate business aggregates match between systems.
+    Uses config-defined aggregate queries for each dataset.
+    """
+    results = {}
+
+    agg_config = (config or {}).get('aggregates', {}).get(dataset, [])
+
+    if not agg_config:
+        logger.info(f"No aggregate checks configured for {dataset}")
+        return results
+
+    for agg in agg_config:
+        name = agg['name']
+        legacy_query = agg.get('legacy_query', '')
+        modern_query = agg.get('modern_query', '')
+        comparison = agg.get('comparison', 'exact')
+        tolerance = agg.get('tolerance', 0.01)
+
+        try:
+            legacy_result = db_utils.execute_query(legacy_conn, legacy_query)
+            modern_result = db_utils.execute_query(modern_conn, modern_query)
+
+            if comparison == 'exact':
+                match = legacy_result.equals(modern_result)
+            else:
+                match = _compare_with_tolerance(legacy_result, modern_result, tolerance)
+
+            results[name] = {
+                'legacy': legacy_result.to_dict('records'),
+                'modern': modern_result.to_dict('records'),
+                'match': match
+            }
+        except Exception as e:
+            logger.error(f"Aggregate check '{name}' failed: {e}")
+            try:
+                legacy_conn.rollback()
+                modern_conn.rollback()
+            except Exception:
+                pass
+            results[name] = {'error': str(e), 'match': False}
+
+    return results
+
+
+def _compare_with_tolerance(df1: pd.DataFrame, df2: pd.DataFrame, tolerance: float) -> bool:
+    """Compare two DataFrames with numeric tolerance."""
+    if df1.shape != df2.shape:
+        return False
+
+    for col in df1.columns:
+        if pd.api.types.is_numeric_dtype(df1[col]):
+            if not all(abs(df1[col].fillna(0) - df2[col].fillna(0)) <= tolerance):
+                return False
+        else:
+            if not df1[col].equals(df2[col]):
+                return False
+    return True
+
+
+def calculate_integrity_score(results: Dict) -> float:
+    """Calculate integrity score (0-100) based on reconciliation results."""
+    penalties = 0.0
+
+    # Row count penalty
+    row_count_check = results.get('row_count_check', {})
+    if not row_count_check.get('match', False):
+        difference = row_count_check.get('difference', 0)
+        total = row_count_check.get('legacy_count', 1)
+        diff_pct = (difference / total * 100) if total > 0 else 100
+        penalties += min(diff_pct, 30)
+
+    # Referential integrity penalty
+    integrity_results = results.get('integrity_results', {})
+    for check_name, check_result in integrity_results.items():
+        orphan_count = check_result.get('orphan_count', 0)
+        if orphan_count > 0:
+            penalties += min(orphan_count, 20)
+
+    # Sample comparison penalty
+    sample_comparison = results.get('sample_comparison', {})
+    match_rate = sample_comparison.get('match_rate', 100)
+    penalties += (100 - match_rate) * 0.3
+
+    # Checksum mismatch penalty
+    checksum_results = results.get('checksum_results', {})
+    summary = checksum_results.get('_summary', {})
+    checksum_mismatches = summary.get('mismatches', 0)
+    if checksum_mismatches > 0:
+        penalties += min(checksum_mismatches * 3, 15)
+
+    # Business aggregate penalty
+    aggregate_validation = results.get('aggregate_validation', {})
+    for agg_name, agg_result in aggregate_validation.items():
+        if isinstance(agg_result, dict) and not agg_result.get('match', True):
+            penalties += 10
+
+    score = max(0, 100 - penalties)
+    return round(score, 2)

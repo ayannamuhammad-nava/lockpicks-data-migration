@@ -1,0 +1,9 @@
+{
+  "phase": "during",
+  "dataset": "claimants",
+  "num_batches": 0,
+  "drift_events": 0,
+  "confidence_score": 100.0,
+  "status": "GREEN",
+  "generated_at": "2026-02-15T23:02:25.251972"
+}
