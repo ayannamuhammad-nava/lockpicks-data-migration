@@ -59,6 +59,8 @@ Verifiable data integrity:
 🔗 Orphan Records: 3 detected ❌
 📊 Integrity Score: 72/100 - YELLOW
 ```
+Also see Value proposition doc: 
+https://github.com/navapbc/lockpicks-data-migration-validation/blob/main/VALUE_PROPOSITION_DECK.md
 
 ## Quick Start
 
