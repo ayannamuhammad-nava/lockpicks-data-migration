@@ -110,7 +110,9 @@ CREATE TABLE claimants (
     zip_code            VARCHAR(10),
     claimant_status     VARCHAR(20) DEFAULT 'active',
     registered_at       TIMESTAMP DEFAULT NOW(),
-    is_deceased         BOOLEAN DEFAULT FALSE
+    is_deceased         BOOLEAN DEFAULT FALSE,
+    cl_bact             VARCHAR(20),        -- DEMO: archived field leaked (PCI-DSS violation)
+    legacy_system_ref   VARCHAR(50)         -- DEMO: ungoverned column, no ETL mapping
 );
 
 CREATE TABLE employers (

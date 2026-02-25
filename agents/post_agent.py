@@ -4,6 +4,8 @@ Proves data integrity and equivalence after migration completes.
 """
 import json
 import logging
+import re
+from datetime import datetime, date as date_type
 from typing import Dict, List, Optional
 from tools import db_utils, sampler
 import pandas as pd
@@ -22,35 +24,221 @@ def _load_column_mappings(mappings_path: str = './metadata/mappings.json') -> li
         return []
 
 
+def check_unmapped_columns(
+    modern_conn,
+    dataset: str,
+    mappings_path: str = './metadata/mappings.json'
+) -> Dict:
+    """
+    Find columns present in the modern schema that have no source mapping in
+    mappings.json — ungoverned columns that were added outside the ETL spec.
+
+    Args:
+        modern_conn: Modern database connection
+        dataset: Table name to check
+        mappings_path: Path to mappings.json
+
+    Returns:
+        Dict with ungoverned_columns list, count, and status
+    """
+    mappings = _load_column_mappings(mappings_path)
+
+    # All target column names for this table (what the ETL spec says should be in modern)
+    mapped_targets = {
+        m['target'].lower()
+        for m in mappings
+        if m.get('table', '').lower() == dataset.lower() and m.get('target')
+    }
+
+    try:
+        modern_schema = db_utils.get_table_schema(modern_conn, dataset)
+        modern_cols = {col['column_name'].lower() for col in modern_schema}
+    except Exception as e:
+        logger.error(f"Could not introspect modern schema for unmapped column check: {e}")
+        return {'ungoverned_columns': [], 'count': 0, 'status': 'ERROR', 'error': str(e)}
+
+    # Exclude columns that are "archived" in mappings — those are already caught by the
+    # compliance gate check and reported there with the full PCI/HIPAA rationale.
+    # The ungoverned check is specifically for columns with NO mapping at all.
+    archived_source_cols = {
+        m['source'].lower()
+        for m in mappings
+        if m.get('table', '').lower() == dataset.lower() and m.get('type') == 'archived'
+    }
+    ungoverned = sorted((modern_cols - mapped_targets) - archived_source_cols)
+
+    if ungoverned:
+        for col in ungoverned:
+            logger.warning(
+                f"Ungoverned column '{col}' found in modern {dataset} — "
+                f"no ETL mapping exists for this column"
+            )
+
+    return {
+        'ungoverned_columns': ungoverned,
+        'count': len(ungoverned),
+        'status': 'WARN' if ungoverned else 'PASS',
+    }
+
+
+def check_archived_field_leakage(
+    modern_conn,
+    dataset: str,
+    mappings_path: str = './metadata/mappings.json'
+) -> Dict:
+    """
+    Check whether any fields marked 'archived' in mappings.json have leaked
+    into the modern schema. An archived field in modern is a compliance violation
+    (e.g. PCI-DSS bank account numbers, HIPAA identifiers that must not be migrated).
+
+    Args:
+        modern_conn: Modern database connection
+        dataset: Table name to check
+        mappings_path: Path to mappings.json
+
+    Returns:
+        Dict with violations list, violation_count, and status
+    """
+    violations = []
+
+    # Load archived columns for this table from mappings.json
+    mappings = _load_column_mappings(mappings_path)
+    archived_cols = {
+        m['source'].lower(): m
+        for m in mappings
+        if m.get('table', '').lower() == dataset.lower()
+        and m.get('type') == 'archived'
+    }
+
+    if not archived_cols:
+        return {'violations': [], 'violation_count': 0, 'status': 'PASS'}
+
+    # Get actual modern schema columns
+    try:
+        modern_schema = db_utils.get_table_schema(modern_conn, dataset)
+        modern_cols = {col['column_name'].lower() for col in modern_schema}
+    except Exception as e:
+        logger.error(f"Could not introspect modern schema for archived leakage check: {e}")
+        return {'violations': [], 'violation_count': 0, 'status': 'ERROR', 'error': str(e)}
+
+    # Flag any archived column that appears in modern
+    for col_lower, mapping in archived_cols.items():
+        if col_lower in modern_cols:
+            violations.append({
+                'column': mapping['source'],
+                'table': dataset,
+                'rationale': mapping.get('rationale', ''),
+                'severity': 'CRITICAL',
+            })
+            logger.warning(
+                f"COMPLIANCE VIOLATION: Archived column '{mapping['source']}' "
+                f"found in modern {dataset} schema — {mapping.get('rationale', '')}"
+            )
+
+    status = 'FAIL' if violations else 'PASS'
+    return {
+        'violations': violations,
+        'violation_count': len(violations),
+        'status': status,
+    }
+
+
 def _build_column_pairs(legacy_cols, modern_cols, mappings, table) -> list:
-    """Build list of (legacy_col, modern_col) pairs from mappings."""
+    """
+    Build (legacy_col, modern_col) pairs for field-level comparison.
+
+    Only includes columns with type 'rename' — columns where the value is
+    expected to be directly comparable after simple type coercion.
+    Transform and archived columns are excluded: transforms produce intentionally
+    different values (e.g. cl_ssn → ssn_hash), and archived columns are not
+    expected to exist in modern at all.
+    """
+    SKIP_TYPES = {'removed', 'transform', 'archived'}
     pairs = []
     mapped_legacy = set()
 
+    # Track ALL sources for this table so the fallback never re-adds
+    # a column that has any explicit mapping (even archived/removed ones)
+    all_mapped_sources = {
+        m['source'] for m in mappings if m.get('table') == table
+    }
+
     for m in mappings:
-        if m.get('table') == table and m.get('target') and m.get('type') != 'removed':
+        if (m.get('table') == table
+                and m.get('target')
+                and m.get('type') not in SKIP_TYPES):
             if m['source'] in legacy_cols and m['target'] in modern_cols:
                 pairs.append((m['source'], m['target']))
                 mapped_legacy.add(m['source'])
 
     for col in legacy_cols:
-        if col not in mapped_legacy and col in modern_cols:
+        if col not in all_mapped_sources and col in modern_cols:
             pairs.append((col, col))
 
     return pairs
 
 
+_DATE_FORMATS = [
+    '%Y-%m-%d', '%m/%d/%Y', '%m/%d/%y', '%B %d, %Y',
+    '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S',
+]
+
+_BOOL_MAP = {'y': True, 'n': False, 'true': True, 'false': False, '1': True, '0': False}
+
+
+def _parse_date_safe(val):
+    """Return a date object from val, or None if unparseable."""
+    if isinstance(val, (datetime, date_type)):
+        return val.date() if isinstance(val, datetime) else val
+    s = str(val).strip()
+    for fmt in _DATE_FORMATS:
+        try:
+            return datetime.strptime(s, fmt).date()
+        except (ValueError, AttributeError):
+            continue
+    return None
+
+
 def _values_equivalent(val1, val2) -> bool:
-    """Compare values with type tolerance."""
+    """
+    Compare values with format-aware tolerance.
+
+    Handles: NaN, Y/N booleans, phone digits, dates in various string formats,
+    numeric comparison, and case-insensitive string comparison.
+    """
     if pd.isna(val1) and pd.isna(val2):
         return True
     if pd.isna(val1) or pd.isna(val2):
         return False
+
+    # Boolean Y/N normalization (legacy stores 'Y'/'N', modern stores True/False)
+    s1 = str(val1).strip().lower()
+    s2 = str(val2).strip().lower()
+    b1 = val1 if isinstance(val1, bool) else _BOOL_MAP.get(s1)
+    b2 = val2 if isinstance(val2, bool) else _BOOL_MAP.get(s2)
+    if b1 is not None and b2 is not None:
+        return b1 == b2
+
+    # Date normalization — handles legacy text/US/ISO formats vs modern date types
+    d1 = _parse_date_safe(val1)
+    d2 = _parse_date_safe(val2)
+    if d1 is not None and d2 is not None:
+        return d1 == d2
+
+    # Phone/digit normalization — strips formatting, compares digit sequences
+    digits1 = re.sub(r'\D', '', str(val1))
+    digits2 = re.sub(r'\D', '', str(val2))
+    if digits1 and digits2 and len(digits1) >= 7 and digits1 == digits2:
+        return True
+
+    # Numeric comparison
     try:
         return abs(float(val1) - float(val2)) < 0.001
     except (ValueError, TypeError):
         pass
-    return str(val1).strip() == str(val2).strip()
+
+    # String comparison: strip whitespace, case-insensitive
+    return s1 == s2
 
 
 def run_post_migration_reconciliation(
@@ -107,7 +295,27 @@ def run_post_migration_reconciliation(
     aggregate_validation = validate_business_aggregates(legacy_conn, modern_conn, dataset, config)
     results['aggregate_validation'] = aggregate_validation
 
-    # 6. Calculate integrity score
+    # 6. Archived field leakage check — compliance gate
+    logger.info("Checking for archived field leakage in modern schema...")
+    archived_leakage = check_archived_field_leakage(modern_conn, dataset)
+    results['archived_leakage'] = archived_leakage
+    if archived_leakage['violation_count'] > 0:
+        logger.error(
+            f"COMPLIANCE GATE FAILED: {archived_leakage['violation_count']} archived "
+            f"field(s) detected in modern {dataset} schema"
+        )
+
+    # 7. Unmapped column check — governance warning
+    logger.info("Checking for ungoverned columns in modern schema...")
+    unmapped_columns = check_unmapped_columns(modern_conn, dataset)
+    results['unmapped_columns'] = unmapped_columns
+    if unmapped_columns['count'] > 0:
+        logger.warning(
+            f"GOVERNANCE WARNING: {unmapped_columns['count']} ungoverned column(s) "
+            f"in modern {dataset} with no ETL mapping: {unmapped_columns['ungoverned_columns']}"
+        )
+
+    # 8. Calculate integrity score
     integrity_score = calculate_integrity_score(results)
     results['integrity_score'] = integrity_score
 
@@ -425,18 +633,28 @@ def calculate_integrity_score(results: Dict) -> float:
     match_rate = sample_comparison.get('match_rate', 100)
     penalties += (100 - match_rate) * 0.3
 
-    # Checksum mismatch penalty
-    checksum_results = results.get('checksum_results', {})
-    summary = checksum_results.get('_summary', {})
-    checksum_mismatches = summary.get('mismatches', 0)
-    if checksum_mismatches > 0:
-        penalties += min(checksum_mismatches * 3, 15)
+    # Checksums are not penalised here — legacy uses fixed-width CHAR types
+    # (e.g. CHAR(30)) whose hash will always differ from modern VARCHAR values even
+    # when the underlying data is identical after trimming. Checksum results are
+    # preserved in the report for investigative use but do not affect the score.
 
     # Business aggregate penalty
     aggregate_validation = results.get('aggregate_validation', {})
     for agg_name, agg_result in aggregate_validation.items():
         if isinstance(agg_result, dict) and not agg_result.get('match', True):
             penalties += 10
+
+    # Archived field leakage — compliance violation, 20 pts per leaked field, cap 40
+    archived_leakage = results.get('archived_leakage', {})
+    violation_count = archived_leakage.get('violation_count', 0)
+    if violation_count > 0:
+        penalties += min(violation_count * 20, 40)
+
+    # Ungoverned columns — governance warning, 5 pts per column, cap 15
+    unmapped_columns = results.get('unmapped_columns', {})
+    ungoverned_count = unmapped_columns.get('count', 0)
+    if ungoverned_count > 0:
+        penalties += min(ungoverned_count * 5, 15)
 
     score = max(0, 100 - penalties)
     return round(score, 2)

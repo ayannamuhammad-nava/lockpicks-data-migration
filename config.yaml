@@ -70,10 +70,8 @@ aggregates:
       legacy_query: "SELECT cl_stat as status, COUNT(*) as count FROM claimants GROUP BY cl_stat ORDER BY status"
       modern_query: "SELECT claimant_status as status, COUNT(*) as count FROM claimants GROUP BY claimant_status ORDER BY status"
       comparison: exact
-    - name: total_count
-      legacy_query: "SELECT COUNT(*) as total FROM claimants"
-      modern_query: "SELECT COUNT(*) as total FROM claimants"
-      comparison: exact
+    # total_count removed — row count is already tracked by verify_row_counts()
+    # and penalised in calculate_integrity_score. Including it here would double-count.
   claims:
     - name: total_benefits
       legacy_query: "SELECT COALESCE(SUM(total_paid), 0) as total_sum FROM claims"

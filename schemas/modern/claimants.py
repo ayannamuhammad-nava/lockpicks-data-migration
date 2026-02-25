@@ -21,4 +21,7 @@ ClaimantsSchema = DataFrameSchema({
     "claimant_status": Column(str, nullable=True, coerce=True),
     "registered_at": Column('datetime64[ns]', nullable=True, coerce=True),
     "is_deceased": Column(bool, nullable=True, coerce=True),
+    # Demo columns — cl_bact is an ARCHIVED field that leaked; legacy_system_ref is ungoverned
+    "cl_bact": Column(str, nullable=True, coerce=True),
+    "legacy_system_ref": Column(str, nullable=True, coerce=True),
 }, strict=False, coerce=True)

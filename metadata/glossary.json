@@ -249,6 +249,22 @@
       "table": "claimants"
     },
     {
+      "name": "cl_bact",
+      "description": "Bank account number - sensitive financial information",
+      "system": "modern",
+      "pii": true,
+      "confidence": 0.95,
+      "table": "claimants"
+    },
+    {
+      "name": "legacy_system_ref",
+      "description": "Text field for legacy system ref",
+      "system": "modern",
+      "pii": false,
+      "confidence": 0.5,
+      "table": "claimants"
+    },
+    {
       "name": "er_recid",
       "description": "Numeric value for er recid",
       "system": "legacy",

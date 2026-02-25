@@ -94,7 +94,8 @@ def generate_readiness_report(
     schema_diff: Dict,
     governance_results: Dict,
     rag_explanations: Dict,
-    score: float
+    score: float,
+    data_anomalies: list = None
 ) -> str:
     """
     Generate pre-migration readiness report in Markdown with prominent RAG explanations.
@@ -152,6 +153,19 @@ def generate_readiness_report(
         for col in invalid_naming:
             report += f"- {col}\n"
         report += "\n"
+
+    # Data quality anomalies (cross-field integrity checks)
+    anomalies = data_anomalies or []
+    if anomalies:
+        report += "## ⚠️ Data Quality Anomalies\n\n"
+        for anomaly in anomalies:
+            sev_emoji = "🔴" if anomaly.get('severity') == 'HIGH' else "🟡"
+            report += f"### {sev_emoji} {anomaly['description']} — {anomaly['count']} record(s) in sample\n\n"
+            report += f"**Condition:** `{anomaly['detail']}`\n\n"
+            if anomaly.get('record_ids'):
+                report += f"**Affected record IDs (sample):** {anomaly['record_ids']}\n\n"
+            report += f"> ⚠️ **Risk:** {anomaly['risk']}\n\n"
+            report += f"**Action required:** {anomaly['action']}\n\n"
 
     # Recommendations
     report += "## Recommendations\n\n"
@@ -277,7 +291,9 @@ def generate_reconciliation_report(
     checksum_results: Dict,
     integrity_results: Dict,
     sample_comparison: Dict,
-    score: float
+    score: float,
+    archived_leakage: Dict = None,
+    unmapped_columns: Dict = None
 ) -> str:
     """
     Generate post-migration reconciliation report with before/after comparison table.
@@ -288,6 +304,8 @@ def generate_reconciliation_report(
         integrity_results: Referential integrity check results
         sample_comparison: Random sample comparison results
         score: Integrity score (0-100)
+        archived_leakage: Results of archived field leakage check (optional)
+        unmapped_columns: Results of ungoverned column check (optional)
 
     Returns:
         Markdown formatted report
@@ -295,6 +313,39 @@ def generate_reconciliation_report(
     report = "# Post-Migration Reconciliation Report\n\n"
     report += f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
     report += f"**Integrity Score:** {score}/100\n\n"
+
+    # Compliance gate banner — shown prominently if archived fields leaked into modern
+    leakage = archived_leakage or {}
+    violations = leakage.get('violations', [])
+    if violations:
+        report += "---\n\n"
+        report += "## 🚨 COMPLIANCE GATE FAILED — Archived Fields Detected in Modern Schema\n\n"
+        report += (
+            "> **CRITICAL:** The following fields are marked ARCHIVED in the migration knowledge base "
+            "but were found in the modern schema. These fields must NOT be present in the migrated system. "
+            "Halt go-live until resolved.\n\n"
+        )
+        for v in violations:
+            report += f"### ❌ `{v['column']}` — {v['table']}\n\n"
+            report += f"> {v['rationale']}\n\n"
+            report += f"**Action required:** Remove `{v['column']}` from modern schema and purge any migrated data.\n\n"
+    elif leakage.get('status') == 'PASS':
+        report += "✅ **Compliance Gate:** No archived fields detected in modern schema.\n\n"
+
+    # Ungoverned column warning
+    unmap = unmapped_columns or {}
+    ungoverned = unmap.get('ungoverned_columns', [])
+    if ungoverned:
+        report += "---\n\n"
+        report += "## ⚠️ GOVERNANCE WARNING — Ungoverned Columns in Modern Schema\n\n"
+        report += (
+            "> The following columns exist in the modern schema but have **no source mapping** "
+            "in the ETL specification. They were added outside of the governed migration process "
+            "and have not been validated. Review and document or remove before go-live.\n\n"
+        )
+        for col in ungoverned:
+            report += f"- `{col}` — no ETL mapping, origin unknown\n"
+        report += "\n"
 
     report += "---\n\n"
 

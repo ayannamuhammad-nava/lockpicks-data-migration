@@ -232,7 +232,8 @@ def run_pre_phase(
         pre_results.get('schema_diff', {}),
         pre_results.get('governance', {}),
         pre_results.get('rag_explanations', {}),
-        pre_results.get('structure_score', 0)
+        pre_results.get('structure_score', 0),
+        data_anomalies=pre_results.get('data_anomalies', [])
     )
     reporter.save_markdown_report(
         readiness_report,
@@ -324,22 +325,23 @@ def run_post_phase(
         post_results.get('checksum_results', {}),
         post_results.get('integrity_results', {}),
         post_results.get('sample_comparison', {}),
-        post_results.get('integrity_score', 0)
+        post_results.get('integrity_score', 0),
+        archived_leakage=post_results.get('archived_leakage', {}),
+        unmapped_columns=post_results.get('unmapped_columns', {})
     )
     reporter.save_markdown_report(
         reconciliation_report,
         os.path.join(artifact_folder, 'reconciliation_report.md')
     )
 
-    # Calculate final confidence score (integrity-weighted for post phase)
+    # POST confidence IS the integrity score — structure and governance checks are
+    # not applicable post-migration, so we don't dilute the score with dummy 100s.
     integrity_score = post_results.get('integrity_score', 0)
 
-    confidence_score = calculate_confidence(
-        structure_score=100,  # Not applicable in post-phase
-        integrity_score=integrity_score,
-        governance_score=100,  # Not applicable in post-phase
-        config=config
-    )
+    confidence_score = {
+        'score': round(integrity_score, 2),
+        'status': get_traffic_light(integrity_score, config)
+    }
 
     # Save confidence score
     reporter.save_confidence_score(

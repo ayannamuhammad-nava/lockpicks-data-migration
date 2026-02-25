@@ -12,6 +12,15 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def _execute_to_df(conn: psycopg2.extensions.connection, query_str: str) -> pd.DataFrame:
+    """Execute a SQL string via psycopg2 cursor and return a DataFrame."""
+    with conn.cursor() as cur:
+        cur.execute(query_str)
+        rows = cur.fetchall()
+        cols = [desc[0] for desc in cur.description] if cur.description else []
+    return pd.DataFrame(rows, columns=cols)
+
+
 def sample_table(
     conn: psycopg2.extensions.connection,
     table_name: str,
@@ -57,7 +66,7 @@ def sample_table(
         )
 
     logger.info(f"Sampling {sample_size} rows from {table_name}")
-    df = pd.read_sql_query(query.as_string(conn), conn)
+    df = _execute_to_df(conn, query.as_string(conn))
     logger.info(f"Sampled {len(df)} rows")
 
     return df
@@ -83,7 +92,7 @@ def sample_with_conditions(
     )
 
     logger.info(f"Sampling {sample_size} rows from {table_name} with conditions")
-    df = pd.read_sql_query(query.as_string(conn), conn)
+    df = _execute_to_df(conn, query.as_string(conn))
 
     return df
 
@@ -106,7 +115,7 @@ def get_column_sample(
     )
 
     logger.info(f"Sampling {len(columns)} columns from {table_name}")
-    df = pd.read_sql_query(query.as_string(conn), conn)
+    df = _execute_to_df(conn, query.as_string(conn))
 
     return df
 
@@ -133,7 +142,7 @@ def sample_for_comparison(
         size=sql.Literal(sample_size)
     )
 
-    legacy_df = pd.read_sql_query(id_query.as_string(legacy_conn), legacy_conn)
+    legacy_df = _execute_to_df(legacy_conn, id_query.as_string(legacy_conn))
 
     if legacy_df.empty:
         return legacy_df, pd.DataFrame()

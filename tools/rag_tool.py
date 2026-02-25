@@ -231,21 +231,48 @@ class RAGTool:
         """
         Enrich schema diff with RAG explanations.
 
+        For each missing column, the knowledge-base mappings.json is consulted first.
+        If a confirmed mapping exists, its rationale is used directly (highest accuracy).
+        Only columns with no confirmed mapping fall back to cosine-similarity suggestions.
+
         Args:
             schema_diff: Schema comparison result dict
 
         Returns:
             Dict mapping column_name -> explanation
         """
+        # Ensure metadata (glossary + mappings) is loaded before we use it
+        if not self.mappings and not self.glossary:
+            self.load_metadata()
+            self.build_embeddings()
+
+        # Build a fast lookup: source_col -> mapping entry
+        mapping_lookup = {
+            m.get("source", "").lower(): m
+            for m in self.mappings
+        }
+
         explanations = {}
 
         # Explain missing columns
         for col in schema_diff.get('missing_in_modern', []):
-            potential = self.find_potential_mapping(col, top_k=1)
-            if potential:
-                explanations[col] = f"Possibly mapped to '{potential[0]['column']}': {potential[0]['description']}"
+            confirmed = mapping_lookup.get(col.lower())
+            if confirmed:
+                # Use the confirmed mapping rationale directly
+                target = confirmed.get("target")
+                m_type = confirmed.get("type", "removed")
+                rationale = confirmed.get("rationale", "")
+                if target:
+                    explanations[col] = f"Maps to '{target}' ({m_type}): {rationale}"
+                else:
+                    explanations[col] = f"{m_type.upper()}: {rationale}"
             else:
-                explanations[col] = self.explain_column(col)
+                # No confirmed mapping — fall back to cosine-similarity suggestion
+                potential = self.find_potential_mapping(col, top_k=1)
+                if potential:
+                    explanations[col] = f"Possibly mapped to '{potential[0]['column']}': {potential[0]['description']}"
+                else:
+                    explanations[col] = self.explain_column(col)
 
         # Explain type mismatches
         for mismatch in schema_diff.get('type_mismatches', []):

@@ -30,20 +30,25 @@ INSERT INTO employers (employer_id, employer_name, employer_ein, industry, addre
 -- NOTE: Duplicate SSN claimant (clmt_id 5) NOT migrated -> row count mismatch
 -- NOTE: Deceased claimant status corrected to 'inactive'
 
-INSERT INTO claimants (claimant_id, first_name, last_name, ssn_hash, date_of_birth, phone_number, email, address_line1, city, state, zip_code, claimant_status, registered_at, is_deceased) VALUES
-(1, 'James', 'Smith', 'a1b2c3d4e5f6a7b8', '1980-01-15', 2175551001, 'james.smith42@email.com', '123 Main St', 'Springfield', 'IL', '62701', 'active', '2022-03-15', FALSE),
-(2, 'Mary', 'Johnson', 'c3d4e5f6a7b8c9d0', '1975-03-20', 6145551002, 'mary.johnson7@email.com', '456 Oak Ave', 'Columbus', 'OH', '43215', 'active', '2022-06-20', FALSE),
-(3, 'Robert', 'Williams', 'd4e5f6a7b8c9d0e1', '1988-01-10', 9045551003, NULL, '789 Pine St', 'Jacksonville', 'FL', '32099', 'active', '2023-01-10', FALSE),
--- NULL email persists (not fixed during migration) ^^
-(4, 'Patricia', 'Brown', 'e5f6a7b8c9d0e1f2', '1992-07-04', 3175551004, 'patricia.brown15@email.com', '321 Elm St', 'Indianapolis', 'IN', '46201', 'active', '2023-04-05', FALSE),
+-- cl_bact and legacy_system_ref added as demo findings:
+--   cl_bact: ARCHIVED field that leaked into modern (PCI-DSS violation — compliance gate catches this)
+--   legacy_system_ref: ungoverned column added by ops team with no ETL mapping
+-- claimant_status for records 3,4: left un-normalized (ETL transformation bug demo)
+INSERT INTO claimants (claimant_id, first_name, last_name, ssn_hash, date_of_birth, phone_number, email, address_line1, city, state, zip_code, claimant_status, registered_at, is_deceased, cl_bact, legacy_system_ref) VALUES
+(1, 'James', 'Smith', 'a1b2c3d4e5f6a7b8', '1980-01-15', 2175551001, 'james.smith42@email.com', '123 Main St', 'Springfield', 'IL', '62701', 'active', '2022-03-15', FALSE, NULL, 'LEGACY-0001'),
+(2, 'Mary', 'Johnson', 'c3d4e5f6a7b8c9d0', '1975-03-20', 6145551002, 'mary.johnson7@email.com', '456 Oak Ave', 'Columbus', 'OH', '43215', 'active', '2022-06-20', FALSE, NULL, 'LEGACY-0002'),
+(3, 'Robert', 'Williams', 'd4e5f6a7b8c9d0e1', '1988-01-10', 9045551003, NULL, '789 Pine St', 'Jacksonville', 'FL', '32099', 'Active', '2023-01-10', FALSE, '1111222233', 'LEGACY-0003'),
+-- cl_bact leaked ^^ and status NOT normalized (ETL bug) ^^
+(4, 'Patricia', 'Brown', 'e5f6a7b8c9d0e1f2', '1992-07-04', 3175551004, 'patricia.brown15@email.com', '321 Elm St', 'Indianapolis', 'IN', '46201', 'ACT', '2023-04-05', FALSE, '4444555566', 'LEGACY-0004'),
+-- cl_bact leaked ^^ and status NOT normalized (ETL bug) ^^
 -- NOTE: clmt_id 5 (John Davis) SKIPPED - duplicate SSN with clmt_id 1
-(6, 'Jennifer', 'Garcia', 'f6a7b8c9d0e1f2a3', '1985-11-22', 2175551006, 'jennifer.garcia3@email.com', '100 Maple Dr', 'Springfield', 'IL', '62701', 'active', '2021-09-12', FALSE),
-(7, 'Michael', 'Miller', 'a7b8c9d0e1f2a3b4', '1970-08-15', 6145551007, 'michael.miller56@email.com', '200 Lake Rd', 'Columbus', 'OH', '43215', 'inactive', '2020-12-01', FALSE),
-(8, 'Linda', 'Martinez', 'b8c9d0e1f2a3b4c5', '1995-03-30', 9045551008, NULL, '300 Hill St', 'Jacksonville', 'FL', '32099', 'active', '2023-07-18', FALSE),
+(6, 'Jennifer', 'Garcia', 'f6a7b8c9d0e1f2a3', '1985-11-22', 2175551006, 'jennifer.garcia3@email.com', '100 Maple Dr', 'Springfield', 'IL', '62701', 'active', '2021-09-12', FALSE, NULL, 'LEGACY-0006'),
+(7, 'Michael', 'Miller', 'a7b8c9d0e1f2a3b4', '1970-08-15', 6145551007, 'michael.miller56@email.com', '200 Lake Rd', 'Columbus', 'OH', '43215', 'inactive', '2020-12-01', FALSE, NULL, 'LEGACY-0007'),
+(8, 'Linda', 'Martinez', 'b8c9d0e1f2a3b4c5', '1995-03-30', 9045551008, NULL, '300 Hill St', 'Jacksonville', 'FL', '32099', 'active', '2023-07-18', FALSE, NULL, 'LEGACY-0008'),
 -- NULL email persists ^^
-(9, 'David', 'Wilson', 'c9d0e1f2a3b4c5d6', '1978-12-25', 3175551009, 'david.wilson22@email.com', '400 River Rd', 'Indianapolis', 'IN', '46201', 'active', '2022-11-05', FALSE),
+(9, 'David', 'Wilson', 'c9d0e1f2a3b4c5d6', '1978-12-25', 3175551009, 'david.wilson22@email.com', '400 River Rd', 'Indianapolis', 'IN', '46201', 'active', '2022-11-05', FALSE, NULL, 'LEGACY-0009'),
 -- Name whitespace trimmed ^^
-(10, 'Elizabeth', 'Anderson', 'd0e1f2a3b4c5d6e7', '1965-06-14', 7045551010, 'elizabeth.a44@email.com', '500 Spring St', 'Charlotte', 'NC', '28201', 'inactive', '2021-04-22', TRUE);
+(10, 'Elizabeth', 'Anderson', 'd0e1f2a3b4c5d6e7', '1965-06-14', 7045551010, 'elizabeth.a44@email.com', '500 Spring St', 'Charlotte', 'NC', '28201', 'inactive', '2021-04-22', TRUE, NULL, 'LEGACY-0010');
 -- Status corrected to 'inactive' for deceased ^^
 
 -- ── Claims (migrated with transformations) ──

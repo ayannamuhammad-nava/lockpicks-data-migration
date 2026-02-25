@@ -2,7 +2,9 @@
 Pre-Migration Validation Agent
 Detects structural and governance risks before migration begins.
 """
+import json
 import logging
+from pathlib import Path
 from typing import Dict
 from tools import db_utils, sampler, schema_loader, governance, rag_tool
 import pandera as pa
@@ -94,6 +96,13 @@ def run_pre_migration_validation(
     gov_results = governance.run_governance_checks(sample_df, gov_config_for_dataset)
     results['governance'] = gov_results
 
+    # 5b. Cross-field data quality anomalies
+    logger.info("Checking cross-field data quality anomalies...")
+    data_anomalies = check_data_quality_anomalies(sample_df, dataset)
+    results['data_anomalies'] = data_anomalies
+    if data_anomalies:
+        logger.warning(f"Found {len(data_anomalies)} data quality anomaly type(s) in legacy sample")
+
     # 6. RAG explanations for schema differences
     logger.info("Generating RAG explanations...")
     rag_instance = rag_tool.RAGTool()
@@ -101,7 +110,7 @@ def run_pre_migration_validation(
     results['rag_explanations'] = rag_explanations
 
     # 7. Calculate structure score
-    structure_score = calculate_structure_score(schema_diff, gov_results, results)
+    structure_score = calculate_structure_score(schema_diff, gov_results, results, dataset=dataset)
     results['structure_score'] = structure_score
 
     logger.info(f"Pre-migration validation complete. Structure score: {structure_score}/100")
@@ -109,35 +118,114 @@ def run_pre_migration_validation(
     return results
 
 
-def calculate_structure_score(schema_diff: Dict, gov_results: Dict, validation_results: Dict) -> float:
+def check_data_quality_anomalies(sample_df, dataset: str) -> list:
+    """
+    Run dataset-specific cross-field integrity checks on the legacy sample.
+
+    Returns a list of anomaly dicts, each with:
+      rule, severity, description, detail, count, record_ids, risk, action
+    """
+    anomalies = []
+
+    if dataset == 'claimants':
+        # Deceased claimant still carrying an active status
+        if 'cl_dcsd' in sample_df.columns and 'cl_stat' in sample_df.columns:
+            deceased_mask = sample_df['cl_dcsd'].astype(str).str.strip() == 'Y'
+            active_mask = sample_df['cl_stat'].astype(str).str.strip().str.upper().isin(['ACTIVE', 'ACT'])
+            bad_rows = sample_df[deceased_mask & active_mask]
+            if not bad_rows.empty:
+                ids = bad_rows['cl_recid'].tolist() if 'cl_recid' in bad_rows.columns else []
+                anomalies.append({
+                    'rule': 'deceased_active',
+                    'severity': 'HIGH',
+                    'description': 'Deceased claimant with active benefit status',
+                    'detail': "cl_dcsd = 'Y'  AND  cl_stat IN ('ACTIVE', 'ACT')",
+                    'count': len(bad_rows),
+                    'record_ids': ids[:5],
+                    'risk': (
+                        'Active benefits may be disbursed to deceased claimants — '
+                        'potential fraud exposure and audit finding. '
+                        'Migrating these records as-is carries the anomaly into production.'
+                    ),
+                    'action': (
+                        'Close or suspend affected records before migration. '
+                        'Refer to benefits fraud review team.'
+                    ),
+                })
+
+    return anomalies
+
+
+def _load_column_mapping_types(dataset: str) -> Dict[str, str]:
+    """
+    Load mappings.json and return {source_col: mapping_type} for the given table.
+    Used by calculate_structure_score to distinguish renamed/archived/removed columns.
+    """
+    mappings_path = Path(__file__).parent.parent / "metadata" / "mappings.json"
+    if not mappings_path.exists():
+        return {}
+    try:
+        data = json.loads(mappings_path.read_text())
+        return {
+            m["source"].lower(): m.get("type", "removed")
+            for m in data.get("mappings", [])
+            if m.get("table", "").lower() == dataset.lower()
+        }
+    except Exception:
+        return {}
+
+
+def calculate_structure_score(
+    schema_diff: Dict,
+    gov_results: Dict,
+    validation_results: Dict,
+    dataset: str = ""
+) -> float:
     """
     Calculate structure/readiness score (0-100).
+
+    Penalises columns based on knowledge-base coverage:
+      - rename / transform  → 0  (ETL path is documented)
+      - archived            → 1  (intentionally excluded, compliance process known)
+      - removed / unknown   → 4  (no modern equivalent, ETL must investigate)
+
+    Governance is handled separately in the confidence formula and is NOT
+    double-counted here.
 
     Args:
         schema_diff: Schema comparison results
         gov_results: Governance check results
         validation_results: All validation results
+        dataset: Table name used to load the correct column mappings
 
     Returns:
         Score from 0-100
     """
     penalties = 0.0
 
-    # Schema penalties
-    missing_in_modern = len(schema_diff.get('missing_in_modern', []))
-    type_mismatches = len(schema_diff.get('type_mismatches', []))
+    # Load knowledge-base mapping types for this table
+    mapping_types = _load_column_mapping_types(dataset) if dataset else {}
 
-    penalties += missing_in_modern * 10  # -10 points per missing column
-    penalties += type_mismatches * 5     # -5 points per type mismatch
+    # Per-column penalty based on knowledge-base coverage
+    PENALTY = {
+        "rename":    0,   # known rename — ETL is straightforward
+        "transform": 0,   # known transform — ETL logic documented
+        "archived":  1,   # intentionally excluded for compliance — low risk
+        "removed":   4,   # no modern equivalent — ETL must investigate
+    }
+
+    for col in schema_diff.get('missing_in_modern', []):
+        col_type = mapping_types.get(col.lower(), "removed")
+        penalties += PENALTY.get(col_type, 4)
+
+    # Type mismatch penalty (independent of mapping coverage)
+    type_mismatches = len(schema_diff.get('type_mismatches', []))
+    penalties += type_mismatches * 5
 
     # Pandera validation penalties
     if validation_results.get('pandera_validation') == 'FAIL':
         error_count = len(validation_results.get('pandera_errors', []))
         penalties += min(error_count, 20)  # Max 20 points penalty
-
-    # Governance score is already 0-100, convert to penalty
-    gov_score = gov_results.get('governance_score', 100)
-    penalties += (100 - gov_score) * 0.3  # 30% weight on governance
 
     # Calculate final score
     score = max(0, 100 - penalties)

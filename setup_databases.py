@@ -458,7 +458,9 @@ def main():
             zip_code            VARCHAR(10),
             claimant_status     VARCHAR(20) DEFAULT 'active',
             registered_at       TIMESTAMP DEFAULT NOW(),
-            is_deceased         BOOLEAN DEFAULT FALSE
+            is_deceased         BOOLEAN DEFAULT FALSE,
+            cl_bact             VARCHAR(20),
+            legacy_system_ref   VARCHAR(50)
         );
 
         CREATE TABLE employers (
@@ -525,6 +527,17 @@ def main():
     modern_claimants = []
     skipped = 0
 
+    # ── Demo Finding 1: Archived field leakage ──
+    # ETL bug: bank account (cl_bact) was accidentally copied to modern for these claimants.
+    # cl_bact is marked ARCHIVED in mappings.json — PCI-DSS violation.
+    # POST compliance gate will catch this automatically.
+    BACT_LEAKED_IDS = {50, 51, 52, 53, 54, 55, 56, 57, 58, 59}
+
+    # ── Demo Finding 2: Transformation non-compliance ──
+    # ETL normalization script missed these records — status still in legacy casing.
+    # Shows up as discrepancies in sample comparison and fails status_counts aggregate.
+    UNNORMALIZED_STATUS_IDS = {30, 31, 32, 33, 34, 35, 36, 37}
+
     for clmt in claimants:
         cid, first, last, ssn, dob, phone, email, addr, city, state, zipcode, \
             account, routing, status, reg_dt, deceased, _ = clmt
@@ -556,18 +569,29 @@ def main():
         # Clean phone to bigint
         phone_clean = int(''.join(c for c in (phone or '').replace(' ', '') if c.isdigit())[:10] or '0')
 
-        # Normalize status
+        # Normalize status — deliberately skipped for UNNORMALIZED_STATUS_IDS (ETL bug)
         status_map = {'ACTIVE': 'active', 'Active': 'active', 'ACT': 'active',
                       'active': 'active', 'INACTIVE': 'inactive', 'CLOSED': 'closed'}
-        status_clean = status_map.get(status, status.lower())
+        if cid in UNNORMALIZED_STATUS_IDS:
+            status_clean = status  # Bug: left in original legacy casing
+        else:
+            status_clean = status_map.get(status, status.lower())
+
+        # Finding 1: copy bank account to cl_bact for leaked records
+        cl_bact_value = account if cid in BACT_LEAKED_IDS else None
+
+        # Finding 3: every migrated record gets a legacy_system_ref added by ops
+        # without going through ETL governance (no mapping in mappings.json)
+        legacy_system_ref = f'LEGACY-{cid:04d}'
 
         modern_claimants.append((
             cid, first_clean, last_clean, ssn_hash, dob_clean, phone_clean,
-            email, addr, city, state, zipcode, status_clean, reg_dt, deceased
+            email, addr, city, state, zipcode, status_clean, reg_dt, deceased,
+            cl_bact_value, legacy_system_ref
         ))
 
     cur.executemany("""
-        INSERT INTO claimants VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        INSERT INTO claimants VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
     """, modern_claimants)
 
     print(f"  Claimants: {len(modern_claimants)} migrated ({skipped} duplicates removed)")
@@ -683,6 +707,11 @@ def main():
     print(" 13. Negative payment amounts (2 data entry errors)")
     print(" 14. Whitespace in names ('  John  ' instead of 'John')")
     print(" 15. Deceased claimants with active status (2 cases)")
+    print()
+    print("POST-phase demo findings (planted in modern_db):")
+    print(" 16. [COMPLIANCE GATE] cl_bact (bank account) leaked into modern for 10 claimants")
+    print(" 17. [TRANSFORM BUG]   8 claimants have un-normalized status (ACTIVE/ACT not lowercased)")
+    print(" 18. [UNGOVERNED COL]  legacy_system_ref added to modern with no ETL mapping")
     print()
     print("Row count mismatches (legacy vs modern):")
     print(f"  claimants:        200 vs {len(modern_claimants)} ({200 - len(modern_claimants)} removed)")

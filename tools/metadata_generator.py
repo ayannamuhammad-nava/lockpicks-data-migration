@@ -16,6 +16,120 @@ from tools.db_utils import get_table_schema
 logger = logging.getLogger(__name__)
 
 
+# Known overrides for columns requiring special compliance/transform handling.
+# These take precedence over auto-generated fuzzy-match results so that running
+# --generate-metadata never overwrites curated rationales.
+COLUMN_MAPPING_OVERRIDES = {
+    # claimants table
+    "cl_ssn": {
+        "target": "ssn_hash",
+        "rationale": (
+            "SHA-256 hash for HIPAA compliance — raw SSN must NEVER be written to modern system; "
+            "duplicate SSNs indicate identity conflicts requiring manual resolution before migration proceeds"
+        ),
+        "confidence": 1.0,
+        "type": "transform",
+    },
+    "cl_bact": {
+        "target": None,
+        "rationale": (
+            "Bank account number NOT migrated — PCI-DSS regulated financial identifier; "
+            "must be archived to encrypted vault and claimants re-enrolled through secure portal. "
+            "Archive alongside cl_brtn. Any plaintext exposure is a PCI-DSS Level 1 violation. "
+            "Do NOT include in ETL pipeline."
+        ),
+        "confidence": 1.0,
+        "type": "archived",
+    },
+    "cl_brtn": {
+        "target": None,
+        "rationale": (
+            "Bank routing number NOT migrated — PCI-DSS regulated financial identifier. "
+            "Archive alongside cl_bact to encrypted vault. Routing numbers combined with account numbers "
+            "constitute full banking credentials — any plaintext exposure is a PCI-DSS Level 1 violation. "
+            "Do NOT include in ETL pipeline."
+        ),
+        "confidence": 1.0,
+        "type": "archived",
+    },
+    "cl_stat": {
+        "target": "claimant_status",
+        "rationale": (
+            "Status codes normalised: 'ACTIVE'→'active', 'INACTIVE'→'inactive', 'SUSPENDED'→'suspended'. "
+            "Legacy freetext values must be mapped; unmapped values default to 'pending_review' and flagged for manual triage."
+        ),
+        "confidence": 1.0,
+        "type": "transform",
+    },
+    "cl_fil1": {
+        "target": None,
+        "rationale": (
+            "Legacy filler/padding field with no business meaning — safe to drop. "
+            "Verify no application code reads this field before finalising ETL."
+        ),
+        "confidence": 1.0,
+        "type": "removed",
+    },
+    # employers table
+    "er_recid": {
+        "target": "employer_id",
+        "rationale": (
+            "er_recid (legacy integer sequence) migrated to UUID-based employer_id in modern system; "
+            "ETL must generate stable UUIDs and update all FK references in claims and payments before cutover."
+        ),
+        "confidence": 1.0,
+        "type": "transform",
+    },
+    "er_stat": {
+        "target": "employer_status",
+        "rationale": (
+            "Employer status codes normalised to modern enum values; "
+            "legacy freetext statuses require mapping table review before ETL runs."
+        ),
+        "confidence": 1.0,
+        "type": "transform",
+    },
+    # claims table
+    "cm_emplr": {
+        "target": "employer_id",
+        "rationale": (
+            "Renamed to employer_id as FK to employers table; "
+            "orphan risk if employer records not fully migrated first — run employer migration before claims ETL."
+        ),
+        "confidence": 1.0,
+        "type": "rename",
+    },
+    "cm_bystr": {
+        "target": "benefit_year_start",
+        "rationale": (
+            "Renamed from cm_bystr to benefit_year_start; date format normalised from YYYYMMDD integer "
+            "to ISO-8601 date string — ETL must parse and reformat all values."
+        ),
+        "confidence": 1.0,
+        "type": "transform",
+    },
+    "cm_stat": {
+        "target": "claim_status",
+        "rationale": (
+            "Claim status normalised to modern enum; CRITICAL business rule: claims with cm_stat='PAID' "
+            "where cm_totpd < cm_mxamt indicate potential overpayment — flag for compliance review before migration completes."
+        ),
+        "confidence": 1.0,
+        "type": "transform",
+    },
+    # benefit_payments table
+    "bp_stat": {
+        "target": "payment_status",
+        "rationale": (
+            "Payment status normalised to modern enum values ('ISSUED', 'CLEARED', 'VOIDED'); "
+            "legacy 'CANC' code maps to 'VOIDED' — validate all payment records before and after transform."
+        ),
+        "confidence": 1.0,
+        "type": "transform",
+    },
+}
+
+
 # PII keywords for detection
 PII_KEYWORDS = [
     'email', 'phone', 'ssn', 'social_security', 'passport', 'license',
@@ -474,6 +588,25 @@ def generate_mappings(
             for legacy_col_info in legacy_schema:
                 legacy_col = legacy_col_info['column_name']
                 legacy_type = legacy_col_info['data_type']
+
+                # Apply curated override if one exists — takes precedence over fuzzy matching
+                override = COLUMN_MAPPING_OVERRIDES.get(legacy_col.lower())
+                if override is not None:
+                    mapping = {
+                        "source": legacy_col,
+                        "target": override["target"],
+                        "rationale": override["rationale"],
+                        "confidence": override["confidence"],
+                        "table": table,
+                        "type": override["type"],
+                    }
+                    mappings["mappings"].append(mapping)
+                    stats["total"] += 1
+                    if override["confidence"] >= 0.8:
+                        stats["high_confidence"] += 1
+                    else:
+                        stats["medium_confidence"] += 1
+                    continue
 
                 # Check if column exists in modern
                 if legacy_col in modern_cols:

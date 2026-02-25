@@ -26,11 +26,11 @@
     },
     {
       "source": "cl_ssn",
-      "target": null,
-      "rationale": "Column removed from modern system. May require data archival or migration to alternate storage.",
-      "confidence": 0.7,
+      "target": "ssn_hash",
+      "rationale": "SHA-256 hash for HIPAA compliance \u2014 raw SSN must NEVER be written to modern system; duplicate SSNs indicate identity conflicts requiring manual resolution before migration proceeds",
+      "confidence": 1.0,
       "table": "claimants",
-      "type": "removed"
+      "type": "transform"
     },
     {
       "source": "cl_dob",
@@ -91,26 +91,26 @@
     {
       "source": "cl_bact",
       "target": null,
-      "rationale": "Column removed from modern system. May require data archival or migration to alternate storage.",
-      "confidence": 0.7,
+      "rationale": "Bank account number NOT migrated \u2014 PCI-DSS regulated financial identifier; must be archived to encrypted vault and claimants re-enrolled through secure portal. Archive alongside cl_brtn. Any plaintext exposure is a PCI-DSS Level 1 violation. Do NOT include in ETL pipeline.",
+      "confidence": 1.0,
       "table": "claimants",
-      "type": "removed"
+      "type": "archived"
     },
     {
       "source": "cl_brtn",
       "target": null,
-      "rationale": "Column removed from modern system. May require data archival or migration to alternate storage.",
-      "confidence": 0.7,
+      "rationale": "Bank routing number NOT migrated \u2014 PCI-DSS regulated financial identifier. Archive alongside cl_bact to encrypted vault. Routing numbers combined with account numbers constitute full banking credentials \u2014 any plaintext exposure is a PCI-DSS Level 1 violation. Do NOT include in ETL pipeline.",
+      "confidence": 1.0,
       "table": "claimants",
-      "type": "removed"
+      "type": "archived"
     },
     {
       "source": "cl_stat",
-      "target": null,
-      "rationale": "Column removed from modern system. May require data archival or migration to alternate storage.",
-      "confidence": 0.7,
+      "target": "claimant_status",
+      "rationale": "Status codes normalised: 'ACTIVE'\u2192'active', 'INACTIVE'\u2192'inactive', 'SUSPENDED'\u2192'suspended'. Legacy freetext values must be mapped; unmapped values default to 'pending_review' and flagged for manual triage.",
+      "confidence": 1.0,
       "table": "claimants",
-      "type": "removed"
+      "type": "transform"
     },
     {
       "source": "cl_rgdt",
@@ -131,18 +131,18 @@
     {
       "source": "cl_fil1",
       "target": null,
-      "rationale": "Column removed from modern system. May require data archival or migration to alternate storage.",
-      "confidence": 0.7,
+      "rationale": "Legacy filler/padding field with no business meaning \u2014 safe to drop. Verify no application code reads this field before finalising ETL.",
+      "confidence": 1.0,
       "table": "claimants",
       "type": "removed"
     },
     {
       "source": "er_recid",
-      "target": null,
-      "rationale": "Column removed from modern system. May require data archival or migration to alternate storage.",
-      "confidence": 0.7,
+      "target": "employer_id",
+      "rationale": "er_recid (legacy integer sequence) migrated to UUID-based employer_id in modern system; ETL must generate stable UUIDs and update all FK references in claims and payments before cutover.",
+      "confidence": 1.0,
       "table": "employers",
-      "type": "removed"
+      "type": "transform"
     },
     {
       "source": "er_name",
@@ -210,11 +210,11 @@
     },
     {
       "source": "er_stat",
-      "target": null,
-      "rationale": "Column removed from modern system. May require data archival or migration to alternate storage.",
-      "confidence": 0.7,
+      "target": "employer_status",
+      "rationale": "Employer status codes normalised to modern enum values; legacy freetext statuses require mapping table review before ETL runs.",
+      "confidence": 1.0,
       "table": "employers",
-      "type": "removed"
+      "type": "transform"
     },
     {
       "source": "cm_recid",
@@ -234,11 +234,11 @@
     },
     {
       "source": "cm_emplr",
-      "target": null,
-      "rationale": "Column removed from modern system. May require data archival or migration to alternate storage.",
-      "confidence": 0.7,
+      "target": "employer_id",
+      "rationale": "Renamed to employer_id as FK to employers table; orphan risk if employer records not fully migrated first \u2014 run employer migration before claims ETL.",
+      "confidence": 1.0,
       "table": "claims",
-      "type": "removed"
+      "type": "rename"
     },
     {
       "source": "cm_seprs",
@@ -258,11 +258,11 @@
     },
     {
       "source": "cm_bystr",
-      "target": null,
-      "rationale": "Column removed from modern system. May require data archival or migration to alternate storage.",
-      "confidence": 0.7,
+      "target": "benefit_year_start",
+      "rationale": "Renamed from cm_bystr to benefit_year_start; date format normalised from YYYYMMDD integer to ISO-8601 date string \u2014 ETL must parse and reformat all values.",
+      "confidence": 1.0,
       "table": "claims",
-      "type": "removed"
+      "type": "transform"
     },
     {
       "source": "cm_byend",
@@ -306,11 +306,11 @@
     },
     {
       "source": "cm_stat",
-      "target": null,
-      "rationale": "Column removed from modern system. May require data archival or migration to alternate storage.",
-      "confidence": 0.7,
+      "target": "claim_status",
+      "rationale": "Claim status normalised to modern enum; CRITICAL business rule: claims with cm_stat='PAID' where cm_totpd < cm_mxamt indicate potential overpayment \u2014 flag for compliance review before migration completes.",
+      "confidence": 1.0,
       "table": "claims",
-      "type": "removed"
+      "type": "transform"
     },
     {
       "source": "cm_lupdt",
@@ -370,11 +370,11 @@
     },
     {
       "source": "bp_stat",
-      "target": null,
-      "rationale": "Column removed from modern system. May require data archival or migration to alternate storage.",
-      "confidence": 0.7,
+      "target": "payment_status",
+      "rationale": "Payment status normalised to modern enum values ('ISSUED', 'CLEARED', 'VOIDED'); legacy 'CANC' code maps to 'VOIDED' \u2014 validate all payment records before and after transform.",
+      "confidence": 1.0,
       "table": "benefit_payments",
-      "type": "removed"
+      "type": "transform"
     },
     {
       "source": "bp_chkno",
