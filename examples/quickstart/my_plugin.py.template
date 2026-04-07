@@ -1,0 +1,68 @@
+"""
+Example DM Plugin Template
+
+Customize this file with your domain-specific validation rules.
+Register it in project.yaml under the `plugins:` section.
+"""
+
+from dm.hookspecs import hookimpl
+
+
+class MyPlugin:
+    """Domain-specific validation rules for my migration."""
+
+    @hookimpl
+    def dm_get_column_overrides(self, table):
+        """Return curated column mapping overrides.
+
+        These take precedence over auto-generated fuzzy matches.
+        Use for compliance-critical fields (PII, financial data, etc.)
+        """
+        if table == "my_table":
+            return {
+                "old_ssn_column": {
+                    "target": "ssn_hash",
+                    "type": "transform",
+                    "rationale": "SHA-256 hash for compliance",
+                    "confidence": 1.0,
+                },
+                "deprecated_field": {
+                    "target": None,
+                    "type": "archived",
+                    "rationale": "Intentionally excluded from migration",
+                    "confidence": 1.0,
+                },
+            }
+        return {}
+
+    @hookimpl
+    def dm_data_quality_rules(self, dataset):
+        """Return cross-field data quality anomaly rules.
+
+        Each rule has a check_fn that receives a pandas DataFrame
+        and returns an anomaly dict or None.
+        """
+        if dataset == "my_table":
+            return [{
+                "name": "invalid_status_combination",
+                "severity": "HIGH",
+                "description": "Records with contradictory status values",
+                "check_fn": self._check_invalid_status,
+            }]
+        return []
+
+    def _check_invalid_status(self, df):
+        """Example: find records where status is 'CLOSED' but amount > 0."""
+        if "status" not in df.columns or "amount" not in df.columns:
+            return None
+
+        bad = df[(df["status"] == "CLOSED") & (df["amount"] > 0)]
+        if bad.empty:
+            return None
+
+        return {
+            "count": len(bad),
+            "record_ids": bad.index[:5].tolist(),
+            "risk": "Closed records with remaining balance may indicate data corruption",
+            "action": "Review and resolve before migration",
+        }

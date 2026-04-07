@@ -1,12 +1,15 @@
 """
-Data-Migration Validation Tool — Streamlit Dashboard
+Lockpicks Data Migration Accelerator — Streamlit Dashboard
 
-Reads artifacts produced by the validation agent and provides:
+Reads artifacts produced by the accelerator and provides:
   - Confidence score gauge with traffic-light status
   - Schema diff with RAG-powered field mapping table
   - Governance / PII findings table (color-coded)
   - Reconciliation report for post-migration runs
   - RAG chat interface: ask any question about schema fields or mappings
+
+Usage:
+  streamlit run dashboard.py -- --project projects/loops-nj
 """
 import json
 import os
@@ -19,9 +22,24 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+# ── Resolve project directory ────────────────────────────────────────────────
+# Accept --project <path> via CLI args (after the Streamlit `--` separator)
+_argv = sys.argv[1:]
+_project_dir = Path(".")
+for i, arg in enumerate(_argv):
+    if arg == "--project" and i + 1 < len(_argv):
+        _project_dir = Path(_argv[i + 1])
+        break
+
+# Also accept STREAMLIT_PROJECT env var as fallback
+if _project_dir == Path(".") and os.environ.get("DM_PROJECT"):
+    _project_dir = Path(os.environ["DM_PROJECT"])
+
+PROJECT_DIR = _project_dir.resolve()
+
 # ── Constants ─────────────────────────────────────────────────────────────────
-ARTIFACTS_DIR = Path("./artifacts")
-METADATA_DIR = Path("./metadata")
+ARTIFACTS_DIR = PROJECT_DIR / "artifacts"
+METADATA_DIR = PROJECT_DIR / "metadata"
 
 STATUS_EMOJI = {"GREEN": "🟢", "YELLOW": "🟡", "RED": "🔴"}
 STATUS_COLOR = {"GREEN": "#2e7d32", "YELLOW": "#f57f17", "RED": "#c62828"}
@@ -45,7 +63,7 @@ RAG_SUGGESTIONS = [
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Data-Migration Validation Tool",
+    page_title="Data-Migration Accelerator Tool",
     page_icon="🔍",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -180,8 +198,7 @@ def color_gov_status(val: str) -> str:
 @st.cache_resource(show_spinner=False)
 def get_rag_tool_cached(glossary_mtime: float):
     """Load RAG tool, keyed on glossary mtime so cache busts when metadata changes."""
-    sys.path.insert(0, str(Path(".").resolve()))
-    from tools.rag_tool import RAGTool
+    from dm.kb.rag import RAGTool
     # Delete stale embeddings cache so build_embeddings always regenerates from current glossary
     cache_file = METADATA_DIR / ".embeddings_cache.npz"
     if cache_file.exists():
@@ -323,11 +340,17 @@ with st.sidebar:
         sample_sel = st.slider("Sample size", 100, 2000, 500, 100) if phase_sel == "pre" else None
 
         if st.button("Run Validation", type="primary", use_container_width=True):
-            cmd = [sys.executable, "main.py", "--phase", phase_sel, "--dataset", dataset_sel]
+            cmd = [
+                sys.executable, "-m", "dm.cli",
+                "validate",
+                "--phase", phase_sel,
+                "--dataset", dataset_sel,
+                "--project", str(PROJECT_DIR),
+            ]
             if sample_sel:
                 cmd += ["--sample", str(sample_sel)]
             with st.spinner(f"Running {phase_sel.upper()} check on '{dataset_sel}'…"):
-                result = subprocess.run(cmd, capture_output=True, text=True, cwd=".")
+                result = subprocess.run(cmd, capture_output=True, text=True)
             if result.returncode in (0, 1):
                 st.success("Done! Refresh the run selector.")
                 st.cache_resource.clear()
@@ -336,8 +359,8 @@ with st.sidebar:
                 st.error(result.stderr[:600] or "Unknown error")
 
     st.divider()
-    st.caption("CLI backup: `DEMO_SCRIPT.md`")
-    st.caption("Source: `main.py --help`")
+    st.caption(f"Project: `{PROJECT_DIR}`")
+    st.caption("CLI: `dm validate --help`")
 
 
 # ── Main area ──────────────────────────────────────────────────────────────────

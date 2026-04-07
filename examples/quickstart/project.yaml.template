@@ -1,0 +1,68 @@
+# DM Project Configuration Template
+# Copy this file to your project directory and customize
+
+project:
+  name: "My Migration"
+  description: "Legacy to modern data migration"
+  version: "1.0"
+
+connections:
+  legacy:
+    type: postgres          # postgres | db2 | oracle | sqlalchemy
+    host: ${DB_LEGACY_HOST:localhost}
+    port: 5432
+    database: ${DB_LEGACY_NAME:legacy_db}
+    user: ${DB_LEGACY_USER:postgres}
+    password: ${DB_LEGACY_PASSWORD:postgres}
+  modern:
+    type: postgres
+    host: ${DB_MODERN_HOST:localhost}
+    port: 5432
+    database: ${DB_MODERN_NAME:modern_db}
+    user: ${DB_MODERN_USER:postgres}
+    password: ${DB_MODERN_PASSWORD:postgres}
+
+datasets:
+  - name: my_table
+    legacy_table: my_table    # table name in legacy system
+    modern_table: my_table    # table name in modern system
+    primary_key: id           # primary key in legacy
+    modern_key: id            # primary key in modern
+
+validation:
+  sample_size: 1000
+  governance:
+    pii_keywords: [ssn, email, phone, dob, credit_card, account_number]
+    naming_regex: "^[a-z0-9_]+$"
+    max_null_percent: 10
+    required_fields:
+      my_table: [id, name]
+
+  aggregates:
+    my_table:
+      - name: total_count
+        legacy_query: "SELECT COUNT(*) as total FROM my_table"
+        modern_query: "SELECT COUNT(*) as total FROM my_table"
+        comparison: exact
+
+  referential_integrity: {}
+
+scoring:
+  weights:
+    structure: 0.4
+    integrity: 0.4
+    governance: 0.2
+  thresholds:
+    green: 90
+    yellow: 70
+
+metadata:
+  path: ./metadata
+  rag:
+    explain_threshold: 0.5
+    mapping_threshold: 0.3
+
+plugins: []
+
+artifacts:
+  base_path: ./artifacts

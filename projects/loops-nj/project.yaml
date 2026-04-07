@@ -1,0 +1,159 @@
+# Lockpicks Data Migration Accelerator — LOOPS NJ UI Modernization
+# Reference implementation: Legacy LOOPS (DB2) -> Modern PostgreSQL
+
+project:
+  name: "LOOPS NJ UI Modernization"
+  description: "Legacy LOOPS DB2 to Modern PostgreSQL migration for NJ DOL UI system"
+  version: "1.0"
+
+connections:
+  legacy:
+    type: postgres
+    host: ${DB_LEGACY_HOST:localhost}
+    port: 5432
+    database: ${DB_LEGACY_NAME:legacy_db}
+    user: ${DB_LEGACY_USER:postgres}
+    password: ${DB_LEGACY_PASSWORD:postgres}
+  modern:
+    type: postgres
+    host: ${DB_MODERN_HOST:localhost}
+    port: 5432
+    database: ${DB_MODERN_NAME:modern_db}
+    user: ${DB_MODERN_USER:postgres}
+    password: ${DB_MODERN_PASSWORD:postgres}
+
+datasets:
+  - name: claimants
+    legacy_table: claimants
+    modern_table: claimants
+    primary_key: cl_recid
+    modern_key: claimant_id
+  - name: employers
+    legacy_table: employers
+    modern_table: employers
+    primary_key: er_recid
+    modern_key: employer_id
+  - name: claims
+    legacy_table: claims
+    modern_table: claims
+    primary_key: cm_recid
+    modern_key: claim_id
+  - name: benefit_payments
+    legacy_table: benefit_payments
+    modern_table: benefit_payments
+    primary_key: bp_recid
+    modern_key: payment_id
+
+validation:
+  sample_size: 1000
+  governance:
+    pii_keywords:
+      - ssn
+      - social_security
+      - passport
+      - drivers_license
+      - credit_card
+      - card_number
+      - cvv
+      - account_number
+      - routing_number
+      - bank_acct
+      - bank_routing
+      - dob
+      - date_of_birth
+      - salary
+      - income
+      - email
+      - phone
+      - address
+      - zip
+      - latitude
+      - longitude
+      - ip_address
+      - mac_address
+      # COBOL abbreviated field patterns
+      - emal
+      - phon
+      - bact
+      - brtn
+      - adr1
+      - ein
+    naming_regex: "^[a-z0-9_]+$"
+    max_null_percent: 10
+    required_fields:
+      claimants: [cl_recid, cl_fnam, cl_lnam, cl_ssn, cl_emal]
+      claims: [cm_recid, cm_clmnt, cm_fildt, cm_wkamt]
+      benefit_payments: [bp_recid, bp_clmid, bp_payam]
+      employers: [er_recid, er_name]
+
+  aggregates:
+    claimants:
+      - name: status_counts
+        legacy_query: "SELECT cl_stat as status, COUNT(*) as count FROM claimants GROUP BY cl_stat ORDER BY status"
+        modern_query: "SELECT claimant_status as status, COUNT(*) as count FROM claimants GROUP BY claimant_status ORDER BY status"
+        comparison: exact
+    claims:
+      - name: total_benefits
+        legacy_query: "SELECT COALESCE(SUM(total_paid), 0) as total_sum FROM claims"
+        modern_query: "SELECT COALESCE(SUM(total_paid), 0) as total_sum FROM claims"
+        comparison: tolerance
+        tolerance: 0.01
+    benefit_payments:
+      - name: total_disbursed
+        legacy_query: "SELECT COALESCE(SUM(bp_payam), 0) as total FROM benefit_payments"
+        modern_query: "SELECT COALESCE(SUM(payment_amount), 0) as total FROM benefit_payments"
+        comparison: tolerance
+        tolerance: 0.01
+    employers:
+      - name: total_count
+        legacy_query: "SELECT COUNT(*) as total FROM employers"
+        modern_query: "SELECT COUNT(*) as total FROM employers"
+        comparison: exact
+
+  referential_integrity:
+    claims:
+      - child_table: claims
+        parent_table: claimants
+        fk_column: claimant_id
+        pk_column: claimant_id
+      - child_table: claims
+        parent_table: employers
+        fk_column: employer_id
+        pk_column: employer_id
+    benefit_payments:
+      - child_table: benefit_payments
+        parent_table: claims
+        fk_column: claim_id
+        pk_column: claim_id
+
+scoring:
+  weights:
+    structure: 0.4
+    integrity: 0.4
+    governance: 0.2
+  thresholds:
+    green: 90
+    yellow: 70
+
+metadata:
+  path: ./metadata
+  rag:
+    explain_threshold: 0.5
+    mapping_threshold: 0.3
+
+plugins:
+  - plugins.loops_plugin.LoopsPlugin
+
+artifacts:
+  base_path: ./artifacts
+
+# Sync configuration for daily LOOPS claim loads
+sync:
+  mode: daily
+  source_query: >
+    SELECT sg01.* FROM SG01_CLAIMANT sg01
+    JOIN RSA_NONMON rsn ON sg01.SSN = rsn.SSN
+    AND sg01.CLAIM_DATE = rsn.CLAIM_DATE
+    AND sg01.PROGRAM_CODE = rsn.PROGRAM_CODE
+  dedup_keys: [ssn, claim_date, program_code]
+  schedule: "0 6 * * *"

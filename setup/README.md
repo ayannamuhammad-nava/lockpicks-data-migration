@@ -1,12 +1,12 @@
 # Database Setup Instructions
 
-This directory contains SQL scripts to set up demo databases for the Data Validation Agent.
+This directory contains SQL scripts to set up demo databases for the **Lockpicks Data Migration Accelerator**.
 
 ## Overview
 
-The setup creates two PostgreSQL databases simulating a **State Department of Labor Unemployment Insurance System** migration:
-- `legacy_db` - Legacy mainframe-style schema with intentional data quality issues
-- `modern_db` - Modern cloud platform schema with migrated (but not perfectly clean) data
+The setup creates two PostgreSQL databases simulating the **LOOPS NJ** (NJ Department of Labor Unemployment Insurance System) migration:
+- `legacy_db` - Legacy mainframe-style schema with COBOL naming and intentional data quality issues
+- `modern_db` - Modern PostgreSQL schema with migrated (but not perfectly clean) data
 
 ## Tables
 
@@ -61,33 +61,13 @@ The demo data includes these intentional issues to showcase the agent's detectio
 
 ```bash
 # Navigate to project root
-cd /path/to/lockpick-data-migration-agent
+cd /path/to/lockpicks-data-migration-accelerator
 
-# Install dependencies
-pip install -r requirements.txt
-
-# Run the automated setup script
-python3 setup_databases.py
+# Install the accelerator
+uv sync
 ```
 
-**What it does:**
-- Creates `legacy_db` and `modern_db` databases
-- Creates table schemas (claimants, employers, claims, benefit_payments)
-- Loads legacy data with intentional issues (200 claimants, 44 employers, 300 claims, 500 payments)
-- Loads modern data with migrated records (195 claimants, 44 employers, ~297 claims, ~498 payments)
-- Handles all database operations via Python (no `psql` CLI needed)
-
-### Auto-Generate RAG Metadata
-
-After database setup, generate metadata for intelligent explanations:
-
-```bash
-python3 main.py --generate-metadata --no-interactive
-```
-
-### Alternative: Manual SQL Setup
-
-If you prefer using `psql` directly (smaller dataset for quick testing):
+### SQL Setup:
 
 ```bash
 psql -U postgres -f setup/create_databases.sql
@@ -97,25 +77,7 @@ psql -U postgres -d modern_db -f setup/load_modern_data.sql
 
 ## Database Connection Details
 
-Update `config.yaml` if your PostgreSQL setup differs:
-
-```yaml
-database:
-  legacy:
-    host: ${DB_LEGACY_HOST:localhost}
-    port: 5432
-    database: ${DB_LEGACY_NAME:legacy_db}
-    user: ${DB_LEGACY_USER:postgres}
-    password: ${DB_LEGACY_PASSWORD:postgres}
-  modern:
-    host: ${DB_MODERN_HOST:localhost}
-    port: 5432
-    database: ${DB_MODERN_NAME:modern_db}
-    user: ${DB_MODERN_USER:postgres}
-    password: ${DB_MODERN_PASSWORD:postgres}
-```
-
-Values use `${VAR:default}` syntax — defaults work out of the box for local development, and can be overridden via environment variables for deployment.
+Connection details are configured in your project's `project.yaml`. See `projects/loops-nj/project.yaml` for the reference configuration. Environment variables use `${VAR:default}` syntax.
 
 ## Cleanup
 
@@ -152,12 +114,18 @@ brew services start postgresql@15
 After database setup:
 
 ```bash
-# Auto-generate RAG metadata (one time)
-python3 main.py --generate-metadata --no-interactive
+# Discover and enrich metadata via OpenMetadata
+dm discover --enrich --project projects/loops-nj
 
-# Pre-migration check
-python3 main.py --phase pre --dataset claimants
+# Generate modern normalized schema
+dm generate-schema --all --project projects/loops-nj
 
-# Post-migration proof
-python3 main.py --phase post --dataset claimants
+# Pre-migration validation
+dm validate --phase pre --dataset claimants --project projects/loops-nj
+
+# Post-migration validation
+dm validate --phase post --dataset claimants --project projects/loops-nj
+
+# Migration proof report
+dm prove --dataset claimants --project projects/loops-nj
 ```

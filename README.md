@@ -1,324 +1,716 @@
-# Data Migration Validation Agent
+# Lockpicks Data Migration Accelerator
 
-**Remove migration risk before it becomes a production problem.**
+Data migration is a crucial, but delicate, step in transitioning away from a legacy system towards a modern system. In spite of various industry tooling around data migration, legacy to modern system data migration initiatives are quite complex and leave stakeholders involved with key questions:
 
-## The Problem
+- **How might we create higher confidence and trust** in our data migration process or approach?
+- **How might we reduce risks** around data compliance and impacts to project timelines?
+- **How might we create transparency** in the process, especially for non-technical stakeholders?
 
-Legacy-to-modern data migrations fail because issues are discovered too late:
-- **Schema mismatches** break applications in production
-- **Data quality problems** corrupt business records
-- **Compliance violations** expose sensitive information
-- **Missing data** loses critical business information
+---
 
-**The cost?** Downtime, data loss, failed audits, and lost trust.
+## Solution: Lockpicks Data Migration Accelerator
 
-## The Solution
+The Lockpicks Data Migration Accelerator is an open, full-lifecycle accelerator that covers every phase of data migration -- from legacy rationalization through post-migration observability. It integrates **[OpenMetadata](https://open-metadata.org/)** as the metadata backbone and **[Claude AI](https://claude.ai)** as an intelligent co-pilot, while keeping every step auditable, deterministic-first, and pluggable.
 
-An intelligent validation agent that **removes risk at every stage**:
+Unlike proprietary accelerator suites, Lockpicks is built on open standards (OpenMetadata, pluggy hooks) and follows a **deterministic-first, AI-second** principle: rule engines produce complete, working output at every stage; AI refines but is never required. Every phase produces auditable artifacts and a quantified 0-100 confidence score.
+
+---
+
+## Data Migration Lifecycle
+
+```mermaid
+flowchart LR
+    A["Data Discovery"] --> B["Data Modeling"]
+    B --> C["Data Governance"]
+    C --> D["Data Transformation"]
+    D --> E["Data Compliance"]
+    E --> F["Data Quality"]
+
+    style A fill:#4a4a4a,stroke:#888,color:#fff
+    style B fill:#7b61ff,stroke:#5a45d6,color:#fff
+    style C fill:#2196F3,stroke:#1976D2,color:#fff
+    style D fill:#FF9800,stroke:#F57C00,color:#fff
+    style E fill:#9C27B0,stroke:#7B1FA2,color:#fff
+    style F fill:#4CAF50,stroke:#388E3C,color:#fff
+```
+
+Each lifecycle phase maps to industry tooling (OpenMetadata) and Lockpicks accelerator tools:
+
+- **Data Discovery** -- Collect legacy data sources, schemas, glossary. Identify data worth migrating vs. dark data to archive. (OpenMetadata catalog, profiling, lineage, PII auto-tagging)
+- **Data Modeling** -- Normalized schema design from denormalized legacy tables, informed by profiling data and domain requirements.
+- **Data Governance** -- PII/PHI detection (45+ patterns including COBOL abbreviations), data modification controls (`rename`, `transform`, `archived`, `removed`), audit trails via timestamped artifact folders.
+- **Data Transformation** -- Legacy SQL/ETL code conversion to modern platform code, metadata-driven migration orchestration with dependency ordering.
+- **Data Compliance** -- Pre-migration PII exposure detection, archived field leakage gates (PCI/HIPAA), profile-based risk assessment.
+- **Data Quality** -- Source-vs-target reconciliation: row counts, checksums, FK integrity, sample comparison, business aggregates, encoding validation, post-migration drift monitoring.
+
+---
+
+## Component Model
 
 ```mermaid
 graph LR
-    BEFORE[BEFORE<br/>Check]
-    AFTER[AFTER<br/>Prove]
-
-    BEFORE --> AFTER
-
-    style BEFORE fill:#e1f5ff
-    style AFTER fill:#e8f5e9
-```
-
-**Before Migration**: Detect structural risks and governance violations
-**After Migration**: Prove data integrity with evidence
-
-## What It Does
-
-### 🔍 **Pre-Migration Risk Check**
-Catches problems before they happen:
-- ✅ Schema compatibility validation
-- ✅ Sensitive data detection (PII, credentials)
-- ✅ Data quality assessment
-- ✅ Naming & standards enforcement
-
-**Example Output:**
-```
-⚠️  3 schema mismatches detected
-🔒 1 PII field requires masking (cl_ssn)
-📊 Structure Score: 62/100 - REVIEW REQUIRED
-```
-
-### ✓ **Post-Migration Proof**
-Verifiable data integrity:
-- ✅ Row count reconciliation
-- ✅ Data checksums validation
-- ✅ Referential integrity checks
-- ✅ Business aggregate comparison
-
-**Example Output:**
-```
-📋 Row Counts: Legacy 200 → Modern 195 ⚠️
-🔗 Orphan Records: 3 detected ❌
-📊 Integrity Score: 72/100 - YELLOW
-```
-Also see Value proposition doc: 
-https://github.com/navapbc/lockpicks-data-migration-validation/blob/main/VALUE_PROPOSITION_DECK.md
-
-## Quick Start
-
-### 1. Setup (One Time)
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Setup demo databases (creates tables with intentional issues)
-python3 setup_databases.py
-
-# Auto-generate RAG metadata from database schemas
-python3 main.py --generate-metadata --no-interactive
-```
-
-### 2. Run Validation
-
-**The agent automatically generates validation schemas and RAG metadata from your database** - no manual configuration needed!
-
-**Check Before Migration:**
-```bash
-python main.py --phase pre --dataset claimants
-```
-
-**Prove After Migration:**
-```bash
-python main.py --phase post --dataset claimants
-```
-
-### 3. Review Results
-All evidence automatically saved to timestamped folders:
-```
-artifacts/run_2024-01-15_10-30-45/
-  ├── readiness_report.md        # What's at risk
-  ├── schema_diff.md              # Structure changes
-  ├── governance_report.csv       # Compliance checks
-  ├── reconciliation_report.md    # Integrity proof
-  └── confidence_score.txt        # Overall assessment
-```
-
-## Migration Confidence Scoring
-
-Every validation produces a confidence score with clear guidance:
-
-| Score | Status | Meaning | Action |
-|-------|--------|---------|--------|
-| 90-100 | 🟢 GREEN | Safe to proceed | Go ahead |
-| 70-89 | 🟡 YELLOW | Review recommended | Check warnings |
-| 0-69 | 🔴 RED | Risk detected | Fix issues first |
-
-**Scoring Formula:**
-- 40% Structure (schema compatibility)
-- 40% Data Integrity (accuracy & completeness)
-- 20% Governance (compliance & standards)
-
-## Key Capabilities
-
-### Automatic Schema Generation
-**No manual configuration needed.** The agent automatically generates validation schemas from your database:
-
-**What happens automatically:**
-```
-python main.py --phase pre --dataset claimants
-
-📋 Validation schemas not found - auto-generating...
-✓ Generated schemas/legacy/claimants.py
-✓ Generated schemas/modern/claimants.py
-✓ Schema generation complete
-[Validation continues...]
-```
-
-Behind the scenes, the agent:
-- Introspects your database structure via `information_schema`
-- Detects column types, nullability, and constraints
-- Generates type-safe Pandera validation schemas
-- Caches them for future runs
-- **Time saved:** 30 min/table of manual coding → Automatic
-
-**Advanced:** Use `generate_schemas.py` to pre-generate schemas for all tables. See [SCHEMA_GENERATION.md](SCHEMA_GENERATION.md) for details.
-
-### Automatic RAG Metadata Generation
-**No manual JSON files needed.** The agent auto-generates glossary and mapping metadata from your database schemas:
-
-```
-python3 main.py --generate-metadata --no-interactive
-
-✅ Metadata generation complete!
-   📄 Glossary: 23 columns (with confidence scores)
-   🔄 Mappings: 5 transformations detected
-   📁 Saved to: ./metadata/
-```
-
-Behind the scenes, the agent:
-- Introspects legacy and modern schemas via `information_schema`
-- Infers column descriptions using pattern matching
-- Detects PII fields automatically
-- Finds column renames using fuzzy matching (e.g., `cl_fnam` → `first_name`)
-- Assigns confidence scores (0.0-1.0) to every inference
-- Prompts for low-confidence items in interactive mode
-- **Time saved:** 4-6 hours of manual JSON curation → 2 seconds
-
-### Intelligent Schema Mapping
-Automatically explains column transformations using RAG-powered metadata:
-```
-⚠️  Column renamed: cl_fnam → first_name
-📘 Why? Renamed from legacy abbreviated format for improved clarity (80% confidence)
-```
-
-### Sensitive Data Detection
-Flags compliance risks before migration:
-```
-🔒 PII Detected: cl_ssn (Social Security Number)
-⚠️  Action Required: Implement hashing or masking (modern uses ssn_hash)
-```
-
-### Before/After Comparison
-Visual proof of data migration accuracy:
-
-| Metric | Legacy | Modern | Status |
-|--------|--------|--------|--------|
-| Total Claimants | 200 | 195 | ⚠️ Mismatch |
-| Null Emails | 12 | 0 | ✅ Fixed |
-| Orphan Claims | 3 | 3 | ❌ Persists |
-
-### Fail-Loud Design
-Catches issues immediately with low confidence scores:
-- Duplicate records → Detected
-- Schema mismatches → Flagged
-- Orphan claims (referencing non-existent claimants) → Caught
-- PII exposure → Warned
-
-## Demo: See It in Action
-
-Run the automated demo to see risk detection in action:
-```bash
-./demo.sh
-```
-
-This demonstrates:
-1. ✅ Detecting 6+ intentional data issues
-2. ✅ Generating evidence reports
-3. ✅ Producing confidence scores
-4. ✅ Explaining schema mappings
-5. ✅ Proving data integrity
-
-## Architecture
-
-```mermaid
-graph TB
-    subgraph "Data Validation Agent"
-        subgraph "Phases"
-            BEFORE[BEFORE: Check]
-            AFTER[AFTER: Prove]
-        end
-        subgraph "Components"
-            SCHEMA[Schema Rules]
-            METADATA[Metadata]
-            GOV[Governance]
-            EVIDENCE[Evidence]
-            ARTIFACTS[Artifacts]
-        end
+    subgraph LEGACY ["Legacy Systems"]
+        LS[("COBOL / DB2 / Oracle / Flat Files")]
     end
 
-    BEFORE -.-> AFTER
-    SCHEMA --> BEFORE
-    METADATA --> BEFORE
-    GOV --> BEFORE
-    EVIDENCE --> AFTER
-    ARTIFACTS --> AFTER
+    subgraph OM ["OpenMetadata"]
+        CAT["Catalog - Profiler / Lineage"]
+    end
 
-    style BEFORE fill:#e1f5ff
-    style AFTER fill:#e8f5e9
-```
+    subgraph LOCKPICKS ["Lockpicks DM Accelerator"]
+        direction TB
 
-## What Makes This Different
+        subgraph PLAN_DISC ["Plan & Discover"]
+            direction LR
+            R["L-Discoverer"]
+            D["L-Cataloger"]
+        end
 
-| Traditional Testing | This Agent |
-|-------------------|-----------|
-| Manual SQL queries | Automated validation |
-| After-the-fact checking | Before and after migration |
-| Binary pass/fail | Risk-scored with confidence levels |
-| No explanations | Intelligent reasoning (RAG-powered) |
-| Scattered evidence | Audit-ready artifact trail |
+        subgraph MODEL_CONVERT ["Model & Convert"]
+            direction LR
+            N["L-Modeler"]
+            CV["L-Converter"]
+        end
 
-## Configuration
+        subgraph EXECUTE ["Migrate & Validate"]
+            direction LR
+            ING["L-Ingestor"]
+            PRE["L-Assurer"]
+            POST["L-Validator"]
+        end
 
-Simple YAML configuration for all settings:
-- Database connections (legacy & modern)
-- Validation rules (PII keywords, naming patterns)
-- Risk thresholds (null percentages, duplicates)
-- Confidence score weights
+        subgraph MONITOR ["Observe"]
+            OBS["L-Observer"]
+        end
 
-See [`config.yaml`](config.yaml) for details.
+        PLAN_DISC --> MODEL_CONVERT --> EXECUTE --> MONITOR
+    end
 
-## Evidence & Compliance
+    subgraph AI ["Claude AI"]
+        CL["Refine / Explain / Convert"]
+    end
 
-Every validation run produces:
-- ✅ **Markdown reports** (human-readable findings)
-- ✅ **CSV exports** (compliance tracking)
-- ✅ **JSON logs** (machine-readable audit trail)
-- ✅ **Confidence scores** (executive dashboard)
+    subgraph MODERN ["Modern Target"]
+        MT[("PostgreSQL / Snowflake / BigQuery")]
+    end
 
-**Perfect for:**
-- SOC 2 audits (evidence of data validation)
-- GDPR compliance (PII detection logs)
-- Change management (before/after proof)
-- Risk assessments (confidence scoring)
+    LS --> OM --> LOCKPICKS
+    AI -.->|optional| LOCKPICKS
+    LOCKPICKS --> MT
 
-## Success Metrics
-
-From our testing:
-- ✅ **100% issue detection** - Catches all intentional defects
-- ✅ **< 1 minute** per validation phase
-- ✅ **Zero false negatives** - Fail-loud design
-- ✅ **Actionable recommendations** - Not just errors, but solutions
-
-## Requirements
-
-- Python 3.10+
-- PostgreSQL 12+ (or any SQL database)
-- 100MB disk space for artifacts
-
-## Documentation
-
-- **[Quick Start Guide](setup/README.md)** - Database setup instructions
-- **[Technical Details](TECHNICAL.md)** - Implementation documentation
-- **[Demo Script](DEMO_SCRIPT.md)** - Story-driven walkthrough
-- **[Architecture](ARCHITECTURE.md)** - System design overview
-
-## Support
-
-- Questions? See [TECHNICAL.md](TECHNICAL.md) for detailed implementation docs
-- Issues? Check [setup/README.md](setup/README.md) for troubleshooting
-- Demo not working? Run `./demo.sh` for automated setup
-
----
-
-## Example: Real Results
-
-**Pre-Migration Check:**
-```
-Structure Score: 62/100 - YELLOW ⚠️
-Issues Found:
-  • 3 schema mismatches (cl_fnam → first_name, etc.)
-  • 1 PII field detected (cl_ssn → ssn_hash)
-  • 1 type change required (phone_number: varchar → bigint)
-Recommendation: Review schema mappings before proceeding
-```
-
-**Post-Migration Proof:**
-```
-Integrity Score: 72/100 - YELLOW ⚠️
-Row Count: 200 → 195 (mismatch detected)
-Orphan Records: 1 found
-Data Checksums: Match
-Recommendation: Investigate row count discrepancy
+    style LEGACY fill:#8b0000,stroke:#a00,color:#fff
+    style OM fill:#1565c0,stroke:#0d47a1,color:#fff
+    style LOCKPICKS fill:#1a1a2e,stroke:#333,color:#fff
+    style PLAN_DISC fill:#16213e,stroke:#0f3460,color:#fff
+    style MODEL_CONVERT fill:#0f3460,stroke:#533483,color:#fff
+    style EXECUTE fill:#2d6a4f,stroke:#40916c,color:#fff
+    style MONITOR fill:#774936,stroke:#a68a64,color:#fff
+    style AI fill:#533483,stroke:#7b52ab,color:#fff
+    style MODERN fill:#2e7d32,stroke:#1b5e20,color:#fff
 ```
 
 ---
 
-**Built for confidence. Validated for trust. Proven in production.**
+## Tool Suite
+
+| Phase | Tool | CLI | What It Does |
+|-------|------|-----|-------------|
+| Plan | **L-Discoverer** | `dm rationalize` | Scores table relevance from OM catalog, identifies dark data, recommends migration scope |
+| Discover | **L-Cataloger** | `dm discover --enrich` | Pulls OM profiling, glossary, PII tags, lineage into enriched glossary |
+| Model | **L-Modeler** | `dm generate-schema` | Normalization analysis + DDL generation with type optimization and PII handling |
+| Convert | **L-Converter** | `dm convert` | Translates legacy SQL/ETL to modern target code (rule engine + Claude AI) |
+| Migrate | **L-Ingestor** | `dm ingest` | Dependency-ordered migration orchestration with state tracking |
+| Pre-check | **L-Assurer** | `dm validate --phase pre` | Pre-migration structural, governance, and profiling risk checks |
+| Post-check | **L-Validator** | `dm validate --phase post` | Post-migration source-vs-target reconciliation |
+| Monitor | **L-Observer** | `dm observe` | Pipeline drift detection, volume anomalies, schema changes |
+
+---
+
+## Quick Start: Bootstrap a New Project
+
+### 1. Install
+
+```bash
+uv sync                            # Core accelerator
+uv sync --extra ai                 # + Claude AI integration
+uv sync --extra dashboard          # + Streamlit dashboard
+uv sync --extra ai --extra dashboard  # Both extras
+uv sync --all-extras               # Everything
+```
+
+### 2. Prerequisites
+
+- [uv](https://docs.astral.sh/uv/) (recommended) or pip
+- Python 3.11+
+- OpenMetadata running (default: `http://localhost:8585`)
+- Legacy data source accessible to OpenMetadata (DB2, Oracle, PostgreSQL, etc.)
+- Target PostgreSQL database
+
+### 3. Scaffold a project
+
+```bash
+dm init my-migration
+```
+
+Creates:
+
+```
+projects/my-migration/
+  project.yaml              # Connections, datasets, validation rules, OM config
+  metadata/                 # Auto-generated glossary + mappings
+  plugins/
+    __init__.py
+    my_plugin.py            # Your domain-specific hooks
+  schemas/                  # Auto-generated Pandera validation schemas
+    legacy/
+    modern/
+  artifacts/                # Timestamped validation run outputs
+```
+
+### 4. Configure project.yaml
+
+Edit `projects/my-migration/project.yaml`:
+
+```yaml
+project:
+  name: "My Migration"
+  description: "Legacy to modern migration"
+  version: "1.0"
+
+connections:
+  legacy:
+    type: postgres
+    host: ${DB_LEGACY_HOST:localhost}
+    port: 5432
+    database: ${DB_LEGACY_NAME:legacy_db}
+    user: ${DB_LEGACY_USER:postgres}
+    password: ${DB_LEGACY_PASSWORD:postgres}
+  modern:
+    type: postgres
+    host: ${DB_MODERN_HOST:localhost}
+    port: 5432
+    database: ${DB_MODERN_NAME:modern_db}
+    user: ${DB_MODERN_USER:postgres}
+    password: ${DB_MODERN_PASSWORD:postgres}
+
+datasets:
+  - name: customers
+    legacy_table: cust_master
+    modern_table: customers
+    primary_key: cust_id
+    modern_key: customer_id
+
+# OpenMetadata integration
+openmetadata:
+  host: ${OM_HOST:http://localhost:8585}
+  auth_token: ${OM_AUTH_TOKEN:}
+  legacy_service: "my-legacy-service"    # Must match OM service name
+  legacy_database: "my_database"
+  legacy_schema: "public"
+
+# Schema generation settings
+schema_generation:
+  target: postgres
+  naming_convention: snake_case
+  abbreviation_expansion: true
+  type_optimization: true
+  pii_handling:
+    default_action: hash
+  normalization:
+    enabled: true
+    min_group_size: 3
+    prefix_detection: true
+    lookup_threshold: 20
+  constraints:
+    infer_not_null: true
+    infer_unique: true
+    infer_check: true
+  defaults:
+    add_created_at: true
+    add_updated_at: true
+    id_strategy: serial
+
+# AI configuration (optional)
+ai:
+  provider: anthropic                    # anthropic | manual
+  api_key: ${ANTHROPIC_API_KEY:}
+  model: claude-sonnet-4-6-20250514
+
+validation:
+  sample_size: 1000
+  governance:
+    pii_keywords: [ssn, email, phone, dob, credit_card, account_number]
+    naming_regex: "^[a-z0-9_]+$"
+    max_null_percent: 10
+
+scoring:
+  weights:
+    structure: 0.4
+    integrity: 0.4
+    governance: 0.2
+  thresholds:
+    green: 90
+    yellow: 70
+
+plugins: []
+
+artifacts:
+  base_path: ./artifacts
+```
+
+Environment variables use `${VAR:default}` syntax.
+
+### 5. Run the pipeline
+
+```bash
+# Phase 1: Rationalize — what's worth migrating?
+dm rationalize -p projects/my-migration
+
+# Phase 2: Discover — pull enriched metadata from OM
+dm discover --enrich -p projects/my-migration
+
+# Phase 3: Generate — normalized target schema
+dm generate-schema --all -p projects/my-migration
+
+# Phase 4: Convert — translate legacy transforms to modern SQL
+dm convert --source artifacts/generated_schema/ --target postgres -p projects/my-migration
+
+# Phase 5: Review — human reviews DDL, optionally refine with Claude
+#   (open artifacts/generated_schema/full_schema.sql, review, adjust)
+
+# Phase 6: Pre-validate — is the migration safe?
+dm validate --phase pre -d customers -p projects/my-migration
+
+# Phase 7: Ingest — execute migration
+dm ingest --execute -p projects/my-migration
+
+# Phase 8: Post-validate — did the data survive?
+dm validate --phase post -d customers -p projects/my-migration
+
+# Phase 9: Prove — generate audit package
+dm prove -d customers -p projects/my-migration
+
+# Phase 10: Observe — monitor ongoing health
+dm observe --set-baseline -p projects/my-migration
+dm observe --once -p projects/my-migration
+```
+
+---
+
+## LOOPS NJ POC: Full Walkthrough
+
+This section walks through the complete accelerator using the reference implementation -- the **LOOPS NJ** system (NJ Department of Labor Unemployment Insurance, legacy COBOL/DB2).
+
+Use this walkthrough to understand every phase before starting your own project.
+
+### POC Overview
+
+| Table | Legacy Columns | Example Fields | Description |
+|-------|---------------|----------------|-------------|
+| `claimants` | 17 cols | `cl_recid`, `cl_fnam`, `cl_ssn`, `cl_bact` | UI claimant records |
+| `employers` | 8 cols | `er_recid`, `er_name`, `er_ein` | Employer records |
+| `claims` | 10 cols | `cm_recid`, `cm_clmnt`, `cm_wkamt` | Unemployment claims |
+| `benefit_payments` | 7 cols | `bp_recid`, `bp_payam`, `bp_clmid` | Weekly benefit payments |
+
+### Step 1: Start LOOPS NJ Legacy Database
+
+```bash
+# Option A: DB2 via Docker
+docker run -d --name loops-db2 --privileged -p 50000:50000 \
+  -e LICENSE=accept -e DB2INST1_PASSWORD=loops_legacy -e DBNAME=LOOPSDB \
+  ibmcom/db2:latest
+
+# Wait for initialization (~2 min), then load data
+docker cp setup/create_databases.sql loops-db2:/tmp/
+docker exec -it loops-db2 bash -c "su - db2inst1 -c 'db2 -tvf /tmp/create_databases.sql'"
+
+# Option B: PostgreSQL (simpler — uses existing setup scripts)
+psql -U postgres -f setup/create_databases.sql
+psql -U postgres -d legacy_db -f setup/load_legacy_data.sql
+psql -U postgres -d modern_db -f setup/load_modern_data.sql
+```
+
+### Step 2: Configure OpenMetadata
+
+With OM running on `http://localhost:8585`:
+
+**2a. Create Database Service:**
+Settings > Services > Databases > Add New Service
+
+| Field | Value |
+|-------|-------|
+| Service Type | Db2 (or PostgreSQL) |
+| Service Name | `loops-legacy` |
+| Host | `localhost` |
+| Port | `50000` (DB2) or `5432` (PostgreSQL) |
+| Database | `LOOPSDB` / `legacy_db` |
+
+**2b. Run Metadata Ingestion:** Services > loops-legacy > Add Ingestion > Metadata Ingestion > Deploy
+
+**2c. Run Profiler:** Services > loops-legacy > Add Ingestion > Profiler Ingestion > Deploy (computes null%, unique%, distinct count, min/max, histograms per column)
+
+**2d. Curate Glossary:** Glossary > Create "LOOPS Legacy" > Add terms:
+
+| Term | Description | Linked Column |
+|------|-------------|---------------|
+| Claimant First Name | Legal first name | `claimants.cl_fnam` |
+| Social Security Number | SSN - HIPAA regulated | `claimants.cl_ssn` |
+| Bank Account Number | Direct deposit account | `claimants.cl_bact` |
+| Weekly Benefit Amount | Weekly UI payment in USD | `claims.cm_wkamt` |
+
+**2e. Tag PII Columns:**
+
+| Column | Tag | Accelerator Action |
+|--------|-----|-----------------|
+| `claimants.cl_ssn` | `PII.Sensitive` | SHA-256 hash |
+| `claimants.cl_bact` | `PII.Financial` | Archived (excluded) |
+| `claimants.cl_brtn` | `PII.Financial` | Archived (excluded) |
+| `claimants.cl_emal` | `PII.NonSensitive` | Encrypt annotation |
+
+### Step 3: Configure the LOOPS NJ Project
+
+```bash
+# The project is pre-configured
+ls projects/loops-nj/
+```
+
+Add the OM connection to `projects/loops-nj/project.yaml`:
+
+```yaml
+openmetadata:
+  host: http://localhost:8585
+  auth_token: ""
+  legacy_service: "loops-legacy"
+  legacy_database: "LOOPSDB"
+  legacy_schema: "DB2INST1"
+
+schema_generation:
+  target: postgres
+  naming_convention: snake_case
+  abbreviation_expansion: true
+  type_optimization: true
+  pii_handling:
+    default_action: hash
+  normalization:
+    enabled: true
+    min_group_size: 3
+    lookup_threshold: 20
+```
+
+### Step 4: Rationalize — What's Worth Migrating?
+
+```bash
+dm rationalize -p projects/loops-nj
+```
+
+Output:
+```
+============================================================
+       MIGRATION SCOPE RATIONALIZATION
+============================================================
+
+Tables analyzed: 4
+  Migrate:      4
+  Review:       0
+  Archive:      0
+============================================================
+```
+
+All 4 LOOPS tables score 85+ (actively used, downstream dependencies). In a real enterprise system with hundreds of tables, this step typically reduces migration scope by 30-60%.
+
+### Step 5: Discover and Enrich
+
+```bash
+dm discover --enrich -p projects/loops-nj
+```
+
+Pulls OM catalog data into enriched `metadata/glossary.json`:
+
+```json
+{
+  "name": "cl_fnam",
+  "description": "Legal first name of the UI claimant",
+  "confidence": 1.0,
+  "pii": false,
+  "glossary_term": "Claimant First Name",
+  "profiling": {
+    "null_percent": 0,
+    "unique_percent": 89.5,
+    "distinct_count": 179,
+    "max_length": 15
+  }
+}
+```
+
+### Step 6: Generate Modern Schema
+
+```bash
+dm generate-schema --all -p projects/loops-nj
+```
+
+The normalization analyzer detects:
+- `cl_*` columns -> `claimants` entity (primary)
+- `cl_adr1, cl_city, cl_st, cl_zip` -> `claimant_addresses` entity (child)
+- `cl_stat` with 7 distinct values -> `claimant_status_lookup` (lookup)
+
+Output at `artifacts/generated_schema/`:
+
+```sql
+-- claimants.sql
+CREATE TABLE claimants (
+    claimant_id    SERIAL PRIMARY KEY,
+    first_name     VARCHAR(30)  NOT NULL,          -- Source: cl_fnam
+    last_name      VARCHAR(30)  NOT NULL,          -- Source: cl_lnam
+    ssn_hash       VARCHAR(64)  NOT NULL UNIQUE,   -- Source: cl_ssn (SHA-256, PII.Sensitive)
+    date_of_birth  DATE         NOT NULL,          -- Source: cl_dob
+    is_deceased    BOOLEAN      NOT NULL DEFAULT FALSE, -- Source: cl_dcsd (Y/N->BOOLEAN)
+    claimant_status VARCHAR(20) NOT NULL
+        CHECK (claimant_status IN ('active','inactive','suspended','deceased')),
+    created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    -- EXCLUDED: cl_bact (PII.Financial: archived)
+    -- EXCLUDED: cl_brtn (PII.Financial: archived)
+);
+```
+
+### Step 7: Convert Legacy Transforms
+
+```bash
+dm convert --source artifacts/generated_schema/ --target postgres -p projects/loops-nj
+
+# With Claude AI refinement (requires ANTHROPIC_API_KEY):
+dm convert --source artifacts/generated_schema/ --target postgres --ai-refine -p projects/loops-nj
+```
+
+Pass 1 (deterministic) handles ~80% of conversions. Pass 2 (Claude AI) reviews for semantic correctness, performance, and edge cases.
+
+Without API key, generates `convert_prompt.md` for manual Claude review.
+
+### Step 8: Pre-Migration Validation
+
+```bash
+dm validate --phase pre -d claimants -p projects/loops-nj
+```
+
+Runs 6 pre-validators:
+
+| Validator | What It Checks |
+|-----------|---------------|
+| Schema Diff | Legacy vs generated modern schema compatibility |
+| Pandera | Sample data against auto-generated type schemas |
+| Governance | PII exposure, naming conventions, null thresholds |
+| Profile Risk | OM profiling-based risks (NULL->NOT NULL, outliers) |
+| Data Quality | Plugin cross-field rules (deceased+active status) |
+| ETL Tests | Transform script correctness (PII hashing, boolean conversion) |
+
+Output:
+```
+  MIGRATION CONFIDENCE: 87/100
+  STATUS: [Y] YELLOW
+```
+
+### Step 9: Execute Migration
+
+```bash
+# Plan first (see dependency order)
+dm ingest --plan -p projects/loops-nj
+
+# Execute
+dm ingest --execute -p projects/loops-nj
+```
+
+Tables are loaded in dependency order: employers -> claimants -> claims -> benefit_payments. Each table is validated after loading.
+
+### Step 10: Post-Migration Validation
+
+```bash
+dm validate --phase post -d claimants -p projects/loops-nj
+```
+
+Runs 9 post-validators:
+
+| Validator | What It Checks |
+|-----------|---------------|
+| Row Count | Legacy vs modern primary table count |
+| Checksums | Column-level MD5 comparison |
+| Referential Integrity | FK orphan detection (auto from normalization plan) |
+| Sample Compare | Field-level comparison with format-aware tolerance |
+| Aggregates | Business aggregate query comparison |
+| Archived Leakage | PCI/HIPAA fields must NOT appear in modern schema |
+| Unmapped Columns | Modern columns with no source mapping |
+| Normalization Integrity | Entity decomposition completeness |
+| Encoding | Character encoding survival (EBCDIC->UTF-8) |
+
+### Step 11: Generate Proof
+
+```bash
+dm prove -d claimants -p projects/loops-nj
+```
+
+```
+  Pre-score:   87
+  Post-score:  94
+  Final:       90.5
+  Status:      GREEN
+```
+
+### Step 12: Set Up Monitoring
+
+```bash
+dm observe --set-baseline -p projects/loops-nj
+dm observe --once -p projects/loops-nj
+```
+
+Monitors schema drift, volume anomalies, data freshness, FK integrity, and null spikes against the post-migration baseline.
+
+---
+
+## CLI Reference
+
+| Command | Description |
+|---------|-------------|
+| `dm init <name>` | Scaffold new project |
+| `dm rationalize -p <project>` | Analyze migration scope (L-Discoverer) |
+| `dm discover -p <project> [--enrich]` | Generate metadata from DB or OM catalog (L-Cataloger) |
+| `dm enrich -p <project>` | Enrich existing metadata with OM profiling |
+| `dm generate-schema -p <project> [--all] [--dry-run]` | Generate normalized DDL (L-Modeler) |
+| `dm convert -s <file> -t <target> [--ai-refine]` | Translate legacy SQL (L-Converter) |
+| `dm ingest --plan\|--execute -p <project> [--resume]` | Orchestrate migration (L-Ingestor) |
+| `dm validate --phase pre\|post -d <dataset> -p <project>` | Run validation (L-Assurer / L-Validator) |
+| `dm prove -d <dataset> -p <project>` | Generate migration proof report |
+| `dm observe -p <project> [--once] [--set-baseline]` | Monitor pipeline health (L-Observer) |
+| `dm status -p <project>` | Show latest run scores |
+| `dm dashboard -p <project>` | Launch Streamlit dashboard |
+
+---
+
+## Confidence Scoring
+
+Every validation run produces a 0-100 score:
+
+| Score | Status | Meaning |
+|-------|--------|---------|
+| 90-100 | GREEN | Safe to proceed |
+| 70-89 | YELLOW | Review recommended |
+| 0-69 | RED | Fix issues first |
+
+Formula: `confidence = (0.4 x structure) + (0.4 x integrity) + (0.2 x governance)`
+
+---
+
+## Plugin System (19 Hooks)
+
+Plugins add domain-specific rules without modifying the accelerator. See `projects/loops-nj/plugins/loops_plugin.py` for a complete example.
+
+| Hook | Phase | Purpose |
+|------|-------|---------|
+| `dm_get_column_overrides(table)` | Discovery | Curated column mappings |
+| `dm_enrich_glossary_entry(entry)` | Discovery | Modify glossary entries |
+| `dm_get_profiling_stats(table, column)` | Enrichment | Column profiling metrics |
+| `dm_get_lineage(table)` | Enrichment | Column lineage information |
+| `dm_normalization_overrides(table)` | Schema Gen | Explicit entity decomposition rules |
+| `dm_rationalization_overrides(table)` | Rationalize | Force include/exclude tables |
+| `dm_register_targets()` | Schema Gen | Register target platform adapters |
+| `dm_conversion_overrides(source_sql, target)` | Convert | Patch SQL conversion patterns |
+| `dm_pre_validators()` | Pre | Additional PreValidator instances |
+| `dm_data_quality_rules(dataset)` | Pre | Cross-field anomaly rules |
+| `dm_post_validators()` | Post | Additional PostValidator instances |
+| `dm_custom_aggregates(dataset)` | Post | Business aggregate checks |
+| `dm_ingest_strategy(dataset)` | Ingest | Override migration strategy per table |
+| `dm_post_ingest(dataset, result)` | Ingest | Post-load notifications |
+| `dm_adjust_score(phase, base_score, results)` | Scoring | Modify confidence score |
+| `dm_extra_report_sections(phase, results)` | Reporting | Append markdown to reports |
+| `dm_register_connectors()` | Setup | Custom database connectors |
+| `dm_observer_checks()` | Observe | Additional monitoring checks |
+| `dm_on_drift_detected(check_name, details)` | Observe | Custom drift response |
+
+---
+
+## AI Integration
+
+**Design principle:** Deterministic-first, AI-second. Every tool produces complete working output from rule engines. Claude AI refines but is never required.
+
+| Tool | AI Role | Without AI |
+|------|---------|-----------|
+| L-Modeler | Refine DDL: indexes, partitioning, naming | DDL as-is from rule engine |
+| L-Converter | Pass 2 code translation refinement | Pass 1 rule engine output only |
+| L-Observer | Explain drift root cause | Alert with raw metrics only |
+
+**Two modes:**
+1. **Built-in** (`--ai-refine`): Calls Claude API via Anthropic SDK. Configure `ai.api_key` in project.yaml.
+2. **Manual**: Generates prompt files (`*_prompt.md`) for pasting into Claude chat.
+
+---
+
+## Project Structure
+
+```
+lockpicks-data-migration-accelerator/
+  dm/
+    cli.py                          # 12 CLI commands
+    config.py                       # Config loading with env var resolution
+    pipeline.py                     # Phase orchestration
+    scoring.py                      # Confidence scoring (0-100)
+    hookspecs.py                    # 19 pluggy hooks
+    plugin_manager.py               # Plugin discovery and loading
+    connectors/                     # Database abstraction
+      base.py                       # Abstract connector interface
+      postgres.py                   # PostgreSQL implementation
+    discovery/                      # L-Cataloger + L-Modeler
+      openmetadata_enricher.py      # OM REST API wrapper
+      om_plugin.py                  # Pluggy adapter for OM
+      metadata_generator.py         # Glossary + mappings generation
+      normalization_analyzer.py     # Entity decomposition analysis
+      schema_gen.py                 # DDL generation (6 transformation rules)
+      dataset_resolver.py           # 1:N table resolution
+    rationalization/                # L-Discoverer
+      discoverer.py                 # Migration scope analysis
+      scoring.py                    # Table relevance scoring
+    conversion/                     # L-Converter
+      converter.py                  # Orchestration (Pass 1 + Pass 2)
+      rule_engine.py                # sqlglot-based SQL translation
+      ai_refiner.py                 # Claude API refinement
+    ingestion/                      # L-Ingestor
+      planner.py                    # Dependency-ordered migration plans
+      executor.py                   # Migration execution engine
+      state.py                      # State tracking (resume support)
+      strategies/                   # full_load, external
+    validators/
+      pre/                          # 6 pre-validators
+      post/                         # 9 post-validators
+    observer/                       # L-Observer
+      observer.py                   # Pipeline monitoring
+      baseline.py                   # Baseline snapshot management
+      checks/                       # schema_drift, volume, freshness, integrity
+      alerts/                       # log, slack
+    targets/                        # Pluggable target adapters
+      base.py                       # Abstract interface
+      postgres.py                   # PostgreSQL (built-in)
+    ai/                             # AI integration layer
+      client.py                     # Anthropic SDK wrapper
+      prompts.py                    # Prompt templates
+      fallback.py                   # Manual workflow prompt generation
+    kb/rag.py                       # Semantic search over metadata
+    reporting/reporter.py           # Artifact output
+  projects/
+    loops-nj/                       # Reference: LOOPS NJ (DB2 -> PostgreSQL)
+  setup/                            # Database setup SQL scripts
+  examples/                         # Starter templates
+  docs/                             # Design docs and analysis
+  dashboard.py                      # Streamlit interactive UI
+  pyproject.toml                    # Package definition
+```
+
+---
+
+## Dependencies
+
+**Core:** click, pluggy, pandas, pandera, psycopg2-binary, pyyaml, numpy, requests, sqlglot
+
+**Optional extras:**
+- `[ai]` -- anthropic SDK (Claude API integration)
+- `[rag]` -- sentence-transformers (semantic search)
+- `[dashboard]` -- streamlit, plotly (interactive UI)
+- `[observer]` -- schedule (periodic monitoring)
+
+**Requirements:** Python 3.11+, OpenMetadata instance, PostgreSQL 12+ (target)
