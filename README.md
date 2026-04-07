@@ -262,38 +262,121 @@ Environment variables use `${VAR:default}` syntax.
 
 ### 5. Run the pipeline
 
+#### Phase 1: Rationalize — what's worth migrating?
+
 ```bash
-# Phase 1: Rationalize — what's worth migrating?
 dm rationalize -p projects/my-migration
-
-# Phase 2: Discover — pull enriched metadata from OM
-dm discover --enrich -p projects/my-migration
-
-# Phase 3: Generate — normalized target schema
-dm generate-schema --all -p projects/my-migration
-
-# Phase 4: Convert — translate legacy transforms to modern SQL
-dm convert --source artifacts/generated_schema/ --target postgres -p projects/my-migration
-
-# Phase 5: Review — human reviews DDL, optionally refine with Claude
-#   (open artifacts/generated_schema/full_schema.sql, review, adjust)
-
-# Phase 6: Pre-validate — is the migration safe?
-dm validate --phase pre -d customers -p projects/my-migration
-
-# Phase 7: Ingest — execute migration
-dm ingest --execute -p projects/my-migration
-
-# Phase 8: Post-validate — did the data survive?
-dm validate --phase post -d customers -p projects/my-migration
-
-# Phase 9: Prove — generate audit package
-dm prove -d customers -p projects/my-migration
-
-# Phase 10: Observe — monitor ongoing health
-dm observe --set-baseline -p projects/my-migration
-dm observe --once -p projects/my-migration
 ```
+
+Invokes `MigrationRationalizer` which connects to OpenMetadata and scores each table on five weighted dimensions: **query activity** (35%) via log-scale scoring on query count, **downstream lineage** (25%) counting unique consumers, **freshness** (20%) inverse age of last profile, **completeness** (10%) inverse average null percentage, and **data tier** (10%) from OM tier ratings. Each table gets a 0-100 relevance score and is classified as **Migrate** (>=70), **Review** (40-69), or **Archive** (<40). Plugin overrides can force-include or force-exclude tables via the `dm_rationalization_overrides` hook.
+
+**Outputs:** `rationalization_report.md`, `rationalization_report.json`, `migration_scope.yaml` (tables grouped by classification).
+
+---
+
+#### Phase 2: Discover — pull enriched metadata from OM
+
+```bash
+dm discover --enrich -p projects/my-migration
+```
+
+Connects to OpenMetadata via REST API (`/tables/name/{fqn}`) to fetch schema, column profiling stats, glossary terms, PII tags, and lineage for each table. For each column: detects PII via keyword matching against configured patterns, infers descriptions via pattern matching (`_id` -> identifier, `_dt` -> date field), and fuzzy-matches legacy-to-modern columns using `SequenceMatcher` (threshold 0.7). OM-backed entries get confidence 1.0; pattern-inferred entries get 0.3. Plugin overrides apply via `dm_get_column_overrides` hook.
+
+**Outputs:** `metadata/glossary.json` (column-level metadata with descriptions, PII flags, confidence scores), `metadata/mappings.json` (source-to-target column mappings with type: rename/transform/archived/removed).
+
+---
+
+#### Phase 3: Generate — normalized target schema
+
+```bash
+dm generate-schema --all -p projects/my-migration
+```
+
+Two-stage process. **Stage 1 — Normalization Analysis** (`NormalizationAnalyzer`): detects column groups via prefix matching (configurable `min_group_size`, default 3), identifies lookup tables where cardinality < `lookup_threshold` (default 20), detects address/contact patterns, and infers primary keys from `_recid`/`_id`/`_pk` suffixes. Produces a `NormalizationPlan` mapping source table to proposed entities (primary/child/lookup) with relationships and confidence scores. **Stage 2 — Schema Generation** (`SchemaGenerator`): expands COBOL abbreviations (`fnam` -> `first_name`, `dob` -> `date_of_birth`), maps legacy types to PostgreSQL, applies PII handling rules (SSN -> SHA-256 hash, bank accounts -> archive, email -> encrypt annotation), infers constraints (NOT NULL, UNIQUE, CHECK) from profiling stats, and optionally adds `created_at`/`updated_at` defaults.
+
+**Outputs:** `artifacts/generated_schema/full_schema.sql` (combined DDL), per-table `.sql` files, `{table}_transforms.sql` (ETL transform skeletons), `metadata/normalization_plan.json`.
+
+---
+
+#### Phase 4: Convert — translate legacy transforms to modern SQL
+
+```bash
+dm convert --source artifacts/generated_schema/ --target postgres -p projects/my-migration
+```
+
+Three-pass code translation. **Pass 1 — Rule Engine** (`SQLRuleEngine`): auto-detects source dialect from syntax heuristics (NVL/SYSDATE -> Oracle, GETDATE/ISNULL -> MSSQL), parses SQL via `sqlglot` AST transpilation, then applies regex fallback rules for patterns sqlglot can't handle (e.g., `DECODE(a,b,c,d)` -> `CASE WHEN a=b THEN c ELSE d END`, `ROWNUM` -> `ROW_NUMBER() OVER()`, `NVL` -> `COALESCE`). Covers ~80% of conversions deterministically. **Pass 2 — AI Refinement** (optional, `--ai-refine`): sends source + translated SQL to Claude API for semantic review, performance optimization, and edge case handling. Falls back to generating a `*_prompt.md` file for manual Claude review if SDK unavailable. **Pass 3 — Plugin Overrides**: applies `dm_conversion_overrides` hook for domain-specific patches.
+
+**Outputs:** `artifacts/converted/{table}.sql` (translated SQL), `artifacts/converted/{table}_prompt.md` (Claude prompt if AI unavailable), warnings list for ambiguous patterns.
+
+---
+
+#### Phase 5: Review — human reviews DDL, optionally refine with Claude
+
+```bash
+# Open artifacts/generated_schema/full_schema.sql, review, adjust
+```
+
+---
+
+#### Phase 6: Pre-validate — is the migration safe?
+
+```bash
+dm validate --phase pre -d customers -p projects/my-migration
+```
+
+Samples `sample_size` rows (default 1000) from the legacy table and runs 6 validators in sequence. **SchemaDiffValidator**: compares legacy vs. modern schemas, penalizes removed columns (4 pts each) and type mismatches (5 pts each). **PanderaValidator**: validates column types and constraints via auto-generated Pandera schemas. **GovernanceValidator**: checks PII exposure (5 pts each, capped at 30), naming convention violations (2 pts, capped at 10), missing required fields (10 pts, capped at 30), and null threshold breaches (3 pts, capped at 15). **DataQualityValidator**: runs plugin-provided cross-field anomaly rules via `dm_data_quality_rules` hook (advisory, no penalty). **ProfileRiskValidator**: flags suspicious distribution patterns from OM profiling. **ETLTestValidator**: validates ETL transform rules defined in project config. Scoring: `confidence = (0.4 x structure) + (0.4 x integrity) + (0.2 x governance)`, mapped to GREEN (>=90), YELLOW (>=70), RED (<70). Plugin validators added via `dm_pre_validators` hook; scores adjusted via `dm_adjust_score`.
+
+**Outputs:** `artifacts/{run_id}/readiness_report.md` (per-validator results with PASS/WARN/FAIL), `confidence_score.txt`, `run_metadata.json`.
+
+---
+
+#### Phase 7: Ingest — execute migration
+
+```bash
+dm ingest --plan -p projects/my-migration    # preview execution plan
+dm ingest --execute -p projects/my-migration  # run migration
+```
+
+**Planning** (`MigrationPlanner`): builds a dependency graph from FK relationships and normalization plan, then topologically sorts tables via Kahn's algorithm (parents before children, cycle detection). Assigns per-table strategies: `full_load` (truncate + INSERT INTO...SELECT, default for tables <1M rows), `incremental` (timestamp-based WHERE clause), `cdc` (change data capture via OM logs), or `external` (delegate to Airbyte/dbt). Strategies overridable via `dm_ingest_strategy` hook. **Execution** (`MigrationExecutor`): processes tables in dependency order, tracks state in `migration_state.yaml` (pending/in_progress/completed/failed) with checkpoints for resume-on-failure (`--resume` skips completed tables). Invokes `dm_post_ingest` hook after each table.
+
+**Outputs:** `artifacts/migration_state.yaml` (per-table state with checkpoints), summary with completed/failed/pending counts and total rows migrated.
+
+---
+
+#### Phase 8: Post-validate — did the data survive?
+
+```bash
+dm validate --phase post -d customers -p projects/my-migration
+```
+
+Runs 9 validators against source and target databases. **RowCountValidator**: legacy count == modern count; penalty = min(diff%, 30). **ChecksumValidator**: column-level MD5 comparison on comparable columns (skips archived/transformed). **ReferentialIntegrityValidator**: validates FK constraints, auto-generates from normalization plan if not configured. **SampleCompareValidator**: draws random sample, matches records by key, compares field values with format-aware tolerance (Y/N -> bool, date normalization, numeric epsilon). **AggregateValidator**: compares SUM/COUNT/AVG aggregates configured in project.yaml with configurable tolerance. **ArchivedLeakageValidator**: verifies PCI/HIPAA-archived columns contain no data in modern schema. **UnmappedColumnsValidator**: ensures all modern columns have source mappings or are auto-generated. **NormalizationIntegrityValidator**: validates child tables have no orphaned FKs and all parent PKs are present. **EncodingValidator**: detects encoding mismatches and mojibake (EBCDIC -> UTF-8). Scoring: `integrity_score = 100 - sum(penalties)`, mapped to traffic light status. Plugin validators via `dm_post_validators`; aggregates via `dm_custom_aggregates`.
+
+**Outputs:** `artifacts/{run_id}/reconciliation_report.md`, `confidence_score.txt`, `run_metadata.json`.
+
+---
+
+#### Phase 9: Prove — generate audit package
+
+```bash
+dm prove -d customers -p projects/my-migration
+```
+
+Locates the latest pre-validation and post-validation run metadata for the given dataset from the artifacts directory. Retrieves both scores, computes `final_score = (pre_score + post_score) / 2`, and maps to traffic light status (GREEN >= 90, YELLOW >= 70, RED < 70). Merges pre and post reports into a unified proof document suitable for audit review.
+
+**Outputs:** `artifacts/{run_id}/proof_report.md` (combined pre + post + final assessment with evidence links), `run_metadata.json` (phase="prove", pre_score, post_score, final_score, status).
+
+---
+
+#### Phase 10: Observe — monitor ongoing health
+
+```bash
+dm observe --set-baseline -p projects/my-migration   # capture baseline snapshot
+dm observe --once -p projects/my-migration            # run one observation cycle
+```
+
+**Baseline capture** (`--set-baseline`): snapshots current DB state (row counts, column checksums, schema structure) via `BaselineManager` into `observer/baseline.yaml`. **Observation cycle** (`PipelineObserver.run_once()`): runs four built-in drift checks: **schema drift** (DDL column additions/removals/type changes), **volume anomaly** (row count deviation > `volume_threshold`, default 30% from 7-day moving average), **freshness** (tables not updated within `freshness_hours`, default 24), and **FK integrity** (referential constraint violations). Plugin checks added via `dm_observer_checks` hook. Compares results against baseline, dispatches alerts to configured channels (log file, Slack webhook, email), and invokes `dm_on_drift_detected` hook for custom remediation. Maintains observation history log with timestamps and drift counts.
+
+**Outputs:** `observer/baseline.yaml` (baseline snapshot), `observer/observation_history.json` (timestamped log of all runs with drift counts), alerts dispatched to configured channels.
 
 ---
 
