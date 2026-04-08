@@ -10,7 +10,7 @@ Data migration is a crucial, but delicate, step in transitioning away from a leg
 
 ## Solution: Lockpicks Data Migration
 
-Lockpicks Data Migration is an open, full-lifecycle toolkit that covers every phase of data migration -- from legacy rationalization through post-migration observability. It integrates **[OpenMetadata](https://open-metadata.org/)** as the metadata backbone and **[Claude AI](https://claude.ai)** as an intelligent co-pilot, while keeping every step auditable, deterministic-first, and pluggable.
+Lockpicks Data Migration is a reference implementation that covers every phase of data migration -- from legacy rationalization through post-migration observability. It integrates **[OpenMetadata](https://open-metadata.org/)** as the metadata backbone and **[Claude AI](https://claude.ai)** as an intelligent co-pilot, while keeping every step auditable, deterministic-first, and pluggable.
 
 Unlike proprietary migration suites, Lockpicks is built on open standards (OpenMetadata, pluggy hooks) and follows a **deterministic-first, AI-second** principle: rule engines produce complete, working output at every stage; AI refines but is never required. Every phase produces auditable artifacts and a quantified 0-100 confidence score.
 
