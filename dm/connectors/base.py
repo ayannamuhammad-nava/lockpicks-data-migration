@@ -1,7 +1,7 @@
 """
 Abstract base class for database connectors.
 
-All database-specific operations go through this interface so the accelerator
+All database-specific operations go through this interface so the toolkit
 remains database-agnostic.  Built-in implementations: PostgresConnector.
 Additional connectors can be registered via the dm_register_connectors hook.
 """

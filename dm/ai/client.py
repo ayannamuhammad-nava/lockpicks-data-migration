@@ -1,7 +1,7 @@
 """
 AI Client — Anthropic SDK Wrapper
 
-Provides a unified interface for AI-assisted operations in the DM accelerator.
+Provides a unified interface for AI-assisted operations in DM.
 Supports Anthropic's Claude models with graceful fallback when the SDK
 or API key is not available.
 """

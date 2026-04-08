@@ -1,7 +1,7 @@
 """
-DM — Data Migration Accelerator
+DM — Lockpicks Data Migration
 
-A reusable, extensible accelerator for validating legacy-to-modern data migrations.
+A reusable, extensible toolkit for validating legacy-to-modern data migrations.
 Supports pluggable connectors, validators, and domain-specific business rules.
 """
 

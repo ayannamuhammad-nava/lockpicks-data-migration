@@ -1,4 +1,4 @@
-# Data Migration Accelerator — Brief
+# Data Migration — Brief
 
 ## Background
 
@@ -12,11 +12,11 @@ In spite of various industry tooling around data migration, legacy to modern sys
 
 ---
 
-## Solution: Lockpicks Data Migration Accelerator
+## Solution: Lockpicks Data Migration
 
-The Lockpicks Data Migration Accelerator is an open, full-lifecycle accelerator that covers every phase of data migration -- from legacy rationalization through post-migration observability. It integrates **OpenMetadata** as the metadata backbone and **Claude AI** as an intelligent co-pilot, while keeping every step auditable, deterministic-first, and pluggable.
+Lockpicks Data Migration is an open, full-lifecycle toolkit that covers every phase of data migration -- from legacy rationalization through post-migration observability. It integrates **OpenMetadata** as the metadata backbone and **Claude AI** as an intelligent co-pilot, while keeping every step auditable, deterministic-first, and pluggable.
 
-Unlike proprietary accelerator suites, Lockpicks is built on open standards (OpenMetadata, pluggy hooks) and follows a **deterministic-first, AI-second** principle: rule engines produce complete, working output at every stage; AI refines but is never required.
+Unlike proprietary migration suites, Lockpicks is built on open standards (OpenMetadata, pluggy hooks) and follows a **deterministic-first, AI-second** principle: rule engines produce complete, working output at every stage; AI refines but is never required.
 
 ---
 
@@ -38,7 +38,7 @@ flowchart LR
     style F fill:#4CAF50,stroke:#388E3C,color:#fff
 ```
 
-Each phase maps to a specific tool in the Lockpicks accelerator:
+Each phase maps to a specific tool in Lockpicks DM:
 
 ### Data Discovery
 
@@ -170,7 +170,7 @@ A key design principle: **every tool produces complete, working output from dete
 
 ---
 
-## Lockpicks Data Migration Accelerator -- Component Model
+## Lockpicks Data Migration -- Component Model
 
 ```mermaid
 graph LR
@@ -182,7 +182,7 @@ graph LR
         CAT["Catalog - Profiler/Lineage"]
     end
 
-    subgraph LOCKPICKS ["Lockpicks DM Accelerator"]
+    subgraph LOCKPICKS ["Lockpicks DM"]
         direction TB
 
         subgraph PLAN_DISC ["Plan & Discover"]
@@ -265,7 +265,7 @@ graph LR
 
 ## Proof of Concept: LOOPS NJ
 
-As a POC to understand the challenges and engender further exploration of this space, we have implemented the Lockpicks accelerator against a legacy unemployment insurance system (LOOPS NJ -- COBOL, DB2) schema migration scenario.
+As a POC to understand the challenges and engender further exploration of this space, we have implemented Lockpicks DM against a legacy unemployment insurance system (LOOPS NJ -- COBOL, DB2) schema migration scenario.
 
 **The three problems it addresses:**
 
@@ -279,7 +279,7 @@ As a POC to understand the challenges and engender further exploration of this s
 |-------|-------------|------|
 | Catalog | OM crawls legacy DB, profiles every column, auto-tags PII | OpenMetadata |
 | Curate | Data stewards add glossary terms, descriptions, lineage in OM | OpenMetadata UI |
-| Discover | Accelerator pulls OM catalog into enriched glossary.json with confidence scores | `dm discover --enrich` |
+| Discover | DM pulls OM catalog into enriched glossary.json with confidence scores | `dm discover --enrich` |
 | Normalize | Analyzes column prefixes, cardinality, FDs to propose entity decomposition | `dm generate-schema` |
 | Generate | Produces PostgreSQL DDL with proper types, constraints, PII handling, comments | `dm generate-schema` |
 | Review | Human reviews generated DDL, then optionally refines with Claude AI | Manual + Claude |
@@ -322,4 +322,4 @@ Phases 2-5 can proceed in parallel after Phase 1.
 2. **Deterministic-first, AI-second** -- rule engines produce complete working output at every stage; Claude AI refines but is never required
 3. **Schema generation from legacy metadata** -- auto-generates normalized target schemas from OM profiling data, a capability not commonly found in migration tooling
 4. **Quantified confidence scoring** -- 0-100 migration readiness score with GREEN/YELLOW/RED status creates transparency for non-technical stakeholders
-5. **Open and pluggable** -- 19 extension hooks for customization; domain-specific rules live in plugins, not hardcoded in the accelerator
+5. **Open and pluggable** -- 19 extension hooks for customization; domain-specific rules live in plugins, not hardcoded in the toolkit

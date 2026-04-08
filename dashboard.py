@@ -1,7 +1,7 @@
 """
-Lockpicks Data Migration Accelerator — Streamlit Dashboard
+Lockpicks Data Migration — Streamlit Dashboard
 
-Reads artifacts produced by the accelerator and provides:
+Reads artifacts produced by DM and provides:
   - Confidence score gauge with traffic-light status
   - Schema diff with RAG-powered field mapping table
   - Governance / PII findings table (color-coded)
@@ -63,7 +63,7 @@ RAG_SUGGESTIONS = [
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Data-Migration Accelerator Tool",
+    page_title="Data-Migration Tool",
     page_icon="🔍",
     layout="wide",
     initial_sidebar_state="expanded",

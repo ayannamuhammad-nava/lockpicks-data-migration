@@ -1,4 +1,4 @@
-# Lockpicks Data Migration Accelerator
+# Lockpicks Data Migration
 
 Data migration is a crucial, but delicate, step in transitioning away from a legacy system towards a modern system. In spite of various industry tooling around data migration, legacy to modern system data migration initiatives are quite complex and leave stakeholders involved with key questions:
 
@@ -8,11 +8,11 @@ Data migration is a crucial, but delicate, step in transitioning away from a leg
 
 ---
 
-## Solution: Lockpicks Data Migration Accelerator
+## Solution: Lockpicks Data Migration
 
-The Lockpicks Data Migration Accelerator is an open, full-lifecycle accelerator that covers every phase of data migration -- from legacy rationalization through post-migration observability. It integrates **[OpenMetadata](https://open-metadata.org/)** as the metadata backbone and **[Claude AI](https://claude.ai)** as an intelligent co-pilot, while keeping every step auditable, deterministic-first, and pluggable.
+Lockpicks Data Migration is an open, full-lifecycle toolkit that covers every phase of data migration -- from legacy rationalization through post-migration observability. It integrates **[OpenMetadata](https://open-metadata.org/)** as the metadata backbone and **[Claude AI](https://claude.ai)** as an intelligent co-pilot, while keeping every step auditable, deterministic-first, and pluggable.
 
-Unlike proprietary accelerator suites, Lockpicks is built on open standards (OpenMetadata, pluggy hooks) and follows a **deterministic-first, AI-second** principle: rule engines produce complete, working output at every stage; AI refines but is never required. Every phase produces auditable artifacts and a quantified 0-100 confidence score.
+Unlike proprietary migration suites, Lockpicks is built on open standards (OpenMetadata, pluggy hooks) and follows a **deterministic-first, AI-second** principle: rule engines produce complete, working output at every stage; AI refines but is never required. Every phase produces auditable artifacts and a quantified 0-100 confidence score.
 
 ---
 
@@ -34,7 +34,7 @@ flowchart LR
     style F fill:#4CAF50,stroke:#388E3C,color:#fff
 ```
 
-Each lifecycle phase maps to industry tooling (OpenMetadata) and Lockpicks accelerator tools:
+Each lifecycle phase maps to industry tooling (OpenMetadata) and Lockpicks DM tools:
 
 - **Data Discovery** -- Collect legacy data sources, schemas, glossary. Identify data worth migrating vs. dark data to archive. (OpenMetadata catalog, profiling, lineage, PII auto-tagging)
 - **Data Modeling** -- Normalized schema design from denormalized legacy tables, informed by profiling data and domain requirements.
@@ -57,7 +57,7 @@ graph LR
         CAT["Catalog - Profiler / Lineage"]
     end
 
-    subgraph LOCKPICKS ["Lockpicks DM Accelerator"]
+    subgraph LOCKPICKS ["Lockpicks DM"]
         direction TB
 
         subgraph PLAN_DISC ["Plan & Discover"]
@@ -131,7 +131,7 @@ graph LR
 ### 1. Install
 
 ```bash
-uv sync                            # Core accelerator
+uv sync                            # Core toolkit
 uv sync --extra ai                 # + Claude AI integration
 uv sync --extra dashboard          # + Streamlit dashboard
 uv sync --extra ai --extra dashboard  # Both extras
@@ -382,7 +382,7 @@ dm observe --once -p projects/my-migration            # run one observation cycl
 
 ## LOOPS NJ POC: Full Walkthrough
 
-This section walks through the complete accelerator using the reference implementation -- the **LOOPS NJ** system (NJ Department of Labor Unemployment Insurance, legacy COBOL/DB2).
+This section walks through the complete toolkit using the reference implementation -- the **LOOPS NJ** system (NJ Department of Labor Unemployment Insurance, legacy COBOL/DB2).
 
 Use this walkthrough to understand every phase before starting your own project.
 
@@ -443,12 +443,13 @@ Settings > Services > Databases > Add New Service
 
 **2e. Tag PII Columns:**
 
-| Column | Tag | Accelerator Action |
+| Column | Tag | DM Action |
 |--------|-----|-----------------|
 | `claimants.cl_ssn` | `PII.Sensitive` | SHA-256 hash |
 | `claimants.cl_bact` | `PII.Financial` | Archived (excluded) |
 | `claimants.cl_brtn` | `PII.Financial` | Archived (excluded) |
 | `claimants.cl_emal` | `PII.NonSensitive` | Encrypt annotation |
+
 
 ### Step 3: Configure the LOOPS NJ Project
 
@@ -683,7 +684,7 @@ Formula: `confidence = (0.4 x structure) + (0.4 x integrity) + (0.2 x governance
 
 ## Plugin System (19 Hooks)
 
-Plugins add domain-specific rules without modifying the accelerator. See `projects/loops-nj/plugins/loops_plugin.py` for a complete example.
+Plugins add domain-specific rules without modifying the toolkit. See `projects/loops-nj/plugins/loops_plugin.py` for a complete example.
 
 | Hook | Phase | Purpose |
 |------|-------|---------|
@@ -728,7 +729,7 @@ Plugins add domain-specific rules without modifying the accelerator. See `projec
 ## Project Structure
 
 ```
-lockpicks-data-migration-accelerator/
+lockpicks-data-migration/
   dm/
     cli.py                          # 12 CLI commands
     config.py                       # Config loading with env var resolution

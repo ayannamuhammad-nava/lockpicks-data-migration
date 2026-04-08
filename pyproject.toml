@@ -3,9 +3,9 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "lockpicks-data-migration-accelerator"
+name = "lockpicks-data-migration"
 version = "0.1.0"
-description = "Lockpicks Data Migration Accelerator — discover legacy assets via OpenMetadata, generate normalized modern schemas, and validate migrations with confidence scoring"
+description = "Lockpicks Data Migration — discover legacy assets via OpenMetadata, generate normalized modern schemas, and validate migrations with confidence scoring"
 requires-python = ">=3.11"
 dependencies = [
     "click>=8.0",
@@ -25,7 +25,7 @@ dashboard = ["streamlit>=1.32.0", "plotly>=5.18.0"]
 sqlalchemy = ["sqlalchemy>=2.0"]
 ai = ["anthropic>=0.30.0"]
 observer = ["schedule>=1.2.0"]
-all = ["lockpicks-data-migration-accelerator[rag,dashboard,sqlalchemy,ai,observer]"]
+all = ["lockpicks-data-migration[rag,dashboard,sqlalchemy,ai,observer]"]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",

@@ -2,7 +2,7 @@
 Data Quality Validator
 
 Runs cross-field anomaly checks provided by plugins via the
-dm_data_quality_rules hook. The accelerator ships no built-in rules —
+dm_data_quality_rules hook. The toolkit ships no built-in rules —
 each migration project defines its own via a plugin.
 """
 

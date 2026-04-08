@@ -1,6 +1,6 @@
 # Database Setup Instructions
 
-This directory contains SQL scripts to set up demo databases for the **Lockpicks Data Migration Accelerator**.
+This directory contains SQL scripts to set up demo databases for the **Lockpicks Data Migration**.
 
 ## Overview
 
@@ -61,9 +61,9 @@ The demo data includes these intentional issues to showcase the agent's detectio
 
 ```bash
 # Navigate to project root
-cd /path/to/lockpicks-data-migration-accelerator
+cd /path/to/lockpicks-data-migration
 
-# Install the accelerator
+# Install the toolkit
 uv sync
 ```
 

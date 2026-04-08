@@ -2,7 +2,7 @@
 AI Prompt Templates
 
 String constants with {placeholder} fields for use with str.format().
-These prompts drive AI-assisted operations throughout the DM accelerator.
+These prompts drive AI-assisted operations throughout DM.
 """
 
 # ── Schema Refinement ─────────────────────────────────────────────────

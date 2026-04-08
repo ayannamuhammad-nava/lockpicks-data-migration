@@ -1,7 +1,7 @@
 """
 DM Hook Specifications
 
-Defines all extension points for the Data Migration Accelerator.
+Defines all extension points for Lockpicks Data Migration.
 Plugins implement these hooks to provide domain-specific behaviour.
 """
 
@@ -14,7 +14,7 @@ hookimpl = pluggy.HookimplMarker(PROJECT_NAME)
 
 
 class DMHookSpec:
-    """All extension points for the Data Migration Accelerator."""
+    """All extension points for Lockpicks Data Migration."""
 
     # ── Discovery Phase ──────────────────────────────────────────────
 
@@ -125,7 +125,7 @@ class DMHookSpec:
 
         Args:
             phase: 'pre' or 'post'
-            base_score: The score calculated by the accelerator (0-100)
+            base_score: The score calculated by DM (0-100)
             results: Full validation results dict
 
         Returns:

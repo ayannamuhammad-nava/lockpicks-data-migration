@@ -26,7 +26,7 @@ logging.basicConfig(
 @click.group()
 @click.version_option(version="0.1.0", prog_name="dm")
 def cli():
-    """DM — Data Migration Accelerator.
+    """DM — Lockpicks Data Migration.
 
     Validate legacy-to-modern data migrations with pluggable checks,
     confidence scoring, and audit-ready reports.
