@@ -1,4 +1,4 @@
-# Lockpicks Data Migration
+# Data Migrations
 
 Data migration is a crucial, but delicate, step in transitioning away from a legacy system towards a modern system. In spite of various industry tooling around data migration, legacy to modern system data migration initiatives are quite complex and leave stakeholders involved with key questions:
 
@@ -8,7 +8,7 @@ Data migration is a crucial, but delicate, step in transitioning away from a leg
 
 ---
 
-## Solution: Lockpicks Data Migration Lifecylce
+## Solution: Lockpicks Data Migration Lifecycle
 
 Lockpicks Data Migration is a reference implementation that covers every phase of data migration lifecycle -- from legacy rationalization through post-migration observability. It is based on https://app.mural.co/t/nava4113/m/nava4113/1773842540722/c4c8446520bac5e13fd0616389c20966f1dece70 and integrates **[OpenMetadata](https://open-metadata.org/)** as the metadata backbone and uses **[Claude AI](https://claude.ai)** as an intelligent co-pilot, while keeping every step auditable, deterministic-first, and pluggable.
 
