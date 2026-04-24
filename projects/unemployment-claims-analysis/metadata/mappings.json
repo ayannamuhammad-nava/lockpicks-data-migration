@@ -1,0 +1,388 @@
+{
+  "mappings": [
+    {
+      "source": "cl_recid",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claimants"
+    },
+    {
+      "source": "cl_fnam",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claimants"
+    },
+    {
+      "source": "cl_lnam",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claimants"
+    },
+    {
+      "source": "cl_ssn",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claimants"
+    },
+    {
+      "source": "cl_dob",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claimants"
+    },
+    {
+      "source": "cl_phon",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claimants"
+    },
+    {
+      "source": "cl_emal",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claimants"
+    },
+    {
+      "source": "cl_adr1",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claimants"
+    },
+    {
+      "source": "cl_city",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claimants"
+    },
+    {
+      "source": "cl_st",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claimants"
+    },
+    {
+      "source": "cl_zip",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claimants"
+    },
+    {
+      "source": "cl_bact",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claimants"
+    },
+    {
+      "source": "cl_brtn",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claimants"
+    },
+    {
+      "source": "cl_stat",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claimants"
+    },
+    {
+      "source": "cl_rgdt",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claimants"
+    },
+    {
+      "source": "cl_dcsd",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claimants"
+    },
+    {
+      "source": "cl_fil1",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claimants"
+    },
+    {
+      "source": "er_recid",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "employers"
+    },
+    {
+      "source": "er_name",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "employers"
+    },
+    {
+      "source": "er_ein",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "employers"
+    },
+    {
+      "source": "er_ind",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "employers"
+    },
+    {
+      "source": "er_adr1",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "employers"
+    },
+    {
+      "source": "er_city",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "employers"
+    },
+    {
+      "source": "er_st",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "employers"
+    },
+    {
+      "source": "er_zip",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "employers"
+    },
+    {
+      "source": "er_phon",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "employers"
+    },
+    {
+      "source": "er_stat",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "employers"
+    },
+    {
+      "source": "cm_recid",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claims"
+    },
+    {
+      "source": "cm_clmnt",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claims"
+    },
+    {
+      "source": "cm_emplr",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claims"
+    },
+    {
+      "source": "cm_seprs",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claims"
+    },
+    {
+      "source": "cm_fildt",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claims"
+    },
+    {
+      "source": "cm_bystr",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claims"
+    },
+    {
+      "source": "cm_byend",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claims"
+    },
+    {
+      "source": "cm_wkamt",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claims"
+    },
+    {
+      "source": "cm_mxamt",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claims"
+    },
+    {
+      "source": "cm_totpd",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claims"
+    },
+    {
+      "source": "cm_wkcnt",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claims"
+    },
+    {
+      "source": "cm_stat",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claims"
+    },
+    {
+      "source": "cm_lupdt",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "claims"
+    },
+    {
+      "source": "bp_recid",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "benefit_payments"
+    },
+    {
+      "source": "bp_clmid",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "benefit_payments"
+    },
+    {
+      "source": "bp_paydt",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "benefit_payments"
+    },
+    {
+      "source": "bp_payam",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "benefit_payments"
+    },
+    {
+      "source": "bp_methd",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "benefit_payments"
+    },
+    {
+      "source": "bp_wkedt",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "benefit_payments"
+    },
+    {
+      "source": "bp_stat",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "benefit_payments"
+    },
+    {
+      "source": "bp_chkno",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "benefit_payments"
+    }
+  ]
+}

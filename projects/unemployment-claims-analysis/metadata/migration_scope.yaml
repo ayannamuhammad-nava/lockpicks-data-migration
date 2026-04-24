@@ -1,0 +1,21 @@
+migration_scope:
+  generated_at: '2026-04-24T17:55:18.898225+00:00'
+  migrate: []
+  review: []
+  archive:
+  - table: benefit_payments
+    score: 32.5
+    rationale: 'Table ''benefit_payments'' is a candidate for archival/decommission.
+      Strongest signal: query_activity (50/100). Concern: low downstream score (0/100).'
+  - table: claimants
+    score: 32.5
+    rationale: 'Table ''claimants'' is a candidate for archival/decommission. Strongest
+      signal: query_activity (50/100). Concern: low downstream score (0/100).'
+  - table: claims
+    score: 32.5
+    rationale: 'Table ''claims'' is a candidate for archival/decommission. Strongest
+      signal: query_activity (50/100). Concern: low downstream score (0/100).'
+  - table: employers
+    score: 32.5
+    rationale: 'Table ''employers'' is a candidate for archival/decommission. Strongest
+      signal: query_activity (50/100). Concern: low downstream score (0/100).'

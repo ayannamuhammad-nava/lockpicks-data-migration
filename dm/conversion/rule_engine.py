@@ -227,7 +227,7 @@ class SQLRuleEngine:
                 # Apply regex rules as a second pass for anything sqlglot missed
                 translated = self._apply_regex_rules(translated, src, tgt)
                 return translated
-        except sqlglot.errors.ErrorLevel:
+        except sqlglot.errors.ParseError:
             pass
         except Exception as e:
             logger.debug(f"sqlglot failed on statement: {e}")

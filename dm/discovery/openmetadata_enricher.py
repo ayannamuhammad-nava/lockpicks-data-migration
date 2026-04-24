@@ -135,14 +135,18 @@ class OpenMetadataEnricher:
 
     def get_table_metadata(self, table: str) -> Dict:
         """Fetch table-level metadata: description, owner, tier, tags."""
-        entity = self._get_table_entity(table, fields="owner,tags,followers")
+        entity = self._get_table_entity(table, fields="owners,tags")
         tags = [t.get("tagFQN", "") for t in entity.get("tags", [])]
         tier = None
         for tag in tags:
             if tag.startswith("Tier."):
                 tier = tag
                 break
-        owner = entity.get("owner", {})
+        owners = entity.get("owners", entity.get("owner", {}))
+        if isinstance(owners, list):
+            owner = owners[0] if owners else {}
+        else:
+            owner = owners
         return {
             "name": entity.get("name", table),
             "description": entity.get("description", ""),
@@ -169,7 +173,7 @@ class OpenMetadataEnricher:
                 f"tables/name/{quote(fqn, safe='')}/tableProfile/latest"
             )
         except requests.HTTPError as e:
-            if e.response is not None and e.response.status_code == 404:
+            if e.response is not None and e.response.status_code in (404, 500):
                 logger.warning(f"No profiler data for table {table}")
                 return {"columns": {}, "row_count": 0, "profiled_at": None}
             raise

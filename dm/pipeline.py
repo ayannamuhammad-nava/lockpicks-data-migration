@@ -653,7 +653,7 @@ def run_conversion(
     return {
         "source": result.source_path,
         "target": result.target_dialect,
-        "output_path": result.output_path,
+        "output_path": getattr(result, "output_path", result.source_path),
         "warning_count": len(result.warnings),
         "ai_suggestions": result.ai_suggestions,
         "prompt_file": result.prompt_file_path,

@@ -1,0 +1,84 @@
+{
+  "benefit_payments": {
+    "source_table": "benefit_payments",
+    "entities": [
+      {
+        "name": "benefit_payments",
+        "columns": [
+          {
+            "source_col": "bp_recid",
+            "target_col": null,
+            "data_type": "INT",
+            "data_type_display": "int",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "bp_clmid",
+            "target_col": null,
+            "data_type": "INT",
+            "data_type_display": "int",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "bp_paydt",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "bp_payam",
+            "target_col": null,
+            "data_type": "DECIMAL",
+            "data_type_display": "decimal",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "bp_methd",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "bp_wkedt",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "bp_chkno",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "bp_stat",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          }
+        ],
+        "primary_key": "bp_recid",
+        "source_table": "benefit_payments",
+        "role": "primary",
+        "rationale": "Primary entity from bp_ columns (confidence: 0.90)"
+      }
+    ],
+    "relationships": [],
+    "lookup_tables": [],
+    "confidence": 0.9,
+    "rationale": "Decomposed benefit_payments into 1 entities with 0 relationships and 0 lookup tables"
+  }
+}
