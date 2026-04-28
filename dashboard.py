@@ -386,41 +386,263 @@ def render_lifecycle_bar(lifecycle: dict, phase: str = "", dataset: str = ""):
     avg_date = lifecycle.get("avg_date", "")
     color = lifecycle["color"]
     bg = lifecycle["bg"]
-    status = lifecycle["status"]
+    lc_status = lifecycle["status"]
     current = lifecycle["current_phase"]
-    emoji = STATUS_EMOJI.get(status, "⚪")
-
-    # Phase labels with completion indicators
-    phase_html = ""
-    for i, (label, _cmd) in enumerate(LIFECYCLE_PHASES):
-        if i < current:
-            # Completed
-            phase_html += f'<span style="background:#2e7d32;color:#fff;padding:4px 12px;border-radius:12px;margin:0 3px;font-size:0.8rem;font-weight:600">{label}</span>'
-        elif i == current:
-            # Current
-            phase_html += f'<span style="background:{color};color:#000;padding:4px 12px;border-radius:12px;margin:0 3px;font-size:0.8rem;font-weight:700;border:2px solid {color}">{label}</span>'
-        else:
-            # Pending
-            phase_html += f'<span style="background:#e0e0e0;color:#888;padding:4px 12px;border-radius:12px;margin:0 3px;font-size:0.8rem">{label}</span>'
+    emoji = STATUS_EMOJI.get(lc_status, "⚪")
 
     # Context line — project name only
     context = f"<strong>{PROJECT_NAME}</strong>"
 
     st.markdown(f"""
-    <div style="background:{bg};border-left:5px solid {color};border-radius:8px;padding:12px 20px;margin-bottom:16px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <div style="background:{bg};border-left:5px solid {color};border-radius:8px;padding:12px 20px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
             <div style="font-size:1.1rem;font-weight:700;color:{color}">{emoji} {context}</div>
             <div style="text-align:right">
-                <div style="font-size:0.9rem;color:{color};font-weight:600">Avg Score: {avg}/100 &middot; {status}</div>
+                <div style="font-size:0.9rem;color:{color};font-weight:600">Avg Score: {avg}/100 &middot; {lc_status}</div>
                 <div style="font-size:0.7rem;color:#888">{avg_date}</div>
             </div>
         </div>
-        <div style="display:flex;align-items:center;gap:2px;flex-wrap:wrap">
-            <span style="font-size:0.75rem;color:#666;margin-right:8px;font-weight:600">LIFECYCLE:</span>
-            {phase_html}
-        </div>
     </div>
     """, unsafe_allow_html=True)
+
+    # Phase buttons — clickable
+    cols = st.columns([0.12] + [1] * len(LIFECYCLE_PHASES))
+    with cols[0]:
+        st.markdown("<div style='padding-top:6px;font-size:0.7rem;color:#666;font-weight:600'>LIFECYCLE:</div>", unsafe_allow_html=True)
+
+    for i, (label, _cmd) in enumerate(LIFECYCLE_PHASES):
+        with cols[i + 1]:
+            if i < current:
+                btn_type = "primary"
+                lbl = f"✓ {label}"
+            elif i == current:
+                btn_type = "secondary"
+                lbl = f"● {label}"
+            else:
+                btn_type = "secondary"
+                lbl = label
+            if st.button(lbl, key=f"lc_phase_{i}", use_container_width=True, type=btn_type, disabled=(i > current)):
+                st.session_state["lifecycle_view"] = label
+                st.rerun()
+
+
+def render_discovery_page():
+    """Render the Discovery detail page showing tables, columns, glossary, mappings, and abbreviations."""
+    st.markdown("## 🔎 Discovery — Catalog Overview")
+    st.caption(f"Project: {PROJECT_NAME}")
+
+    # Load all metadata
+    glossary_path = METADATA_DIR / "glossary.json"
+    mappings_path = METADATA_DIR / "mappings.json"
+    abbrev_path = METADATA_DIR / "abbreviations.yaml"
+    scope_path = METADATA_DIR / "migration_scope.yaml"
+    rationalization_path = METADATA_DIR / "rationalization_report.json"
+
+    if not glossary_path.exists():
+        st.warning("No discovery data found. Run `dm discover --enrich` first.")
+        return
+
+    glossary = json.loads(glossary_path.read_text())
+    columns = glossary.get("columns", [])
+    mappings_data = json.loads(mappings_path.read_text()) if mappings_path.exists() else {"mappings": []}
+    mappings = mappings_data.get("mappings", [])
+
+    # Tables summary
+    tables = sorted(set(c.get("table", "") for c in columns if c.get("system") == "legacy"))
+    legacy_cols = [c for c in columns if c.get("system") == "legacy"]
+    modern_cols = [c for c in columns if c.get("system") == "modern"]
+    pii_cols = [c for c in legacy_cols if c.get("pii")]
+
+    st.markdown("### Summary")
+    mc1, mc2, mc3, mc4 = st.columns(4)
+    mc1.metric("Legacy Tables", len(tables))
+    mc2.metric("Legacy Columns", len(legacy_cols))
+    mc3.metric("Modern Columns", len(modern_cols))
+    mc4.metric("PII Fields", len(pii_cols))
+
+    st.divider()
+
+    # Tabs for different views
+    tab_tables, tab_glossary, tab_mappings, tab_pii, tab_abbrev, tab_scope = st.tabs([
+        "📋 Tables & Columns",
+        "📖 Glossary",
+        "🔄 Field Mappings",
+        "🔒 PII Detection",
+        "🔤 Abbreviations",
+        "📊 Rationalization",
+    ])
+
+    # ── Tables & Columns tab
+    with tab_tables:
+        for table in tables:
+            table_cols = [c for c in legacy_cols if c.get("table") == table]
+            st.markdown(f"#### 📁 `{table}` — {len(table_cols)} columns")
+
+            rows = []
+            for c in table_cols:
+                pii_flag = "🔴 PII" if c.get("pii") else ""
+                rows.append({
+                    "Column": c["name"],
+                    "COBOL Description": c.get("description", ""),
+                    "Data Type": c.get("data_type_display", c.get("data_type", "")),
+                    "Nullable": c.get("is_nullable", ""),
+                    "PII": pii_flag,
+                    "Confidence": c.get("confidence", 0),
+                })
+            df = pd.DataFrame(rows)
+            st.dataframe(df, use_container_width=True, hide_index=True)
+
+    # ── Glossary tab
+    with tab_glossary:
+        st.markdown("#### Business Glossary")
+        st.caption("Column-level metadata with COBOL copybook descriptions, data types, and confidence scores.")
+        rows = []
+        for c in legacy_cols:
+            rows.append({
+                "Table": c.get("table", ""),
+                "Column": c["name"],
+                "Description": c.get("description", ""),
+                "Data Type": c.get("data_type_display", c.get("data_type", "")),
+                "PII": "Yes" if c.get("pii") else "No",
+                "Confidence": f"{c.get('confidence', 0):.0%}",
+            })
+        df = pd.DataFrame(rows)
+        st.dataframe(df, use_container_width=True, hide_index=True, column_config={
+            "Description": st.column_config.TextColumn(width="large"),
+        })
+
+    # ── Field Mappings tab
+    with tab_mappings:
+        st.markdown("#### Legacy → Modern Field Mappings")
+        st.caption("Auto-resolved by the COBOL-aware matcher using abbreviation dictionary + copybook descriptions.")
+
+        if mappings:
+            rows = []
+            for m in mappings:
+                icon = MAPPING_TYPE_ICON.get(m.get("type", ""), "→")
+                target = m.get("target") or "*(not migrated)*"
+                rows.append({
+                    "Table": m.get("table", ""),
+                    "Legacy Field": m["source"],
+                    " ": icon,
+                    "Modern Field": target,
+                    "Type": m.get("type", ""),
+                    "Conf.": f"{int(m.get('confidence', 0) * 100)}%",
+                    "Rationale": m.get("rationale", ""),
+                })
+            df = pd.DataFrame(rows)
+
+            def highlight_mapping(row):
+                if row["Type"] == "archived":
+                    return ["background-color: #ffebee; color: #000000"] * len(row)
+                if row["Type"] == "transform":
+                    return ["background-color: #fff9c4; color: #000000"] * len(row)
+                if row["Type"] == "removed":
+                    return ["background-color: #f5f5f5; color: #888"] * len(row)
+                return [""] * len(row)
+
+            st.dataframe(
+                df.style.apply(highlight_mapping, axis=1),
+                use_container_width=True, hide_index=True,
+                column_config={"Rationale": st.column_config.TextColumn(width="large")},
+            )
+            st.markdown(
+                "🔒 **archived** — PCI/HIPAA: not migrated &nbsp;&nbsp; "
+                "⚙️ **transform** — type/format change &nbsp;&nbsp; "
+                "→ **rename** — column renamed &nbsp;&nbsp; "
+                "🗑️ **removed** — no equivalent",
+            )
+        else:
+            st.info("No mappings found. Run `dm enrich` first.")
+
+    # ── PII Detection tab
+    with tab_pii:
+        st.markdown("#### PII / Sensitive Data Detection")
+        if pii_cols:
+            rows = []
+            for c in pii_cols:
+                tags = ", ".join(c.get("pii_tags", [])) if c.get("pii_tags") else "keyword match"
+                rows.append({
+                    "Table": c.get("table", ""),
+                    "Column": c["name"],
+                    "Description": c.get("description", ""),
+                    "Detection Method": tags,
+                })
+            df = pd.DataFrame(rows)
+            st.dataframe(df, use_container_width=True, hide_index=True)
+
+            st.markdown(f"""
+            <div class="pii-alert">
+                ⚠️ <strong>{len(pii_cols)} PII field(s) detected in legacy data.</strong><br>
+                <small>These fields require hashing, masking, or archival before migration.</small>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.success("No PII fields detected.")
+
+    # ── Abbreviations tab
+    with tab_abbrev:
+        st.markdown("#### COBOL Abbreviation Mappings")
+        st.caption("Auto-generated from copybook descriptions. Project-specific overrides take priority over the built-in dictionary.")
+
+        if abbrev_path.exists():
+            import yaml
+            abbrev_data = yaml.safe_load(abbrev_path.read_text()) or {}
+            abbrevs = abbrev_data.get("abbreviations", {})
+            generated_from = abbrev_data.get("_generated_from", "")
+
+            if generated_from:
+                st.caption(f"Source: {generated_from}")
+
+            if abbrevs:
+                rows = [{"COBOL Suffix": k, "Modern Name": v} for k, v in sorted(abbrevs.items())]
+                st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+            else:
+                st.info("No project-specific abbreviations generated.")
+
+            st.markdown(f"**Built-in dictionary:** {len(LIFECYCLE_PHASES)} lifecycle phases tracked. "
+                        f"The built-in COBOL dictionary contains 90+ common patterns.")
+        else:
+            st.info("No abbreviations.yaml found. Run `dm discover --enrich` to auto-generate.")
+
+    # ── Rationalization tab
+    with tab_scope:
+        st.markdown("#### Migration Scope Rationalization")
+
+        if rationalization_path.exists():
+            rat_data = json.loads(rationalization_path.read_text())
+            summary = rat_data.get("summary", {})
+
+            rc1, rc2, rc3, rc4 = st.columns(4)
+            rc1.metric("Total Tables", summary.get("total_tables", 0))
+            rc2.metric("Migrate", summary.get("migrate_count", 0))
+            rc3.metric("Review", summary.get("review_count", 0))
+            rc4.metric("Archive", summary.get("archive_count", 0))
+
+            st.divider()
+
+            table_details = rat_data.get("tables", [])
+            if table_details:
+                rows = []
+                for t in table_details:
+                    b = t.get("breakdown", {})
+                    rows.append({
+                        "Table": t.get("table", ""),
+                        "Score": t.get("score", 0),
+                        "Recommendation": t.get("recommendation", "").upper(),
+                        "Query Activity": b.get("query_activity", 0),
+                        "Downstream": b.get("downstream", 0),
+                        "Freshness": b.get("freshness", 0),
+                        "Completeness": b.get("completeness", 0),
+                        "Tier": b.get("tier", 0),
+                    })
+                st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+            # Show rationale
+            for t in table_details:
+                st.markdown(f"**{t.get('table', '')}:** {t.get('rationale', '')}")
+        else:
+            st.info("No rationalization data. Run `dm rationalize` first.")
 
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
@@ -490,6 +712,23 @@ with st.sidebar:
 # ── Main area ──────────────────────────────────────────────────────────────────
 
 lifecycle = get_lifecycle_status()
+
+# Check if a lifecycle phase was clicked
+lifecycle_view = st.session_state.get("lifecycle_view", None)
+
+if lifecycle_view:
+    render_lifecycle_bar(lifecycle)
+    # Back button
+    if st.button("← Back to Run View", key="back_from_lifecycle"):
+        del st.session_state["lifecycle_view"]
+        st.rerun()
+
+    if lifecycle_view == "Discovery":
+        render_discovery_page()
+    else:
+        st.markdown(f"## {lifecycle_view}")
+        st.info(f"Detail page for **{lifecycle_view}** phase coming soon.")
+    st.stop()
 
 if not selected_run:
     render_lifecycle_bar(lifecycle)
