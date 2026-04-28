@@ -375,6 +375,20 @@ def run_enrichment(
     om_plugin = OpenMetadataPlugin(om)
     pm.register(om_plugin, name="openmetadata")
 
+    # Try to connect to modern DB for COBOL-aware column matching
+    modern_conn = None
+    try:
+        from dm.pipeline import get_connector
+        plugin_connectors = {}
+        results = pm.hook.dm_register_connectors()
+        for r in results:
+            if r:
+                plugin_connectors.update(r)
+        modern_conn = get_connector(config["connections"]["modern"], plugin_connectors)
+        modern_conn.connect()
+    except Exception:
+        logger.info("Modern DB not available — using COBOL abbreviation expansion for mappings")
+
     try:
         if not tables:
             tables = om.get_tables()
@@ -385,6 +399,7 @@ def run_enrichment(
             tables=list(tables),
             output_dir=str(metadata_path),
             plugin_manager=pm,
+            modern_conn=modern_conn,
         )
 
         return {
@@ -395,6 +410,11 @@ def run_enrichment(
         }
     finally:
         om.close()
+        if modern_conn:
+            try:
+                modern_conn.close()
+            except Exception:
+                pass
 
 
 def run_schema_generation(

@@ -37,6 +37,8 @@ PII_KEYWORDS = [
     "routing_number", "bank", "dob", "date_of_birth",
     "salary", "income", "email", "phone", "address",
     "zip", "latitude", "longitude", "ip_address",
+    # COBOL abbreviated PII patterns
+    "bact", "brtn", "bacct", "broute", "bkact", "bkrtn",
 ]
 
 
@@ -56,22 +58,217 @@ def infer_description(column_name: str, data_type: str) -> Tuple[str, float]:
     return f"{data_type.capitalize()} value for {column_name}", 0.3
 
 
+# ── COBOL Abbreviation Expansion ─────────────────────────────────────────────
+# Maps common COBOL copybook abbreviations to their expanded modern equivalents.
+# Used to bridge the gap between legacy abbreviated names (cl_fnam, bp_payam)
+# and modern descriptive names (first_name, payment_amount) that fall below
+# the default SequenceMatcher similarity threshold.
+
+COBOL_ABBREVIATIONS = {
+    # Name fields
+    "fnam": "first_name", "lnam": "last_name", "mnam": "middle_name",
+    "name": "name", "nm": "name",
+    # Identifiers — note: recid is intentionally not mapped to a single target
+    # because the modern name depends on the table (payment_id, claimant_id, etc.)
+    # The containment matcher will resolve it via the table-specific prefix.
+    "seqno": "sequence_number", "seqnbr": "sequence_number",
+    "ein": "ein", "tin": "tin",
+    # Dates and times
+    "dob": "date_of_birth", "dt": "date", "dte": "date",
+    "fildt": "filing_date", "paydt": "payment_date", "effdt": "effective_date",
+    "rgdt": "registered_at", "lupdt": "updated_at", "crtdt": "created_at",
+    "bystr": "benefit_year_start", "byend": "benefit_year_end",
+    # Contact info
+    "phon": "phone_number", "phn": "phone_number", "tel": "phone_number",
+    "emal": "email", "email": "email",
+    "adr1": "address_line1", "adr2": "address_line2", "addr": "address",
+    "city": "city", "st": "state", "zip": "zip_code",
+    # Financial
+    "payam": "payment_amount", "amt": "amount", "wkamt": "weekly_benefit_amount",
+    "mxamt": "max_benefit_amount", "totpd": "total_paid",
+    "bact": "bank_account", "brtn": "bank_routing",
+    # Status and codes
+    "stat": "status", "sts": "status", "typ": "type", "cd": "code",
+    "ind": "industry", "methd": "method",
+    # Counts
+    "wkcnt": "weeks_claimed", "cnt": "count", "qty": "quantity",
+    # References
+    "clmnt": "claimant_id", "clmid": "claim_id", "emplr": "employer_id",
+    "custid": "customer_id", "empid": "employee_id",
+    # Separation / reason
+    "seprs": "separation_reason", "rsn": "reason",
+    # Flags
+    "dcsd": "is_deceased", "flg": "flag", "indr": "indicator",
+    # Misc
+    "chkno": "check_number", "nbr": "number", "num": "number",
+    "desc": "description", "cmnt": "comment", "rmrk": "remark",
+    "wkedt": "week_ending_date",
+    "fil1": "_filler", "fil2": "_filler", "fil3": "_filler",
+    "filler": "_filler",
+}
+
+# Common COBOL table prefixes (2-3 char) that should be stripped before matching
+# e.g., cl_fnam -> fnam, bp_payam -> payam, er_name -> name, cm_stat -> stat
+_PREFIX_PATTERN = None
+
+
+def _strip_cobol_prefix(col_name: str) -> str:
+    """Strip a 2-3 character COBOL table prefix from a column name.
+
+    Examples: cl_fnam -> fnam, bp_payam -> payam, er_name -> name
+    """
+    import re
+    # Match 2-3 lowercase letters followed by underscore at the start
+    match = re.match(r'^[a-z]{2,3}_(.+)$', col_name.lower())
+    return match.group(1) if match else col_name.lower()
+
+
+def expand_cobol_abbreviation(col_name: str) -> str:
+    """Expand a COBOL abbreviated column name to its modern equivalent.
+
+    Steps:
+    1. Strip the table prefix (cl_, bp_, er_, cm_, etc.)
+    2. Look up the suffix in the abbreviation dictionary
+    3. Return the expanded name, or the stripped suffix if no match
+
+    Examples:
+        cl_fnam -> first_name
+        bp_payam -> payment_amount
+        er_ein -> ein
+        cl_fil1 -> _filler
+        bp_recid -> _record_id (special: table-dependent primary key)
+    """
+    suffix = _strip_cobol_prefix(col_name)
+    if suffix in ("recid", "recno", "rec_id"):
+        return "_record_id"  # Sentinel — caller should match to table-specific *_id
+    return COBOL_ABBREVIATIONS.get(suffix, suffix)
+
+
 def find_matching_column(
     source_col: str,
     target_columns: List[str],
     threshold: float = 0.7,
+    table_name: str = "",
 ) -> Optional[Tuple[str, float]]:
-    """Fuzzy-match a source column to the closest target column."""
+    """Match a source column to the closest target column.
+
+    Uses a multi-strategy approach:
+    1. Exact match (after lowercasing)
+    2. COBOL abbreviation expansion + exact match
+    3. COBOL abbreviation expansion + substring/containment match
+    4. Fuzzy match (SequenceMatcher) on both original and expanded names
+
+    This handles COBOL copybook naming (cl_fnam, bp_payam) which has very low
+    string similarity to modern names (first_name, payment_amount) and would
+    fail a pure fuzzy match at the 0.7 threshold.
+
+    Args:
+        source_col: Legacy column name (e.g., "cl_fnam")
+        target_columns: Modern column names to match against
+        threshold: Minimum fuzzy match ratio (default 0.7)
+        table_name: Table name for context-aware matching (e.g., "claimants")
+    """
+    source_lower = source_col.lower()
+    target_lower_map = {t.lower(): t for t in target_columns}
+
+    # Strategy 0: If expanded form is a known archived/filler pattern, skip matching
+    expanded_check = expand_cobol_abbreviation(source_col)
+    if expanded_check == "_filler":
+        return None  # Let caller handle as removed
+    if expanded_check in ("bank_account", "bank_routing"):
+        return None  # Let caller handle as archived
+
+    # Also catch COBOL abbreviated PII patterns that aren't in PII_KEYWORDS
+    suffix = _strip_cobol_prefix(source_col)
+    if suffix in ("bact", "brtn", "bacct", "broute", "bkact", "bkrtn"):
+        return None  # Let caller handle as archived
+
+    # Strategy 1: Exact match
+    if source_lower in target_lower_map:
+        return (target_lower_map[source_lower], 1.0)
+
+    # Strategy 2: Expand COBOL abbreviation and try exact match
+    expanded = expand_cobol_abbreviation(source_col)
+
+    # Special handling for record ID fields — find the table's primary key (*_id)
+    if expanded == "_record_id":
+        id_candidates = [t for t in target_lower_map if t.endswith("_id")]
+        if id_candidates and table_name:
+            # Derive expected PK name from table: claimants -> claimant_id,
+            # benefit_payments -> payment_id, employers -> employer_id
+            table_lower = table_name.lower().rstrip("s")  # naive singularize
+            # Also try removing common prefixes like "benefit_"
+            table_parts = table_lower.split("_")
+            # Build candidates: "claimant_id", "payment_id", "employer_id", "claim_id"
+            expected_names = [f"{table_lower}_id"]
+            if len(table_parts) > 1:
+                expected_names.append(f"{table_parts[-1]}_id")  # last word + _id
+            for expected in expected_names:
+                if expected in target_lower_map:
+                    return (target_lower_map[expected], 0.95)
+            # Fallback: pick the _id column that best matches the table name
+            best_id = None
+            best_score = 0
+            for cand in id_candidates:
+                score = SequenceMatcher(None, table_lower, cand.replace("_id", "")).ratio()
+                if score > best_score:
+                    best_score = score
+                    best_id = cand
+            if best_id:
+                return (target_lower_map[best_id], 0.90)
+        elif id_candidates:
+            id_candidates.sort(key=len)
+            return (target_lower_map[id_candidates[0]], 0.85)
+        return None
+
+    if expanded != source_lower and expanded in target_lower_map:
+        return (target_lower_map[expanded], 0.95)
+
+    # Strategy 3: Expanded name is contained in target or vice versa
+    # e.g., expanded "status" matches "claimant_status", "payment_status"
+    if expanded != source_lower and expanded != "_filler":
+        containment_matches = []
+        for target_low, target_orig in target_lower_map.items():
+            if expanded in target_low or target_low in expanded:
+                # Score by how much of the target the expansion covers
+                overlap = len(expanded) / max(len(target_low), 1)
+                containment_matches.append((target_orig, min(overlap, 0.92)))
+            # Also check if expanded words appear as components
+            # e.g., "first_name" matches target "first_name" via word overlap
+            elif _word_overlap_score(expanded, target_low) >= 0.8:
+                containment_matches.append((target_orig, 0.90))
+
+        if containment_matches:
+            # Pick the best containment match
+            containment_matches.sort(key=lambda x: x[1], reverse=True)
+            return containment_matches[0]
+
+    # Strategy 4: Fuzzy match on both original and expanded names
     best_match = None
     best_ratio = 0.0
 
-    for target_col in target_columns:
-        ratio = SequenceMatcher(None, source_col.lower(), target_col.lower()).ratio()
-        if ratio > best_ratio and ratio >= threshold:
-            best_ratio = ratio
-            best_match = target_col
+    candidates = [source_lower]
+    if expanded != source_lower:
+        candidates.append(expanded)
+
+    for candidate in candidates:
+        for target_col in target_columns:
+            ratio = SequenceMatcher(None, candidate, target_col.lower()).ratio()
+            if ratio > best_ratio and ratio >= threshold:
+                best_ratio = ratio
+                best_match = target_col
 
     return (best_match, best_ratio) if best_match else None
+
+
+def _word_overlap_score(a: str, b: str) -> float:
+    """Score based on overlapping word components between two underscore-separated names."""
+    words_a = set(a.split("_"))
+    words_b = set(b.split("_"))
+    if not words_a or not words_b:
+        return 0.0
+    overlap = words_a & words_b
+    return len(overlap) / max(len(words_a), len(words_b))
 
 
 def generate_metadata(
@@ -156,7 +353,7 @@ def generate_metadata(
                 })
             else:
                 # Try fuzzy matching
-                match = find_matching_column(col_name, list(modern_cols.keys()))
+                match = find_matching_column(col_name, list(modern_cols.keys()), table_name=table)
                 if match:
                     target_col, ratio = match
                     mappings_list.append({
@@ -213,18 +410,20 @@ def generate_metadata_from_om(
     tables: List[str],
     output_dir: str = "./metadata",
     plugin_manager: Any = None,
+    modern_conn: Any = None,
 ) -> Tuple[Dict, Dict]:
     """Generate glossary.json and mappings.json from OpenMetadata catalog.
 
-    Uses OM as the source of truth for legacy schema — no modern DB needed.
-    Column descriptions, PII tags, and glossary terms come from OM.
-    Plugin overrides are applied on top.
+    Uses OM as the source of truth for legacy schema. If a modern_conn is
+    provided, attempts COBOL-aware column matching against the modern schema.
+    Otherwise, uses COBOL abbreviation expansion to infer mapping types.
 
     Args:
         om_enricher: An OpenMetadataEnricher instance (connected).
         tables: Table names to process.
         output_dir: Where to write the JSON files.
         plugin_manager: pluggy PluginManager for hooks.
+        modern_conn: Optional modern database connector for column matching.
 
     Returns:
         Tuple of (glossary_data, mappings_data).
@@ -325,16 +524,89 @@ def generate_metadata_from_om(
                     "table": table,
                 })
             else:
-                # No modern schema to match against — mark as pending
-                # The schema generator will resolve these later
-                mappings_list.append({
-                    "source": col_name,
-                    "target": None,
-                    "type": "pending",
-                    "rationale": "Awaiting schema generation",
-                    "confidence": conf,
-                    "table": table,
-                })
+                # Try COBOL-aware matching against modern schema if available
+                modern_cols_list = []
+                if modern_conn:
+                    try:
+                        modern_schema = modern_conn.get_table_schema(table)
+                        modern_cols_list = [c["column_name"] for c in modern_schema]
+                    except Exception:
+                        pass
+
+                if modern_cols_list:
+                    match = find_matching_column(col_name, modern_cols_list, table_name=table)
+                    if match:
+                        target_col, ratio = match
+                        expanded = expand_cobol_abbreviation(col_name)
+                        # Determine mapping type
+                        if expanded == "_filler":
+                            map_type = "removed"
+                            rationale = f"COBOL FILLER field — no business value, not migrated"
+                        elif is_pii and target_col != col_name:
+                            map_type = "transform"
+                            rationale = f"PII field renamed from {col_name} to {target_col} with potential data transformation"
+                        elif ratio >= 0.99:
+                            map_type = "rename"
+                            rationale = f"Column name unchanged"
+                        else:
+                            map_type = "rename"
+                            rationale = f"COBOL abbreviation expanded: {col_name} -> {target_col}"
+                        mappings_list.append({
+                            "source": col_name,
+                            "target": target_col,
+                            "type": map_type,
+                            "rationale": rationale,
+                            "confidence": round(ratio, 2),
+                            "table": table,
+                        })
+                    else:
+                        # No match found — likely archived or removed
+                        expanded = expand_cobol_abbreviation(col_name)
+                        if expanded == "_filler":
+                            map_type, rationale = "removed", "COBOL FILLER field — no business value"
+                        elif is_pii:
+                            map_type, rationale = "archived", f"PII field {col_name} not present in modern schema — likely archived for compliance"
+                        else:
+                            map_type, rationale = "removed", f"No matching column found in modern schema for {col_name}"
+                        mappings_list.append({
+                            "source": col_name,
+                            "target": None,
+                            "type": map_type,
+                            "rationale": rationale,
+                            "confidence": 0.8,
+                            "table": table,
+                        })
+                else:
+                    # No modern schema available — use COBOL expansion to infer
+                    expanded = expand_cobol_abbreviation(col_name)
+                    if expanded == "_filler":
+                        mappings_list.append({
+                            "source": col_name, "target": None,
+                            "type": "removed",
+                            "rationale": "COBOL FILLER field — no business value",
+                            "confidence": 0.95, "table": table,
+                        })
+                    elif is_pii and expanded in ("bank_account", "bank_routing"):
+                        mappings_list.append({
+                            "source": col_name, "target": None,
+                            "type": "archived",
+                            "rationale": f"PII financial field ({expanded}) — archived for compliance",
+                            "confidence": 0.90, "table": table,
+                        })
+                    elif expanded != col_lower:
+                        mappings_list.append({
+                            "source": col_name, "target": expanded,
+                            "type": "rename",
+                            "rationale": f"COBOL abbreviation expanded: {col_name} -> {expanded}",
+                            "confidence": 0.85, "table": table,
+                        })
+                    else:
+                        mappings_list.append({
+                            "source": col_name, "target": None,
+                            "type": "pending",
+                            "rationale": "Could not resolve mapping — manual review needed",
+                            "confidence": conf, "table": table,
+                        })
 
     glossary_data = {"columns": glossary_entries}
     mappings_data = {"mappings": mappings_list}
