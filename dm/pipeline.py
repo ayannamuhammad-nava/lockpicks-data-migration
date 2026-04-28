@@ -167,7 +167,8 @@ def _run_pre_phase(
             confidence["status"] = get_traffic_light(adj, config)
 
     # Generate reports
-    _generate_pre_reports(results, confidence, dataset, sample_size, config, pm, artifact_folder)
+    _generate_pre_reports(results, confidence, dataset, sample_size, config, pm, artifact_folder,
+                          structure_score=structure_score, gov_score=gov_score)
 
     return {
         "phase": "pre",
@@ -236,7 +237,8 @@ def _run_post_phase(legacy_conn, modern_conn, dataset, config, pm, artifact_fold
     }
 
 
-def _generate_pre_reports(results, confidence, dataset, sample_size, config, pm, artifact_folder):
+def _generate_pre_reports(results, confidence, dataset, sample_size, config, pm, artifact_folder,
+                          structure_score=None, gov_score=None):
     """Generate pre-phase artifact reports."""
     from dm.reporting.reporter import (
         save_markdown_report,
@@ -266,9 +268,48 @@ def _generate_pre_reports(results, confidence, dataset, sample_size, config, pm,
 
     save_markdown_report("\n".join(report_lines), os.path.join(artifact_folder, "readiness_report.md"))
     save_confidence_score(confidence["score"], confidence["status"], os.path.join(artifact_folder, "confidence_score.txt"))
+
+    # Generate schema_diff.md from schema_diff validator results
+    for r in results:
+        if r.name == "schema_diff" and r.details.get("schema_diff"):
+            from dm.discovery.schema_introspector import generate_schema_diff_report
+            diff_md = generate_schema_diff_report(
+                r.details.get("legacy_schema", {}),
+                r.details.get("modern_schema", {}),
+                dataset,
+            )
+            save_markdown_report(diff_md, os.path.join(artifact_folder, "schema_diff.md"))
+            break
+
+    # Generate governance_report.csv from governance validator results
+    for r in results:
+        if r.name == "governance" and r.details:
+            import csv
+            gov_rows = []
+            for col in r.details.get("pii_columns", []):
+                gov_rows.append({"category": "PII", "item": col, "status": "VIOLATION", "detail": "Plaintext PII detected"})
+            for col in r.details.get("naming_violations", []):
+                gov_rows.append({"category": "Naming", "item": col, "status": "WARNING", "detail": "Does not match naming convention"})
+            for col in r.details.get("missing_required", []):
+                gov_rows.append({"category": "Required", "item": col, "status": "VIOLATION", "detail": "Required field missing"})
+            for item in r.details.get("null_violations", []):
+                col_name = item if isinstance(item, str) else item.get("column", str(item))
+                gov_rows.append({"category": "Null", "item": col_name, "status": "WARNING", "detail": "Exceeds null threshold"})
+            # Add passing checks for columns without issues
+            if not gov_rows:
+                gov_rows.append({"category": "Overall", "item": "all_checks", "status": "PASS", "detail": "No governance issues"})
+            gov_path = os.path.join(artifact_folder, "governance_report.csv")
+            with open(gov_path, "w", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=["category", "item", "status", "detail"])
+                writer.writeheader()
+                writer.writerows(gov_rows)
+            break
+
     save_run_metadata(
         {"phase": "pre", "dataset": dataset, "sample_size": sample_size,
-         "confidence_score": confidence["score"], "status": confidence["status"]},
+         "confidence_score": confidence["score"], "status": confidence["status"],
+         "structure_score": structure_score,
+         "governance_score": gov_score},
         os.path.join(artifact_folder, "run_metadata.json"),
     )
 
