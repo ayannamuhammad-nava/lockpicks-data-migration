@@ -23,7 +23,7 @@ This document captures every step taken to set up the **Lockpicks Data Migration
 15. [Set Up Post-Migration Observability](#15-set-up-post-migration-observability)
 16. [View Overall Status](#16-view-overall-status)
 17. [Launch the Dashboard](#17-launch-the-dashboard)
-18. [Fixes Applied](#18-fixes-applied) (13 total)
+18. [Fixes Applied](#18-fixes-applied) (14 total)
 19. [Architecture Overview](#19-architecture-overview)
 
 ---
@@ -591,7 +591,7 @@ STREAMLIT_BROWSER_GATHER_USAGE_STATS=false \
 
 ## 18. Fixes Applied
 
-Thirteen fixes were applied to the DM codebase for OpenMetadata 1.6.2, pandas 3.x, and Python 3.14:
+Fourteen fixes were applied to the DM codebase for OpenMetadata 1.6.2, pandas 3.x, and Python 3.14:
 
 ### Fix 1: `owner` -> `owners` field name (OM API change)
 
@@ -811,6 +811,23 @@ The original `find_matching_column()` used only `SequenceMatcher` fuzzy matching
 - `er_ind` -> `industry` (abbreviation dictionary)
 
 This fix is **global** — any new COBOL legacy system will get automatic column resolution without manual mapping.
+
+### Fix 14: Auto-generated `abbreviations.yaml` from COBOL copybook descriptions
+
+**File:** `dm/discovery/metadata_generator.py` — `parse_cobol_description()`, `generate_abbreviations_yaml()`, `load_project_abbreviations()`
+
+During `dm discover` or `dm enrich`, the system now automatically parses COBOL copybook descriptions stored in OpenMetadata column metadata (e.g., `"CONTACT-FIRST-NAME"`) to extract abbreviation mappings for the project. For each column, it strips the table prefix from the description, converts the remainder to snake_case, and writes the result to `metadata/abbreviations.yaml` in the project folder.
+
+**How it works:**
+1. Reads OM column descriptions like `"CONTACT-FIRST-NAME"` for column `ct_fnam`
+2. Strips the common table prefix (`CONTACT-`) leaving `FIRST-NAME`
+3. Converts to snake_case: `first_name`
+4. Maps the abbreviated suffix (`fnam`) to the expanded name (`first_name`)
+5. Writes all mappings to `metadata/abbreviations.yaml`
+
+**Merging behavior:** Project-specific abbreviations from `abbreviations.yaml` are merged with the built-in COBOL abbreviation dictionary (from Fix 13). Project overrides take priority, so if a project has a non-standard abbreviation that conflicts with the built-in dictionary, the project-specific mapping wins.
+
+**No manual steps needed.** The file is generated automatically during discovery or enrichment. However, it can still be manually edited afterward to add, override, or remove mappings for edge cases.
 
 ---
 

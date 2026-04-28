@@ -154,7 +154,9 @@ Pull schema metadata from OpenMetadata and generate the business glossary and fi
 dm discover --enrich -p projects/customer-service
 ```
 
-Generates `metadata/glossary.json` (column-level metadata) and `metadata/mappings.json` (legacy-to-modern field mappings with COBOL abbreviation resolution).
+Generates `metadata/glossary.json` (column-level metadata), `metadata/mappings.json` (legacy-to-modern field mappings with COBOL abbreviation resolution), and `metadata/abbreviations.yaml` (auto-generated abbreviation mappings parsed from COBOL copybook descriptions in OpenMetadata).
+
+**Expected output:** `metadata/glossary.json`, `metadata/mappings.json`, `metadata/abbreviations.yaml`
 
 **Status:** Not started
 
@@ -162,7 +164,7 @@ Generates `metadata/glossary.json` (column-level metadata) and `metadata/mapping
 
 ## Step 9: Enrich Metadata
 
-Enrich the glossary with profiling stats, lineage data, PII tags, and COBOL-aware column matching against the modern database.
+Enrich the glossary with profiling stats, lineage data, PII tags, and COBOL-aware column matching against the modern database. Also updates `metadata/abbreviations.yaml` with any additional abbreviation mappings discovered during enrichment.
 
 ```bash
 dm enrich -p projects/customer-service
@@ -171,6 +173,8 @@ dm enrich -p projects/customer-service
 The COBOL-aware matcher auto-resolves abbreviated names (e.g., `ct_fnam` -> `first_name`, `ct_ptel` -> `primary_phone`, `ct_bact` -> archived).
 
 **Status:** Not started
+
+> **Note on `abbreviations.yaml`:** This file is auto-generated during Steps 8 and 9 by parsing COBOL copybook descriptions from OpenMetadata (e.g., `"CONTACT-FIRST-NAME"` for column `ct_fnam`). It maps abbreviated suffixes to their expanded snake_case names and is merged with the built-in COBOL abbreviation dictionary, with project-specific entries taking priority. No manual configuration is needed, but you can review and edit the file at `metadata/abbreviations.yaml` to add overrides or handle edge cases.
 
 ---
 

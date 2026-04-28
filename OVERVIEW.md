@@ -32,6 +32,8 @@ LEGACY DATABASE (COBOL/DB2)
         |                names (cl_fnam -> first_name, bp_payam ->
         |                payment_amount) using a 90+ pattern dictionary,
         |                table-context PK inference, and PII detection.
+        |                Auto-generates abbreviations.yaml from COBOL
+        |                copybook descriptions in OpenMetadata.
         v
   4. GENERATE SCHEMA ---> Design the modern database
         |                Expands COBOL abbreviations (cl_fnam -> first_name),

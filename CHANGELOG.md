@@ -189,6 +189,21 @@ Added a Data Migration Lifecycle status bar that appears at the top of every das
 - **6 lifecycle phases** — Discovery, Modeling, Governance, Transformation, Compliance, Quality. Each phase shows as completed (green), current (highlighted), or pending (gray) based on which artifacts exist and which validations have been run
 - **Clean title** — Status bar shows only the project name. Phase and dataset context is displayed in the run header below, avoiding duplication.
 
+### Auto-Generated Abbreviations
+
+**File:** `dm/discovery/metadata_generator.py`
+
+Added automatic generation of `abbreviations.yaml` from COBOL copybook descriptions during `dm discover` or `dm enrich`. The system parses OpenMetadata column descriptions (e.g., `"CONTACT-FIRST-NAME"` for column `ct_fnam`), strips the table prefix, converts to snake_case, and writes the abbreviation-to-expansion mappings to `metadata/abbreviations.yaml` in the project folder.
+
+**Why it matters:** Previously, the built-in COBOL abbreviation dictionary (Fix 13) handled common patterns, but project-specific or non-standard abbreviations required manual intervention. This enhancement eliminates manual abbreviation configuration entirely by deriving mappings directly from the copybook descriptions already stored in OpenMetadata. Project-specific abbreviations are merged with the built-in dictionary, with project overrides taking priority.
+
+**New functions:**
+- `parse_cobol_description()` — Extracts the abbreviated suffix and expanded name from a COBOL copybook description
+- `generate_abbreviations_yaml()` — Writes all parsed mappings to `metadata/abbreviations.yaml`
+- `load_project_abbreviations()` — Loads and merges project abbreviations with the built-in dictionary
+
+The generated file can still be manually reviewed and edited to handle edge cases, but no manual step is required.
+
 **How current phase is determined:**
 | Phase | Completed when |
 |-------|---------------|
