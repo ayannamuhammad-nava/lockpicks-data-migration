@@ -561,7 +561,7 @@ if phase == "PRE":
             st.divider()
 
             # Color-coded table
-            styled = gov_df.style.applymap(color_gov_status, subset=["status"])
+            styled = gov_df.style.map(color_gov_status, subset=["status"])
             st.dataframe(styled, use_container_width=True, hide_index=True)
         else:
             st.info("No governance report found for this run.")
