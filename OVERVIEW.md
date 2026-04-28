@@ -69,9 +69,9 @@ LEGACY DATABASE (COBOL/DB2)
         |
         v
   DASHBOARD (localhost:8501)
-        Interactive Streamlit UI showing scores,
-        schema diffs, governance findings, and
-        a RAG chat for asking questions about any field.
+        Interactive Streamlit UI with lifecycle status bar,
+        confidence scores, schema diffs, governance findings,
+        and a RAG chat for asking questions about any field.
 ```
 
 ### What Makes It Different

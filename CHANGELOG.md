@@ -172,3 +172,29 @@ This was the most significant issue. The toolkit's column matcher could not hand
 | 13 | COBOL-aware matcher | Global | Auto-resolves all COBOL column mappings |
 
 **12 of 13 fixes are global** and apply to any future migration project. Fix 11 (manual mappings) was project-specific and has been superseded by Fix 13's global COBOL-aware matcher.
+
+---
+
+## Enhancements
+
+### Lifecycle Status Bar
+
+**File:** `dashboard.py`
+
+Added a Data Migration Lifecycle status bar that appears at the top of every dashboard page, inspired by the lifecycle diagram in the README. Provides at-a-glance context for where the project stands in the migration process.
+
+**Features:**
+- **Project name** — Reads from `project.yaml` instead of displaying the full filesystem path
+- **Average confidence score** — Computed from all validation runs with non-zero scores. Color-coded: GREEN (>= 90), YELLOW (70-89), RED (< 70)
+- **6 lifecycle phases** — Discovery, Modeling, Governance, Transformation, Compliance, Quality. Each phase shows as completed (green), current (highlighted), or pending (gray) based on which artifacts exist and which validations have been run
+- **Run context** — When a run is selected, shows the phase and dataset (e.g., "PRE - Claimants")
+
+**How current phase is determined:**
+| Phase | Completed when |
+|-------|---------------|
+| Discovery | `metadata/glossary.json` exists |
+| Modeling | `artifacts/generated_schema/` exists |
+| Governance | Pre-validation runs exist |
+| Transformation | `artifacts/converted/` exists |
+| Compliance | Pre-validation runs exist |
+| Quality | Post-validation runs exist |

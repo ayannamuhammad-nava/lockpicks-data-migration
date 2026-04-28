@@ -577,7 +577,8 @@ STREAMLIT_BROWSER_GATHER_USAGE_STATS=false \
 **Access:** http://localhost:8501
 
 **Dashboard features:**
-- **Confidence gauge** — Traffic-light score visualization
+- **Lifecycle status bar** — Appears at the top of every page. Shows the project name (from `project.yaml`), average confidence score across all runs with GREEN/YELLOW/RED status, and a 6-phase lifecycle tracker (Discovery -> Modeling -> Governance -> Transformation -> Compliance -> Quality) with completed/current/pending indicators. Score thresholds: GREEN >= 90, YELLOW 70-89, RED < 70.
+- **Confidence gauge** — Traffic-light score visualization for the selected run
 - **Run selector** — Browse all validation runs from the sidebar
 - **Readiness Report** (pre-migration) — Schema compatibility findings
 - **Schema Diff & Mappings** — Missing/added columns with RAG-powered field mapping table
