@@ -463,8 +463,9 @@ def render_discovery_page():
     st.divider()
 
     # Tabs for different views
-    tab_tables, tab_glossary, tab_mappings, tab_pii, tab_abbrev, tab_scope = st.tabs([
+    tab_tables, tab_sample, tab_glossary, tab_mappings, tab_pii, tab_abbrev, tab_scope = st.tabs([
         "📋 Tables & Columns",
+        "🗂️ Sample Data",
         "📖 Glossary",
         "🔄 Field Mappings",
         "🔒 PII Detection",
@@ -491,6 +492,60 @@ def render_discovery_page():
                 })
             df = pd.DataFrame(rows)
             st.dataframe(df, use_container_width=True, hide_index=True)
+
+    # ── Sample Data tab
+    with tab_sample:
+        st.markdown("#### Sample Data — Legacy Tables")
+        st.caption("Live data from the legacy database. Showing up to 25 rows per table.")
+
+        # Load project config for DB connection
+        import yaml as _yaml_sample
+        _proj_yaml = PROJECT_DIR / "project.yaml"
+        _sample_config = {}
+        if _proj_yaml.exists():
+            _sample_config = _yaml_sample.safe_load(_proj_yaml.read_text()) or {}
+
+        legacy_conn_cfg = _sample_config.get("connections", {}).get("legacy", {})
+        if legacy_conn_cfg:
+            try:
+                import psycopg2
+
+                # Resolve env var syntax ${VAR:default}
+                def _resolve(val):
+                    if isinstance(val, str) and val.startswith("${"):
+                        import re
+                        m = re.match(r'\$\{([^:}]+):?(.*)\}', val)
+                        if m:
+                            return os.environ.get(m.group(1), m.group(2))
+                    return val
+
+                conn = psycopg2.connect(
+                    host=_resolve(legacy_conn_cfg.get("host", "localhost")),
+                    port=int(_resolve(legacy_conn_cfg.get("port", 5432))),
+                    database=_resolve(legacy_conn_cfg.get("database", "legacy_db")),
+                    user=_resolve(legacy_conn_cfg.get("user", "postgres")),
+                    password=_resolve(legacy_conn_cfg.get("password", "postgres")),
+                )
+
+                for table in tables:
+                    st.markdown(f"##### 📁 `{table}`")
+                    try:
+                        query = f"SELECT * FROM {table} LIMIT 25"
+                        df_sample = pd.read_sql(query, conn)
+                        row_count_query = f"SELECT COUNT(*) FROM {table}"
+                        total_rows = pd.read_sql(row_count_query, conn).iloc[0, 0]
+                        st.caption(f"Showing {len(df_sample)} of {total_rows} total rows")
+                        st.dataframe(df_sample, use_container_width=True, hide_index=True)
+                    except Exception as e:
+                        st.error(f"Could not load data for `{table}`: {e}")
+
+                conn.close()
+            except ImportError:
+                st.error("psycopg2 is required for sample data. Install with: `uv pip install psycopg2-binary`")
+            except Exception as e:
+                st.error(f"Could not connect to legacy database: {e}")
+        else:
+            st.warning("No legacy connection configured in project.yaml.")
 
     # ── Glossary tab
     with tab_glossary:
