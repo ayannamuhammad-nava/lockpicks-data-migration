@@ -1,6 +1,70 @@
 {
   "mappings": [
     {
+      "source": "bp_recid",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "benefit_payments"
+    },
+    {
+      "source": "bp_clmid",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "benefit_payments"
+    },
+    {
+      "source": "bp_paydt",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "benefit_payments"
+    },
+    {
+      "source": "bp_payam",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "benefit_payments"
+    },
+    {
+      "source": "bp_methd",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "benefit_payments"
+    },
+    {
+      "source": "bp_wkedt",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "benefit_payments"
+    },
+    {
+      "source": "bp_stat",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "benefit_payments"
+    },
+    {
+      "source": "bp_chkno",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "benefit_payments"
+    },
+    {
       "source": "cl_recid",
       "target": null,
       "type": "pending",
@@ -137,86 +201,6 @@
       "table": "claimants"
     },
     {
-      "source": "er_recid",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "employers"
-    },
-    {
-      "source": "er_name",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "employers"
-    },
-    {
-      "source": "er_ein",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "employers"
-    },
-    {
-      "source": "er_ind",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "employers"
-    },
-    {
-      "source": "er_adr1",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "employers"
-    },
-    {
-      "source": "er_city",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "employers"
-    },
-    {
-      "source": "er_st",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "employers"
-    },
-    {
-      "source": "er_zip",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "employers"
-    },
-    {
-      "source": "er_phon",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "employers"
-    },
-    {
-      "source": "er_stat",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "employers"
-    },
-    {
       "source": "cm_recid",
       "target": null,
       "type": "pending",
@@ -321,68 +305,84 @@
       "table": "claims"
     },
     {
-      "source": "bp_recid",
+      "source": "er_recid",
       "target": null,
       "type": "pending",
       "rationale": "Awaiting schema generation",
       "confidence": 1.0,
-      "table": "benefit_payments"
+      "table": "employers"
     },
     {
-      "source": "bp_clmid",
+      "source": "er_name",
       "target": null,
       "type": "pending",
       "rationale": "Awaiting schema generation",
       "confidence": 1.0,
-      "table": "benefit_payments"
+      "table": "employers"
     },
     {
-      "source": "bp_paydt",
+      "source": "er_ein",
       "target": null,
       "type": "pending",
       "rationale": "Awaiting schema generation",
       "confidence": 1.0,
-      "table": "benefit_payments"
+      "table": "employers"
     },
     {
-      "source": "bp_payam",
+      "source": "er_ind",
       "target": null,
       "type": "pending",
       "rationale": "Awaiting schema generation",
       "confidence": 1.0,
-      "table": "benefit_payments"
+      "table": "employers"
     },
     {
-      "source": "bp_methd",
+      "source": "er_adr1",
       "target": null,
       "type": "pending",
       "rationale": "Awaiting schema generation",
       "confidence": 1.0,
-      "table": "benefit_payments"
+      "table": "employers"
     },
     {
-      "source": "bp_wkedt",
+      "source": "er_city",
       "target": null,
       "type": "pending",
       "rationale": "Awaiting schema generation",
       "confidence": 1.0,
-      "table": "benefit_payments"
+      "table": "employers"
     },
     {
-      "source": "bp_stat",
+      "source": "er_st",
       "target": null,
       "type": "pending",
       "rationale": "Awaiting schema generation",
       "confidence": 1.0,
-      "table": "benefit_payments"
+      "table": "employers"
     },
     {
-      "source": "bp_chkno",
+      "source": "er_zip",
       "target": null,
       "type": "pending",
       "rationale": "Awaiting schema generation",
       "confidence": 1.0,
-      "table": "benefit_payments"
+      "table": "employers"
+    },
+    {
+      "source": "er_phon",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "employers"
+    },
+    {
+      "source": "er_stat",
+      "target": null,
+      "type": "pending",
+      "rationale": "Awaiting schema generation",
+      "confidence": 1.0,
+      "table": "employers"
     }
   ]
 }

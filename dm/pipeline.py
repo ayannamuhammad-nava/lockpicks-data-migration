@@ -675,7 +675,10 @@ def run_ingestion(
 
     planner = MigrationPlanner(config, pm)
 
-    tables = [dataset] if dataset else None
+    if dataset:
+        tables = [dataset]
+    else:
+        tables = [ds["name"] for ds in config.get("datasets", [])]
     plan = planner.generate_plan(tables)
 
     if plan_only:
@@ -686,7 +689,7 @@ def run_ingestion(
                     "strategy": step.strategy,
                     "depends_on": step.depends_on,
                 }
-                for step in plan.steps
+                for step in plan.strategies.values()
             ],
         }
 
@@ -722,12 +725,15 @@ def run_observation(
         modern_conn.connect()
         try:
             observer.set_baseline(modern_conn)
-            return {"baseline_path": str(observer.baseline_path)}
+            return {"baseline_path": str(observer.baseline_manager.baseline_path)}
         finally:
             modern_conn.close()
 
     if show_history:
-        return {"history": observer.get_history()}
+        history_fn = getattr(observer, "get_history", None)
+        if history_fn:
+            return {"history": history_fn()}
+        return {"history": [], "message": "Observation history not yet implemented"}
 
     # Run checks once
     plugin_connectors = {}

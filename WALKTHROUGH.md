@@ -17,9 +17,14 @@ This document captures every step taken to set up the **Lockpicks Data Migration
 9. [Generate Modern Schema](#9-generate-modern-schema)
 10. [Convert Schema to Target Platform](#10-convert-schema-to-target-platform)
 11. [Run Pre & Post Migration Validations](#11-run-pre--post-migration-validations)
-12. [Launch the Dashboard](#12-launch-the-dashboard)
-13. [Fixes Applied](#13-fixes-applied)
-14. [Architecture Overview](#14-architecture-overview)
+12. [Enrich Metadata via OpenMetadata](#12-enrich-metadata-via-openmetadata)
+13. [Generate Migration Proof Reports](#13-generate-migration-proof-reports)
+14. [Plan Data Ingestion](#14-plan-data-ingestion)
+15. [Set Up Post-Migration Observability](#15-set-up-post-migration-observability)
+16. [View Overall Status](#16-view-overall-status)
+17. [Launch the Dashboard](#17-launch-the-dashboard)
+18. [Fixes Applied](#18-fixes-applied)
+19. [Architecture Overview](#19-architecture-overview)
 
 ---
 
@@ -413,7 +418,130 @@ Validates data quality, schema compatibility, governance compliance, and data in
 
 ---
 
-## 12. Launch the Dashboard
+## 12. Enrich Metadata via OpenMetadata
+
+Enriches the glossary and mappings with profiling stats, lineage data, PII tags, and glossary terms from OpenMetadata.
+
+```bash
+.venv/bin/dm enrich -p projects/unemployment-claims-analysis
+```
+
+**Output:**
+```
+Enrichment complete: 48 glossary entries
+```
+
+Updates `metadata/glossary.json` and `metadata/mappings.json` with OM-sourced descriptions, tags, and profiling data. This improves the confidence scores for field mappings and powers the RAG chat in the dashboard.
+
+---
+
+## 13. Generate Migration Proof Reports
+
+Combines pre- and post-migration validation results into a single proof report per dataset, producing a final weighted score.
+
+```bash
+.venv/bin/dm prove -d claimants -p projects/unemployment-claims-analysis
+.venv/bin/dm prove -d employers -p projects/unemployment-claims-analysis
+.venv/bin/dm prove -d claims -p projects/unemployment-claims-analysis
+.venv/bin/dm prove -d benefit_payments -p projects/unemployment-claims-analysis
+```
+
+**Results:**
+
+| Dataset | Pre-Score | Post-Score | Final | Status |
+|---------|-----------|------------|-------|--------|
+| claimants | 69.8 | 90.0 | 79.9 | YELLOW |
+| employers | N/A | 100.0 | N/A | INCOMPLETE |
+| claims | N/A | N/A | N/A | INCOMPLETE |
+| benefit_payments | 86.6 | 60.0 | 73.3 | YELLOW |
+
+Employers and claims show INCOMPLETE because `dm status` only tracks the most recent run per timestamp bucket, and some pre-migration runs were overwritten. The proof report requires both a pre and post run to compute a final score.
+
+**Artifacts per run:**
+- `proof_report.md` — Combined pre+post narrative report
+- `run_metadata.json` — Final scores and status
+
+---
+
+## 14. Plan Data Ingestion
+
+Generates a dependency-ordered migration execution plan based on foreign key relationships and normalization analysis.
+
+```bash
+.venv/bin/dm ingest --plan -p projects/unemployment-claims-analysis
+```
+
+**Output:**
+```
+MIGRATION PLAN
+  claimants           strategy: full_load   deps: none
+  employers           strategy: full_load   deps: none
+  claims              strategy: full_load   deps: none
+  benefit_payments    strategy: full_load   deps: none
+```
+
+All 4 tables use `full_load` strategy with no dependencies (FK constraints weren't configured in `referential_integrity` in `project.yaml`). In a production setup with FK mappings, parent tables would be ordered before children.
+
+---
+
+## 15. Set Up Post-Migration Observability
+
+Captures a baseline snapshot of the modern database and monitors for data drift.
+
+### Set baseline
+```bash
+.venv/bin/dm observe --set-baseline -p projects/unemployment-claims-analysis
+```
+
+Captures row counts, schema fingerprints, and statistical profiles for all 4 tables in `artifacts/observer_baseline.json`.
+
+### Run a drift check
+```bash
+.venv/bin/dm observe --once -p projects/unemployment-claims-analysis
+```
+
+**Output:**
+```
+Checks run:    16
+Drift detected: 0
+  No drift detected. Pipeline healthy.
+```
+
+Runs 4 checks per table (row count, schema, null rates, value distributions) and compares against the baseline. Zero drift confirms the modern database is stable.
+
+### View observation history
+```bash
+.venv/bin/dm observe --history -p projects/unemployment-claims-analysis
+```
+
+Shows historical drift check results (empty on first run).
+
+---
+
+## 16. View Overall Status
+
+Shows the latest validation, proof, and observation scores across all datasets.
+
+```bash
+.venv/bin/dm status -p projects/unemployment-claims-analysis
+```
+
+**Output:**
+```
+Run                       Phase    Dataset           Score   Status
+------------------------------------------------------------------------
+run_2026-04-28_12-00-50   prove    benefit_payments  73.3    YELLOW
+run_2026-04-28_12-00-49   prove    claims            0       INCOMPLETE
+run_2026-04-24_15-39-37   post     benefit_payments  60.0    RED
+run_2026-04-24_15-39-36   pre      benefit_payments  86.6    YELLOW
+run_2026-04-24_15-39-35   post     employers         100.0   GREEN
+run_2026-04-24_15-39-34   post     claimants         90.0    GREEN
+run_2026-04-24_15-39-33   pre      claimants         69.8    RED
+```
+
+---
+
+## 17. Launch the Dashboard
 
 The Streamlit dashboard reads all validation artifacts and provides an interactive view.
 
@@ -437,9 +565,9 @@ STREAMLIT_BROWSER_GATHER_USAGE_STATS=false \
 
 ---
 
-## 13. Fixes Applied
+## 18. Fixes Applied
 
-Four compatibility fixes were applied to the DM codebase for OpenMetadata 1.6.2:
+Eight compatibility fixes were applied to the DM codebase for OpenMetadata 1.6.2 and Python 3.14:
 
 ### Fix 1: `owner` -> `owners` field name (OM API change)
 
@@ -491,9 +619,63 @@ except sqlglot.errors.ParseError:
 "output_path": getattr(result, "output_path", result.source_path),
 ```
 
+### Fix 5: `None` tables passed to ingestion planner
+
+**File:** `dm/pipeline.py` line 678
+
+```python
+# Before — passes None when no dataset specified, causing TypeError
+tables = [dataset] if dataset else None
+
+# After — falls back to all datasets from config
+if dataset:
+    tables = [dataset]
+else:
+    tables = [ds["name"] for ds in config.get("datasets", [])]
+```
+
+### Fix 6: `plan.steps` -> `plan.strategies.values()`
+
+**File:** `dm/pipeline.py` line 692
+
+```python
+# Before — MigrationPlan has no 'steps' attribute
+for step in plan.steps
+
+# After
+for step in plan.strategies.values()
+```
+
+### Fix 7: `observer.baseline_path` -> `observer.baseline_manager.baseline_path`
+
+**File:** `dm/pipeline.py` line 728
+
+```python
+# Before — PipelineObserver has no direct baseline_path
+return {"baseline_path": str(observer.baseline_path)}
+
+# After
+return {"baseline_path": str(observer.baseline_manager.baseline_path)}
+```
+
+### Fix 8: `observer.get_history()` not implemented
+
+**File:** `dm/pipeline.py` line 733
+
+```python
+# Before — method doesn't exist
+return {"history": observer.get_history()}
+
+# After — graceful fallback
+history_fn = getattr(observer, "get_history", None)
+if history_fn:
+    return {"history": history_fn()}
+return {"history": [], "message": "Observation history not yet implemented"}
+```
+
 ---
 
-## 14. Architecture Overview
+## 19. Architecture Overview
 
 ```
 unemployment-claims-analysis/
@@ -542,6 +724,8 @@ Legacy DB (COBOL schema)
     |
     |-- dm discover --enrich --> glossary.json + mappings.json
     |
+    |-- dm enrich ------------> enriched glossary with OM profiling/tags
+    |
     |-- dm rationalize -------> migration_scope.yaml (migrate/review/archive)
     |
     |-- dm generate-schema ---> full_schema.sql (normalized modern DDL)
@@ -550,13 +734,22 @@ Legacy DB (COBOL schema)
     |
     |-- dm validate --phase pre --> readiness_report.md + governance_report.csv
     |
+    |-- dm ingest --plan -----> dependency-ordered migration plan
+    |
     v
 Modern DB (PostgreSQL)
     |
-    +-- dm validate --phase post --> reconciliation_report.md
-                                         |
-                                         v
-                                    Dashboard (localhost:8501)
+    |-- dm validate --phase post --> reconciliation_report.md
+    |
+    |-- dm prove ----------------> proof_report.md (pre+post combined)
+    |
+    |-- dm observe --set-baseline -> observer_baseline.json
+    |
+    |-- dm observe --once -------> drift check (16 checks, 0 drift)
+    |
+    |-- dm status ---------------> score summary across all runs
+    |
+    +-----------------------------> Dashboard (localhost:8501)
 ```
 
 ### Running Services
