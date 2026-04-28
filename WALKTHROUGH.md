@@ -23,7 +23,7 @@ This document captures every step taken to set up the **Lockpicks Data Migration
 15. [Set Up Post-Migration Observability](#15-set-up-post-migration-observability)
 16. [View Overall Status](#16-view-overall-status)
 17. [Launch the Dashboard](#17-launch-the-dashboard)
-18. [Fixes Applied](#18-fixes-applied) (12 total)
+18. [Fixes Applied](#18-fixes-applied) (13 total)
 19. [Architecture Overview](#19-architecture-overview)
 
 ---
@@ -590,7 +590,7 @@ STREAMLIT_BROWSER_GATHER_USAGE_STATS=false \
 
 ## 18. Fixes Applied
 
-Twelve fixes were applied to the DM codebase for OpenMetadata 1.6.2, pandas 3.x, and Python 3.14:
+Thirteen fixes were applied to the DM codebase for OpenMetadata 1.6.2, pandas 3.x, and Python 3.14:
 
 ### Fix 1: `owner` -> `owners` field name (OM API change)
 
@@ -752,19 +752,13 @@ styled = gov_df.style.applymap(color_gov_status, subset=["status"])
 styled = gov_df.style.map(color_gov_status, subset=["status"])
 ```
 
-### Fix 11: Field mappings showing "not migrated" for renamed columns
+### Fix 11: Field mappings showing "not migrated" for renamed columns (initial workaround)
 
 **File:** `projects/unemployment-claims-analysis/metadata/mappings.json`
 
 The auto-matcher (`SequenceMatcher` with 0.7 threshold) could not resolve COBOL abbreviated column names to modern descriptive names because the string similarity is too low (e.g., `bp_recid` vs `payment_id` = 0.25). All 48 mappings had `target: null` and `type: pending`, causing the dashboard to display "*(not migrated)*" for every field.
 
-Manually populated all 48 mappings with correct targets, types, and rationale:
-- **30 renames** — column name expanded from COBOL abbreviation (e.g., `cl_fnam` -> `first_name`)
-- **12 transforms** — renamed + type change (e.g., `cl_dob` CHAR(30) -> `date_of_birth` DATE)
-- **2 archived** — PCI-DSS compliance, not migrated (`cl_bact` bank account, `cl_brtn` routing number)
-- **1 removed** — COBOL FILLER field with no business value (`cl_fil1`)
-
-Each mapping includes a rationale explaining the COBOL copybook field name and why the transformation was applied.
+Initially fixed by manually populating all 48 mappings. This was **project-specific** — any new project would have the same problem. **Superseded by Fix 13** which makes the matcher COBOL-aware globally.
 
 ### Fix 12: Black font on highlighted dashboard rows
 
@@ -779,6 +773,43 @@ return ["background-color: #ffebee"] * len(row)
 # After
 return ["background-color: #ffebee; color: #000000"] * len(row)
 ```
+
+### Fix 13: Global COBOL-aware column matcher (replaces manual mappings)
+
+**File:** `dm/discovery/metadata_generator.py` — `find_matching_column()`, `expand_cobol_abbreviation()`
+
+**File:** `dm/pipeline.py` — `run_enrichment()` (passes modern DB connection)
+
+The original `find_matching_column()` used only `SequenceMatcher` fuzzy matching, which fails for COBOL abbreviated names (e.g., `bp_recid` vs `payment_id` = 0.25 similarity, well below the 0.7 threshold). This made Fix 11's manual mapping necessary for every project.
+
+**New multi-strategy approach:**
+
+1. **COBOL abbreviation dictionary** (90+ patterns): Strips the 2-3 char table prefix (`cl_`, `bp_`, etc.) and looks up the suffix in a dictionary of common COBOL copybook abbreviations:
+   ```
+   fnam -> first_name, lnam -> last_name, dob -> date_of_birth,
+   payam -> payment_amount, stat -> status, phon -> phone_number,
+   emal -> email, adr1 -> address_line1, wkamt -> weekly_benefit_amount, ...
+   ```
+
+2. **Table-context PK resolution**: Record ID fields (`recid`, `recno`) use the table name to infer the correct primary key. E.g., `bp_recid` + table `benefit_payments` -> `payment_id` (derives from singularized last word of table name + `_id`).
+
+3. **COBOL PII pattern detection**: Abbreviated financial field patterns (`bact`, `brtn`, `bacct`, `broute`) are recognized as PII and routed to `archived` type instead of `removed`.
+
+4. **FILLER detection**: COBOL FILLER fields (`fil1`, `fil2`, `filler`) are automatically classified as `removed`.
+
+5. **Containment/word-overlap matching**: Expanded names that partially match modern columns score by overlap ratio (e.g., expanded `status` matches `claimant_status` via containment).
+
+6. **Modern DB connection**: The enrichment pipeline now connects to the modern database (when available) to match expanded abbreviations against actual column names, falling back to dictionary-only matching when no modern DB is accessible.
+
+7. **Original fuzzy match as fallback**: `SequenceMatcher` at 0.7 threshold still runs as a last resort.
+
+**Result:** 48/48 mappings auto-resolved correctly (was 0/48 before), including:
+- `bp_recid` -> `payment_id` (table-context PK)
+- `cl_bact` -> archived (COBOL PII detection)
+- `cl_fil1` -> removed (FILLER detection)
+- `er_ind` -> `industry` (abbreviation dictionary)
+
+This fix is **global** — any new COBOL legacy system will get automatic column resolution without manual mapping.
 
 ---
 

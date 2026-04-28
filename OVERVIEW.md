@@ -27,9 +27,11 @@ LEGACY DATABASE (COBOL/DB2)
         |                Pulls schemas, column profiles, PII tags,
         |                glossary terms from OpenMetadata catalog.
         v
-  3. ENRICH ------------> Fill in the gaps
-        |                Adds profiling stats, lineage data, and
-        |                business glossary terms to the metadata.
+  3. ENRICH ------------> Fill in the gaps and map columns
+        |                COBOL-aware matcher auto-resolves abbreviated
+        |                names (cl_fnam -> first_name, bp_payam ->
+        |                payment_amount) using a 90+ pattern dictionary,
+        |                table-context PK inference, and PII detection.
         v
   4. GENERATE SCHEMA ---> Design the modern database
         |                Expands COBOL abbreviations (cl_fnam -> first_name),
@@ -77,6 +79,7 @@ LEGACY DATABASE (COBOL/DB2)
 - **Deterministic-first:** Rule engines produce complete output at every stage. AI refines but is never required.
 - **Quantified confidence:** Every step produces a 0-100 score with GREEN/YELLOW/RED status — not just pass/fail.
 - **Auditable artifacts:** Every run creates timestamped folders with markdown reports, CSV findings, and JSON metadata.
+- **COBOL-aware:** Built-in dictionary of 90+ COBOL copybook abbreviations automatically maps legacy column names to modern equivalents — no manual mapping needed.
 - **Pluggable:** 19 hook points let you add domain-specific rules (custom validators, scoring overrides, PII patterns) without modifying the toolkit.
 - **OpenMetadata-native:** Uses OM as the metadata backbone for schema discovery, profiling, lineage, and PII classification.
 
