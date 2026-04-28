@@ -503,9 +503,9 @@ if phase == "PRE":
                 # Highlight transform/archived rows
                 def highlight_mapping_type(row):
                     if row["Type"] == "archived":
-                        return ["background-color: #ffebee"] * len(row)
+                        return ["background-color: #ffebee; color: #000000"] * len(row)
                     if row["Type"] == "transform":
-                        return ["background-color: #fff9c4"] * len(row)
+                        return ["background-color: #fff9c4; color: #000000"] * len(row)
                     return [""] * len(row)
 
                 st.dataframe(
