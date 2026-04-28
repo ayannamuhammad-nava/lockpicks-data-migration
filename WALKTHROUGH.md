@@ -23,7 +23,7 @@ This document captures every step taken to set up the **Lockpicks Data Migration
 15. [Set Up Post-Migration Observability](#15-set-up-post-migration-observability)
 16. [View Overall Status](#16-view-overall-status)
 17. [Launch the Dashboard](#17-launch-the-dashboard)
-18. [Fixes Applied](#18-fixes-applied)
+18. [Fixes Applied](#18-fixes-applied) (9 total)
 19. [Architecture Overview](#19-architecture-overview)
 
 ---
@@ -400,11 +400,13 @@ Validates data quality, schema compatibility, governance compliance, and data in
 
 | File | Phase | Description |
 |------|-------|-------------|
-| `run_metadata.json` | Both | Scores, status, timestamps |
+| `run_metadata.json` | Both | Scores (overall, structure, governance), status, timestamps |
+| `confidence_score.txt` | Both | Raw confidence score and traffic-light status |
 | `readiness_report.md` | Pre | Schema diff, data quality findings |
-| `schema_diff.md` | Pre | Missing/added columns between legacy and modern |
-| `governance_report.csv` | Pre | PII detection, naming violations, null checks |
+| `schema_diff.md` | Pre | Missing/added columns between legacy and modern (Fix 9) |
+| `governance_report.csv` | Pre | PII detection, naming violations, null checks (Fix 9) |
 | `reconciliation_report.md` | Post | Row counts, value comparisons, integrity checks |
+| `proof_report.md` | Prove | Combined pre+post narrative with final score |
 
 **Scoring weights:**
 - Structure: 40% (schema compatibility)
@@ -567,7 +569,7 @@ STREAMLIT_BROWSER_GATHER_USAGE_STATS=false \
 
 ## 18. Fixes Applied
 
-Eight compatibility fixes were applied to the DM codebase for OpenMetadata 1.6.2 and Python 3.14:
+Nine compatibility fixes were applied to the DM codebase for OpenMetadata 1.6.2 and Python 3.14:
 
 ### Fix 1: `owner` -> `owners` field name (OM API change)
 
@@ -673,6 +675,50 @@ if history_fn:
 return {"history": [], "message": "Observation history not yet implemented"}
 ```
 
+### Fix 9: Dashboard missing `schema_diff.md` and `governance_report.csv`
+
+**File:** `dm/pipeline.py` — `_generate_pre_reports()`
+
+The dashboard's Schema Diff & Mappings and Governance tabs expect `schema_diff.md` and `governance_report.csv` in each pre-migration run folder, but the reporter was only writing `readiness_report.md`. Added generation of both files from validator result data:
+
+```python
+# schema_diff.md — generated from SchemaDiffValidator results
+for r in results:
+    if r.name == "schema_diff" and r.details.get("schema_diff"):
+        diff_md = generate_schema_diff_report(
+            r.details.get("legacy_schema", {}),
+            r.details.get("modern_schema", {}),
+            dataset,
+        )
+        save_markdown_report(diff_md, os.path.join(artifact_folder, "schema_diff.md"))
+
+# governance_report.csv — generated from GovernanceValidator results
+for r in results:
+    if r.name == "governance" and r.details:
+        # Writes PII violations, naming warnings, null threshold warnings as CSV
+        ...
+```
+
+Also added `structure_score` and `governance_score` to `run_metadata.json` so the dashboard can display individual score breakdowns.
+
+**Pre-migration runs must be re-run after this fix** to generate the new files:
+```bash
+.venv/bin/dm validate --phase pre --dataset claimants -p projects/unemployment-claims-analysis
+```
+
+**Sample `governance_report.csv` output (claimants):**
+```csv
+category,item,status,detail
+PII,cl_ssn,VIOLATION,Plaintext PII detected
+PII,cl_dob,VIOLATION,Plaintext PII detected
+Null,cl_emal,WARNING,Exceeds null threshold
+```
+
+**Sample `schema_diff.md` output (claimants):**
+- 16 legacy columns missing in modern (renamed during migration)
+- 15 new columns in modern schema
+- 1 type mismatch (`cl_bact`: character -> character varying)
+
 ---
 
 ## 19. Architecture Overview
@@ -708,7 +754,14 @@ unemployment-claims-analysis/
 │           └── artifacts/                  # Validation & schema artifacts
 │               ├── generated_schema/       # Modern DDL
 │               ├── converted/postgres/     # Platform-converted SQL
+│               ├── observer_baseline.json  # Post-migration baseline snapshot
 │               └── run_*/                  # Validation run outputs
+│                   ├── run_metadata.json
+│                   ├── readiness_report.md (pre)
+│                   ├── schema_diff.md      (pre)
+│                   ├── governance_report.csv (pre)
+│                   ├── reconciliation_report.md (post)
+│                   └── proof_report.md     (prove)
 └── unemployment-claims-project/            # Original COBOL source files
     ├── src/cbl/                            # COBOL programs
     │   ├── getclaim.cbl
