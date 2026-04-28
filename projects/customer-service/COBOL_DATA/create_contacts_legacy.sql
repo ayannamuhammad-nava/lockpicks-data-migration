@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS contacts (
     ct_lnam     CHAR(30),               -- PIC X(30)   CONTACT-LAST-NAME
     ct_sufx     CHAR(5),                -- PIC X(5)    CONTACT-NAME-SUFFIX
     ct_ssn      CHAR(11),               -- PIC X(11)   CONTACT-SSN
-    ct_dob      CHAR(10),               -- PIC X(10)   CONTACT-DATE-OF-BIRTH
+    ct_dob      CHAR(12),               -- PIC X(12)   CONTACT-DATE-OF-BIRTH (widened for mixed date formats)
     ct_gndr     CHAR(1),                -- PIC X(1)    CONTACT-GENDER-CODE
     ct_ethn     CHAR(20),               -- PIC X(20)   CONTACT-ETHNICITY
     ct_ptel     CHAR(14),               -- PIC X(14)   CONTACT-PRIMARY-PHONE
