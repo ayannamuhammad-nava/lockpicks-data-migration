@@ -319,21 +319,35 @@ def answer_rag_query(query: str) -> str:
 
 
 def get_lifecycle_status() -> dict:
-    """Compute overall lifecycle status from all run scores."""
+    """Compute overall lifecycle status from the most recent date's run scores."""
     runs = get_runs()
-    scores = []
     phase_map = {"pre": set(), "post": set(), "prove": set()}
+
+    # Group runs by date and collect scores
+    runs_by_date = {}
     for run_name in runs:
         meta = load_json(run_name, "run_metadata.json") or {}
-        s = meta.get("confidence_score")
         phase = meta.get("phase", "")
         dataset = meta.get("dataset", "")
-        if s is not None and float(s) > 0:
-            scores.append(float(s))
         if phase in phase_map:
             phase_map[phase].add(dataset)
 
-    avg = round(sum(scores) / len(scores), 1) if scores else 0
+        # Extract date from run name: run_YYYY-MM-DD_HH-MM-SS -> YYYY-MM-DD
+        run_date = run_name.replace("run_", "")[:10]
+        if run_date not in runs_by_date:
+            runs_by_date[run_date] = []
+        s = meta.get("confidence_score")
+        if s is not None and float(s) > 0:
+            runs_by_date[run_date].append(float(s))
+
+    # Use the most recent date only
+    latest_date = ""
+    latest_scores = []
+    if runs_by_date:
+        latest_date = sorted(runs_by_date.keys(), reverse=True)[0]
+        latest_scores = runs_by_date[latest_date]
+
+    avg = round(sum(latest_scores) / len(latest_scores), 1) if latest_scores else 0
     if avg >= 90:
         status, color, bg = "GREEN", "#2e7d32", "#e8f5e9"
     elif avg >= 70:
@@ -356,11 +370,12 @@ def get_lifecycle_status() -> dict:
 
     return {
         "avg_score": avg,
+        "avg_date": latest_date,
         "status": status,
         "color": color,
         "bg": bg,
         "run_count": len(runs),
-        "score_count": len(scores),
+        "score_count": len(latest_scores),
         "current_phase": current_phase,
     }
 
@@ -368,6 +383,7 @@ def get_lifecycle_status() -> dict:
 def render_lifecycle_bar(lifecycle: dict, phase: str = "", dataset: str = ""):
     """Render the Data Migration Lifecycle status bar at the top of the page."""
     avg = lifecycle["avg_score"]
+    avg_date = lifecycle.get("avg_date", "")
     color = lifecycle["color"]
     bg = lifecycle["bg"]
     status = lifecycle["status"]
@@ -396,7 +412,10 @@ def render_lifecycle_bar(lifecycle: dict, phase: str = "", dataset: str = ""):
     <div style="background:{bg};border-left:5px solid {color};border-radius:8px;padding:12px 20px;margin-bottom:16px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
             <div style="font-size:1.1rem;font-weight:700;color:{color}">{emoji} {context}</div>
-            <div style="font-size:0.9rem;color:{color};font-weight:600">Avg Score: {avg}/100 &middot; {status}</div>
+            <div style="text-align:right">
+                <div style="font-size:0.9rem;color:{color};font-weight:600">Avg Score: {avg}/100 &middot; {status}</div>
+                <div style="font-size:0.7rem;color:#888">{avg_date}</div>
+            </div>
         </div>
         <div style="display:flex;align-items:center;gap:2px;flex-wrap:wrap">
             <span style="font-size:0.75rem;color:#666;margin-right:8px;font-weight:600">LIFECYCLE:</span>
