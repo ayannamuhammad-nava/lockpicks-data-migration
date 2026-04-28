@@ -1,0 +1,9 @@
+migration_scope:
+  generated_at: '2026-04-28T20:51:57.584323+00:00'
+  migrate: []
+  review: []
+  archive:
+  - table: contacts
+    score: 32.5
+    rationale: 'Table ''contacts'' is a candidate for archival/decommission. Strongest
+      signal: query_activity (50/100). Concern: low downstream score (0/100).'

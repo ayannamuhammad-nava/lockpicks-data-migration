@@ -1,0 +1,340 @@
+{
+  "mappings": [
+    {
+      "source": "ct_recid",
+      "target": "contact_id",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_recid -> contact_id",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_fnam",
+      "target": "first_name",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_fnam -> first_name",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_mnam",
+      "target": "middle_name",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_mnam -> middle_name",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_lnam",
+      "target": "last_name",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_lnam -> last_name",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_sufx",
+      "target": "name_suffix",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_sufx -> name_suffix",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_ssn",
+      "target": "ssn_hash",
+      "type": "transform",
+      "rationale": "PII field renamed from ct_ssn to ssn_hash with potential data transformation",
+      "confidence": 0.38,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_dob",
+      "target": "date_of_birth",
+      "type": "transform",
+      "rationale": "PII field renamed from ct_dob to date_of_birth with potential data transformation",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_gndr",
+      "target": "gender",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_gndr -> gender",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_ethn",
+      "target": "ethnicity",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_ethn -> ethnicity",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_ptel",
+      "target": "primary_phone",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_ptel -> primary_phone",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_mtel",
+      "target": "mobile_phone",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_mtel -> mobile_phone",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_wtel",
+      "target": "work_phone",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_wtel -> work_phone",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_emal",
+      "target": "email",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_emal -> email",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_adr1",
+      "target": "address_line1",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_adr1 -> address_line1",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_adr2",
+      "target": "address_line2",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_adr2 -> address_line2",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_city",
+      "target": "city",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_city -> city",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_st",
+      "target": "state",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_st -> state",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_zip",
+      "target": "zip_code",
+      "type": "transform",
+      "rationale": "PII field renamed from ct_zip to zip_code with potential data transformation",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_adtyp",
+      "target": "address_type",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_adtyp -> address_type",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_madr1",
+      "target": "mailing_address_line1",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_madr1 -> mailing_address_line1",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_madr2",
+      "target": "mailing_address_line2",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_madr2 -> mailing_address_line2",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_mcity",
+      "target": "mailing_city",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_mcity -> mailing_city",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_mst",
+      "target": "mailing_state",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_mst -> mailing_state",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_mzip",
+      "target": "mailing_zip_code",
+      "type": "transform",
+      "rationale": "PII field renamed from ct_mzip to mailing_zip_code with potential data transformation",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_emrg",
+      "target": "emergency_contact_name",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_emrg -> emergency_contact_name",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_etel",
+      "target": "emergency_contact_phone",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_etel -> emergency_contact_phone",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_erel",
+      "target": "emergency_contact_relation",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_erel -> emergency_contact_relation",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_dln",
+      "target": "drivers_license_number",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_dln -> drivers_license_number",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_dlst",
+      "target": "drivers_license_state",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_dlst -> drivers_license_state",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_bact",
+      "target": null,
+      "type": "archived",
+      "rationale": "PII field ct_bact not present in modern schema \u2014 likely archived for compliance",
+      "confidence": 0.8,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_brtn",
+      "target": null,
+      "type": "archived",
+      "rationale": "PII field ct_brtn not present in modern schema \u2014 likely archived for compliance",
+      "confidence": 0.8,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_mstat",
+      "target": "marital_status",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_mstat -> marital_status",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_dpnds",
+      "target": "dependents_count",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_dpnds -> dependents_count",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_lang",
+      "target": "language_preference",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_lang -> language_preference",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_vetf",
+      "target": "is_veteran",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_vetf -> is_veteran",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_disf",
+      "target": "is_disabled",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_disf -> is_disabled",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_stat",
+      "target": "marital_status",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_stat -> marital_status",
+      "confidence": 0.43,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_crtdt",
+      "target": "created_at",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_crtdt -> created_at",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_upddt",
+      "target": "updated_at",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_upddt -> updated_at",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_srccd",
+      "target": "source_code",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: ct_srccd -> source_code",
+      "confidence": 0.95,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_fil1",
+      "target": null,
+      "type": "removed",
+      "rationale": "COBOL FILLER field \u2014 no business value",
+      "confidence": 0.8,
+      "table": "contacts"
+    },
+    {
+      "source": "ct_fil2",
+      "target": null,
+      "type": "removed",
+      "rationale": "COBOL FILLER field \u2014 no business value",
+      "confidence": 0.8,
+      "table": "contacts"
+    }
+  ]
+}

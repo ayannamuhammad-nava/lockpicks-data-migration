@@ -1,0 +1,25 @@
+{
+  "generated_at": "2026-04-28T20:51:57.584209+00:00",
+  "summary": {
+    "total_tables": 1,
+    "migrate_count": 0,
+    "review_count": 0,
+    "archive_count": 1,
+    "scope_reduction_pct": 100.0
+  },
+  "tables": [
+    {
+      "table": "contacts",
+      "score": 32.5,
+      "recommendation": "archive",
+      "breakdown": {
+        "query_activity": 50.0,
+        "downstream": 0.0,
+        "freshness": 25.0,
+        "completeness": 50.0,
+        "tier": 50.0
+      },
+      "rationale": "Table 'contacts' is a candidate for archival/decommission. Strongest signal: query_activity (50/100). Concern: low downstream score (0/100)."
+    }
+  ]
+}

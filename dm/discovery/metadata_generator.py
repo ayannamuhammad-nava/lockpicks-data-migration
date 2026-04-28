@@ -78,10 +78,19 @@ COBOL_ABBREVIATIONS = {
     "fildt": "filing_date", "paydt": "payment_date", "effdt": "effective_date",
     "rgdt": "registered_at", "lupdt": "updated_at", "crtdt": "created_at",
     "bystr": "benefit_year_start", "byend": "benefit_year_end",
+    # Name extras
+    "sufx": "name_suffix", "sfx": "name_suffix", "prfx": "name_prefix",
+    "gndr": "gender", "gnd": "gender", "sex": "gender",
+    "ethn": "ethnicity", "race": "ethnicity",
     # Contact info
     "phon": "phone_number", "phn": "phone_number", "tel": "phone_number",
+    "ptel": "primary_phone", "mtel": "mobile_phone", "wtel": "work_phone",
+    "htel": "home_phone", "fax": "fax_number",
     "emal": "email", "email": "email",
     "adr1": "address_line1", "adr2": "address_line2", "addr": "address",
+    "madr1": "mailing_address_line1", "madr2": "mailing_address_line2",
+    "mcity": "mailing_city", "mst": "mailing_state", "mzip": "mailing_zip_code",
+    "adtyp": "address_type", "atyp": "address_type",
     "city": "city", "st": "state", "zip": "zip_code",
     # Financial
     "payam": "payment_amount", "amt": "amount", "wkamt": "weekly_benefit_amount",
@@ -99,6 +108,18 @@ COBOL_ABBREVIATIONS = {
     "seprs": "separation_reason", "rsn": "reason",
     # Flags
     "dcsd": "is_deceased", "flg": "flag", "indr": "indicator",
+    "vetf": "is_veteran", "disf": "is_disabled",
+    # Personal / demographic
+    "mstat": "marital_status", "dpnds": "dependents_count",
+    "lang": "language_preference", "srccd": "source_code",
+    # Emergency contact
+    "emrg": "emergency_contact_name", "etel": "emergency_contact_phone",
+    "erel": "emergency_contact_relation",
+    # Driver's license
+    "dln": "drivers_license_number", "dlno": "drivers_license_number",
+    "dlst": "drivers_license_state",
+    # Update dates
+    "upddt": "updated_at", "moddt": "modified_at",
     # Misc
     "chkno": "check_number", "nbr": "number", "num": "number",
     "desc": "description", "cmnt": "comment", "rmrk": "remark",

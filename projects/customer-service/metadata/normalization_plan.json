@@ -1,0 +1,389 @@
+{
+  "contacts": {
+    "source_table": "contacts",
+    "entities": [
+      {
+        "name": "ct_records",
+        "columns": [
+          {
+            "source_col": "ct_recid",
+            "target_col": null,
+            "data_type": "INT",
+            "data_type_display": "int",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_fnam",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_mnam",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_lnam",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_sufx",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_ssn",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_dob",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_gndr",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_ethn",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_adtyp",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_emrg",
+            "target_col": null,
+            "data_type": "VARCHAR",
+            "data_type_display": "varchar",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_erel",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_dln",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_bact",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_brtn",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_dpnds",
+            "target_col": null,
+            "data_type": "INT",
+            "data_type_display": "int",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_lang",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_vetf",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_disf",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_crtdt",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_upddt",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_srccd",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_fil1",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_fil2",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          }
+        ],
+        "primary_key": "ct_recid",
+        "source_table": "contacts",
+        "role": "primary",
+        "rationale": "Primary entity from ct_ columns (confidence: 0.90)"
+      },
+      {
+        "name": "ct_record_addresses",
+        "columns": [
+          {
+            "source_col": "ct_adr1",
+            "target_col": null,
+            "data_type": "VARCHAR",
+            "data_type_display": "varchar",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_adr2",
+            "target_col": null,
+            "data_type": "VARCHAR",
+            "data_type_display": "varchar",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_city",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_st",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_zip",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_madr1",
+            "target_col": null,
+            "data_type": "VARCHAR",
+            "data_type_display": "varchar",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_madr2",
+            "target_col": null,
+            "data_type": "VARCHAR",
+            "data_type_display": "varchar",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_mcity",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_mst",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_mzip",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_dlst",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_mstat",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_stat",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          }
+        ],
+        "primary_key": "ct_record_addresse_id",
+        "source_table": "contacts",
+        "role": "child",
+        "rationale": "Child entity from ct_ columns (confidence: 0.80)"
+      },
+      {
+        "name": "ct_record_contacts",
+        "columns": [
+          {
+            "source_col": "ct_ptel",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_mtel",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_wtel",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_emal",
+            "target_col": null,
+            "data_type": "VARCHAR",
+            "data_type_display": "varchar",
+            "nullable": true,
+            "transform": null
+          },
+          {
+            "source_col": "ct_etel",
+            "target_col": null,
+            "data_type": "CHAR",
+            "data_type_display": "char",
+            "nullable": true,
+            "transform": null
+          }
+        ],
+        "primary_key": "ct_record_contact_id",
+        "source_table": "contacts",
+        "role": "child",
+        "rationale": "Child entity from ct_ columns (confidence: 0.70)"
+      }
+    ],
+    "relationships": [
+      {
+        "parent_entity": "ct_records",
+        "child_entity": "ct_record_addresses",
+        "fk_column": "ct_record_id",
+        "pk_column": "ct_recid",
+        "cardinality": "1:N"
+      },
+      {
+        "parent_entity": "ct_records",
+        "child_entity": "ct_record_contacts",
+        "fk_column": "ct_record_id",
+        "pk_column": "ct_recid",
+        "cardinality": "1:N"
+      }
+    ],
+    "lookup_tables": [],
+    "confidence": 0.8,
+    "rationale": "Decomposed contacts into 3 entities with 2 relationships and 0 lookup tables"
+  }
+}
