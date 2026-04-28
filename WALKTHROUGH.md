@@ -408,6 +408,27 @@ Validates data quality, schema compatibility, governance compliance, and data in
 | `reconciliation_report.md` | Post | Row counts, value comparisons, integrity checks |
 | `proof_report.md` | Prove | Combined pre+post narrative with final score |
 
+**Understanding the Schema Diff — "Missing" columns are renamed, not lost:**
+
+The schema diff compares legacy and modern tables by **column name**. Because the legacy system uses COBOL copybook abbreviated naming (`cl_`, `er_`, `cm_`, `bp_` prefixes) and the modern schema uses full descriptive English names, every renamed column appears as "missing in modern" with a corresponding "new column in modern." The data is not lost — it was renamed during migration.
+
+For example, in the `benefit_payments` table all 8 legacy columns show as "missing":
+
+| Legacy Column | Modern Column | What Happened |
+|--------------|---------------|---------------|
+| `bp_recid` | `payment_id` | Renamed from COBOL abbreviation |
+| `bp_clmid` | `claim_id` | Renamed |
+| `bp_paydt` | `payment_date` | Renamed + type change (CHAR -> DATE) |
+| `bp_payam` | `payment_amount` | Renamed |
+| `bp_methd` | `payment_method` | Renamed |
+| `bp_wkedt` | `week_ending_date` | Renamed |
+| `bp_stat` | `payment_status` | Renamed |
+| `bp_chkno` | `check_number` | Renamed |
+
+The same pattern applies across all 4 tables. To see the actual rename mappings (legacy -> modern), check the **Schema Diff & Mappings** tab in the dashboard or `metadata/mappings.json`. The field mappings include confidence scores and rationale for each rename, transform, or archival decision.
+
+Only a few columns were truly removed during migration (e.g., `cl_bact` and `cl_brtn` — bank account and routing numbers archived for PCI-DSS compliance, and `cl_fil1` — a COBOL FILLER field with no business value).
+
 **Scoring weights:**
 - Structure: 40% (schema compatibility)
 - Integrity: 40% (data quality, referential integrity)
