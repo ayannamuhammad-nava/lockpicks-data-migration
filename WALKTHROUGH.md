@@ -23,7 +23,7 @@ This document captures every step taken to set up the **Lockpicks Data Migration
 15. [Set Up Post-Migration Observability](#15-set-up-post-migration-observability)
 16. [View Overall Status](#16-view-overall-status)
 17. [Launch the Dashboard](#17-launch-the-dashboard)
-18. [Fixes Applied](#18-fixes-applied) (9 total)
+18. [Fixes Applied](#18-fixes-applied) (12 total)
 19. [Architecture Overview](#19-architecture-overview)
 
 ---
@@ -590,7 +590,7 @@ STREAMLIT_BROWSER_GATHER_USAGE_STATS=false \
 
 ## 18. Fixes Applied
 
-Nine compatibility fixes were applied to the DM codebase for OpenMetadata 1.6.2 and Python 3.14:
+Twelve fixes were applied to the DM codebase for OpenMetadata 1.6.2, pandas 3.x, and Python 3.14:
 
 ### Fix 1: `owner` -> `owners` field name (OM API change)
 
@@ -739,6 +739,46 @@ Null,cl_emal,WARNING,Exceeds null threshold
 - 16 legacy columns missing in modern (renamed during migration)
 - 15 new columns in modern schema
 - 1 type mismatch (`cl_bact`: character -> character varying)
+
+### Fix 10: `applymap` -> `map` for pandas 2.1+ compatibility
+
+**File:** `dashboard.py` line 564
+
+```python
+# Before — applymap removed in pandas 2.1+
+styled = gov_df.style.applymap(color_gov_status, subset=["status"])
+
+# After
+styled = gov_df.style.map(color_gov_status, subset=["status"])
+```
+
+### Fix 11: Field mappings showing "not migrated" for renamed columns
+
+**File:** `projects/unemployment-claims-analysis/metadata/mappings.json`
+
+The auto-matcher (`SequenceMatcher` with 0.7 threshold) could not resolve COBOL abbreviated column names to modern descriptive names because the string similarity is too low (e.g., `bp_recid` vs `payment_id` = 0.25). All 48 mappings had `target: null` and `type: pending`, causing the dashboard to display "*(not migrated)*" for every field.
+
+Manually populated all 48 mappings with correct targets, types, and rationale:
+- **30 renames** — column name expanded from COBOL abbreviation (e.g., `cl_fnam` -> `first_name`)
+- **12 transforms** — renamed + type change (e.g., `cl_dob` CHAR(30) -> `date_of_birth` DATE)
+- **2 archived** — PCI-DSS compliance, not migrated (`cl_bact` bank account, `cl_brtn` routing number)
+- **1 removed** — COBOL FILLER field with no business value (`cl_fil1`)
+
+Each mapping includes a rationale explaining the COBOL copybook field name and why the transformation was applied.
+
+### Fix 12: Black font on highlighted dashboard rows
+
+**File:** `dashboard.py` — `highlight_mapping_type()`
+
+Highlighted rows (archived in red, transform in yellow) had unreadable text in dark mode. Added explicit `color: #000000` to ensure black font on colored backgrounds.
+
+```python
+# Before
+return ["background-color: #ffebee"] * len(row)
+
+# After
+return ["background-color: #ffebee; color: #000000"] * len(row)
+```
 
 ---
 
