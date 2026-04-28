@@ -41,6 +41,25 @@ PROJECT_DIR = _project_dir.resolve()
 ARTIFACTS_DIR = PROJECT_DIR / "artifacts"
 METADATA_DIR = PROJECT_DIR / "metadata"
 
+# Load project name from project.yaml
+_project_yaml = PROJECT_DIR / "project.yaml"
+if _project_yaml.exists():
+    import yaml as _yaml
+    _proj_config = _yaml.safe_load(_project_yaml.read_text()) or {}
+    PROJECT_NAME = _proj_config.get("project", {}).get("name", PROJECT_DIR.name)
+else:
+    PROJECT_NAME = PROJECT_DIR.name
+
+# Data Migration Lifecycle phases
+LIFECYCLE_PHASES = [
+    ("Discovery", "discover"),
+    ("Modeling", "generate-schema"),
+    ("Governance", "validate --phase pre"),
+    ("Transformation", "convert"),
+    ("Compliance", "validate --phase pre"),
+    ("Quality", "validate --phase post"),
+]
+
 STATUS_EMOJI = {"GREEN": "🟢", "YELLOW": "🟡", "RED": "🔴"}
 STATUS_COLOR = {"GREEN": "#2e7d32", "YELLOW": "#f57f17", "RED": "#c62828"}
 STATUS_BG    = {"GREEN": "#e8f5e9", "YELLOW": "#fff9c4", "RED": "#ffebee"}
@@ -299,6 +318,94 @@ def answer_rag_query(query: str) -> str:
     return response
 
 
+def get_lifecycle_status() -> dict:
+    """Compute overall lifecycle status from all run scores."""
+    runs = get_runs()
+    scores = []
+    phase_map = {"pre": set(), "post": set(), "prove": set()}
+    for run_name in runs:
+        meta = load_json(run_name, "run_metadata.json") or {}
+        s = meta.get("confidence_score")
+        phase = meta.get("phase", "")
+        dataset = meta.get("dataset", "")
+        if s is not None and float(s) > 0:
+            scores.append(float(s))
+        if phase in phase_map:
+            phase_map[phase].add(dataset)
+
+    avg = round(sum(scores) / len(scores), 1) if scores else 0
+    if avg >= 90:
+        status, color, bg = "GREEN", "#2e7d32", "#e8f5e9"
+    elif avg >= 70:
+        status, color, bg = "YELLOW", "#f57f17", "#fff9c4"
+    else:
+        status, color, bg = "RED", "#c62828", "#ffebee"
+
+    # Determine current lifecycle phase based on what's been completed
+    current_phase = 0  # Discovery
+    if METADATA_DIR.exists() and (METADATA_DIR / "glossary.json").exists():
+        current_phase = 1  # Modeling
+    if (ARTIFACTS_DIR / "generated_schema").exists():
+        current_phase = 2  # Governance
+    if (ARTIFACTS_DIR / "converted").exists():
+        current_phase = 3  # Transformation
+    if phase_map["pre"]:
+        current_phase = 4  # Compliance
+    if phase_map["post"]:
+        current_phase = 5  # Quality
+
+    return {
+        "avg_score": avg,
+        "status": status,
+        "color": color,
+        "bg": bg,
+        "run_count": len(runs),
+        "score_count": len(scores),
+        "current_phase": current_phase,
+    }
+
+
+def render_lifecycle_bar(lifecycle: dict, phase: str = "", dataset: str = ""):
+    """Render the Data Migration Lifecycle status bar at the top of the page."""
+    avg = lifecycle["avg_score"]
+    color = lifecycle["color"]
+    bg = lifecycle["bg"]
+    status = lifecycle["status"]
+    current = lifecycle["current_phase"]
+    emoji = STATUS_EMOJI.get(status, "⚪")
+
+    # Phase labels with completion indicators
+    phase_html = ""
+    for i, (label, _cmd) in enumerate(LIFECYCLE_PHASES):
+        if i < current:
+            # Completed
+            phase_html += f'<span style="background:#2e7d32;color:#fff;padding:4px 12px;border-radius:12px;margin:0 3px;font-size:0.8rem;font-weight:600">{label}</span>'
+        elif i == current:
+            # Current
+            phase_html += f'<span style="background:{color};color:#000;padding:4px 12px;border-radius:12px;margin:0 3px;font-size:0.8rem;font-weight:700;border:2px solid {color}">{label}</span>'
+        else:
+            # Pending
+            phase_html += f'<span style="background:#e0e0e0;color:#888;padding:4px 12px;border-radius:12px;margin:0 3px;font-size:0.8rem">{label}</span>'
+
+    # Context line
+    context = f"<strong>{PROJECT_NAME}</strong>"
+    if phase and dataset:
+        context += f" &middot; {phase.upper()} &middot; {dataset.title()}"
+
+    st.markdown(f"""
+    <div style="background:{bg};border-left:5px solid {color};border-radius:8px;padding:12px 20px;margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <div style="font-size:1.1rem;font-weight:700;color:{color}">{emoji} {context}</div>
+            <div style="font-size:0.9rem;color:{color};font-weight:600">Avg Score: {avg}/100 &middot; {status}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:2px;flex-wrap:wrap">
+            <span style="font-size:0.75rem;color:#666;margin-right:8px;font-weight:600">LIFECYCLE:</span>
+            {phase_html}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 
 with st.sidebar:
@@ -359,13 +466,16 @@ with st.sidebar:
                 st.error(result.stderr[:600] or "Unknown error")
 
     st.divider()
-    st.caption(f"Project: `{PROJECT_DIR}`")
+    st.caption(f"Project: `{PROJECT_NAME}`")
     st.caption("CLI: `dm validate --help`")
 
 
 # ── Main area ──────────────────────────────────────────────────────────────────
 
+lifecycle = get_lifecycle_status()
+
 if not selected_run:
+    render_lifecycle_bar(lifecycle)
     st.markdown("# Data-Migration <span style='color:#e63946'>Validation</span> Tool", unsafe_allow_html=True)
     st.info("No run selected. Use the sidebar to pick an existing run or trigger a new validation.")
     st.stop()
@@ -386,6 +496,9 @@ generated_at = meta.get("generated_at", "")[:16].replace("T", " ")
 emoji = STATUS_EMOJI.get(status, "⚪")
 color = STATUS_COLOR.get(status, "#999")
 bg    = STATUS_BG.get(status, "#f5f5f5")
+
+# ── Lifecycle Status Bar ───────────────────────────────────────────────────────
+render_lifecycle_bar(lifecycle, phase=phase, dataset=dataset)
 
 # ── Header ─────────────────────────────────────────────────────────────────────
 st.markdown(
