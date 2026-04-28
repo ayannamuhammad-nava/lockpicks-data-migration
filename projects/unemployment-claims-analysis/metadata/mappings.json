@@ -1,388 +1,55 @@
 {
   "mappings": [
-    {
-      "source": "bp_recid",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "benefit_payments"
-    },
-    {
-      "source": "bp_clmid",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "benefit_payments"
-    },
-    {
-      "source": "bp_paydt",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "benefit_payments"
-    },
-    {
-      "source": "bp_payam",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "benefit_payments"
-    },
-    {
-      "source": "bp_methd",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "benefit_payments"
-    },
-    {
-      "source": "bp_wkedt",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "benefit_payments"
-    },
-    {
-      "source": "bp_stat",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "benefit_payments"
-    },
-    {
-      "source": "bp_chkno",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "benefit_payments"
-    },
-    {
-      "source": "cl_recid",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claimants"
-    },
-    {
-      "source": "cl_fnam",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claimants"
-    },
-    {
-      "source": "cl_lnam",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claimants"
-    },
-    {
-      "source": "cl_ssn",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claimants"
-    },
-    {
-      "source": "cl_dob",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claimants"
-    },
-    {
-      "source": "cl_phon",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claimants"
-    },
-    {
-      "source": "cl_emal",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claimants"
-    },
-    {
-      "source": "cl_adr1",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claimants"
-    },
-    {
-      "source": "cl_city",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claimants"
-    },
-    {
-      "source": "cl_st",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claimants"
-    },
-    {
-      "source": "cl_zip",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claimants"
-    },
-    {
-      "source": "cl_bact",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claimants"
-    },
-    {
-      "source": "cl_brtn",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claimants"
-    },
-    {
-      "source": "cl_stat",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claimants"
-    },
-    {
-      "source": "cl_rgdt",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claimants"
-    },
-    {
-      "source": "cl_dcsd",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claimants"
-    },
-    {
-      "source": "cl_fil1",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claimants"
-    },
-    {
-      "source": "cm_recid",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claims"
-    },
-    {
-      "source": "cm_clmnt",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claims"
-    },
-    {
-      "source": "cm_emplr",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claims"
-    },
-    {
-      "source": "cm_seprs",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claims"
-    },
-    {
-      "source": "cm_fildt",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claims"
-    },
-    {
-      "source": "cm_bystr",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claims"
-    },
-    {
-      "source": "cm_byend",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claims"
-    },
-    {
-      "source": "cm_wkamt",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claims"
-    },
-    {
-      "source": "cm_mxamt",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claims"
-    },
-    {
-      "source": "cm_totpd",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claims"
-    },
-    {
-      "source": "cm_wkcnt",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claims"
-    },
-    {
-      "source": "cm_stat",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claims"
-    },
-    {
-      "source": "cm_lupdt",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "claims"
-    },
-    {
-      "source": "er_recid",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "employers"
-    },
-    {
-      "source": "er_name",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "employers"
-    },
-    {
-      "source": "er_ein",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "employers"
-    },
-    {
-      "source": "er_ind",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "employers"
-    },
-    {
-      "source": "er_adr1",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "employers"
-    },
-    {
-      "source": "er_city",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "employers"
-    },
-    {
-      "source": "er_st",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "employers"
-    },
-    {
-      "source": "er_zip",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "employers"
-    },
-    {
-      "source": "er_phon",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "employers"
-    },
-    {
-      "source": "er_stat",
-      "target": null,
-      "type": "pending",
-      "rationale": "Awaiting schema generation",
-      "confidence": 1.0,
-      "table": "employers"
-    }
+    {"source": "bp_recid", "target": "payment_id", "type": "rename", "rationale": "COBOL PAYMENT-RECORD-ID renamed to descriptive name", "confidence": 1.0, "table": "benefit_payments"},
+    {"source": "bp_clmid", "target": "claim_id", "type": "rename", "rationale": "COBOL PAYMENT-CLAIM-REF renamed to match modern FK convention", "confidence": 1.0, "table": "benefit_payments"},
+    {"source": "bp_paydt", "target": "payment_date", "type": "transform", "rationale": "COBOL PAYMENT-PROCESS-DATE renamed and type changed from CHAR(30) to DATE", "confidence": 1.0, "table": "benefit_payments"},
+    {"source": "bp_payam", "target": "payment_amount", "type": "rename", "rationale": "COBOL PAYMENT-AMOUNT renamed to descriptive name", "confidence": 1.0, "table": "benefit_payments"},
+    {"source": "bp_methd", "target": "payment_method", "type": "rename", "rationale": "COBOL PAYMENT-METHOD-CODE expanded from abbreviation", "confidence": 1.0, "table": "benefit_payments"},
+    {"source": "bp_wkedt", "target": "week_ending_date", "type": "transform", "rationale": "COBOL PAYMENT-WEEK-END-DATE renamed and type changed from CHAR(30) to DATE", "confidence": 1.0, "table": "benefit_payments"},
+    {"source": "bp_stat", "target": "payment_status", "type": "rename", "rationale": "COBOL PAYMENT-STATUS-CODE expanded from abbreviation", "confidence": 1.0, "table": "benefit_payments"},
+    {"source": "bp_chkno", "target": "check_number", "type": "rename", "rationale": "COBOL PAYMENT-CHECK-NUM expanded from abbreviation", "confidence": 1.0, "table": "benefit_payments"},
+
+    {"source": "cl_recid", "target": "claimant_id", "type": "rename", "rationale": "COBOL CLAIMANT-RECORD-ID renamed to standard PK convention", "confidence": 1.0, "table": "claimants"},
+    {"source": "cl_fnam", "target": "first_name", "type": "rename", "rationale": "COBOL CLAIMANT-FIRST-NAME expanded from abbreviation", "confidence": 1.0, "table": "claimants"},
+    {"source": "cl_lnam", "target": "last_name", "type": "rename", "rationale": "COBOL CLAIMANT-LAST-NAME expanded from abbreviation", "confidence": 1.0, "table": "claimants"},
+    {"source": "cl_ssn", "target": "ssn_hash", "type": "transform", "rationale": "COBOL CLAIMANT-SSN hashed via SHA-256 for PII compliance (HIPAA). Plaintext SSN no longer stored.", "confidence": 1.0, "table": "claimants"},
+    {"source": "cl_dob", "target": "date_of_birth", "type": "transform", "rationale": "COBOL CLAIMANT-DATE-OF-BIRTH renamed and type changed from CHAR(30) with mixed formats to DATE", "confidence": 1.0, "table": "claimants"},
+    {"source": "cl_phon", "target": "phone_number", "type": "transform", "rationale": "COBOL CLAIMANT-PHONE-NUM renamed and type changed from CHAR(20) with inconsistent formats to BIGINT", "confidence": 1.0, "table": "claimants"},
+    {"source": "cl_emal", "target": "email", "type": "rename", "rationale": "COBOL CLAIMANT-EMAIL-ADDR expanded from abbreviation", "confidence": 1.0, "table": "claimants"},
+    {"source": "cl_adr1", "target": "address_line1", "type": "rename", "rationale": "COBOL CLAIMANT-STREET-ADDR expanded from abbreviation", "confidence": 1.0, "table": "claimants"},
+    {"source": "cl_city", "target": "city", "type": "rename", "rationale": "COBOL CLAIMANT-CITY-NAME expanded from abbreviation", "confidence": 1.0, "table": "claimants"},
+    {"source": "cl_st", "target": "state", "type": "rename", "rationale": "COBOL CLAIMANT-STATE-CODE expanded from abbreviation", "confidence": 1.0, "table": "claimants"},
+    {"source": "cl_zip", "target": "zip_code", "type": "rename", "rationale": "COBOL CLAIMANT-ZIP-CODE expanded from abbreviation", "confidence": 1.0, "table": "claimants"},
+    {"source": "cl_bact", "target": null, "type": "archived", "rationale": "COBOL CLAIMANT-BANK-ACCT archived for PCI-DSS compliance. Bank account numbers not migrated to modern schema — stored in encrypted vault.", "confidence": 1.0, "table": "claimants"},
+    {"source": "cl_brtn", "target": null, "type": "archived", "rationale": "COBOL CLAIMANT-BANK-ROUTE archived for PCI-DSS compliance. Bank routing numbers not migrated to modern schema — stored in encrypted vault.", "confidence": 1.0, "table": "claimants"},
+    {"source": "cl_stat", "target": "claimant_status", "type": "transform", "rationale": "COBOL CLAIMANT-STATUS-CODE renamed and normalized from inconsistent values (ACTIVE/active/Active/ACT) to standardized enum", "confidence": 1.0, "table": "claimants"},
+    {"source": "cl_rgdt", "target": "registered_at", "type": "transform", "rationale": "COBOL CLAIMANT-REG-DATE renamed and type changed from CHAR(26) to TIMESTAMP", "confidence": 1.0, "table": "claimants"},
+    {"source": "cl_dcsd", "target": "is_deceased", "type": "transform", "rationale": "COBOL CLAIMANT-DECEASED-FLAG renamed and type changed from CHAR(1) Y/N to BOOLEAN", "confidence": 1.0, "table": "claimants"},
+    {"source": "cl_fil1", "target": null, "type": "removed", "rationale": "COBOL FILLER field with no business value. Standard COBOL record padding — not migrated.", "confidence": 1.0, "table": "claimants"},
+
+    {"source": "cm_recid", "target": "claim_id", "type": "rename", "rationale": "COBOL CLAIM-RECORD-ID renamed to standard PK convention", "confidence": 1.0, "table": "claims"},
+    {"source": "cm_clmnt", "target": "claimant_id", "type": "rename", "rationale": "COBOL CLAIM-CLAIMANT-REF renamed to match modern FK convention", "confidence": 1.0, "table": "claims"},
+    {"source": "cm_emplr", "target": "employer_id", "type": "rename", "rationale": "COBOL CLAIM-EMPLOYER-REF renamed to match modern FK convention", "confidence": 1.0, "table": "claims"},
+    {"source": "cm_seprs", "target": "separation_reason", "type": "rename", "rationale": "COBOL CLAIM-SEPARATION-REASON expanded from abbreviation", "confidence": 1.0, "table": "claims"},
+    {"source": "cm_fildt", "target": "filing_date", "type": "transform", "rationale": "COBOL CLAIM-FILING-DATE renamed and type changed from CHAR(30) to DATE", "confidence": 1.0, "table": "claims"},
+    {"source": "cm_bystr", "target": "benefit_year_start", "type": "transform", "rationale": "COBOL CLAIM-BNF-YEAR-START renamed and type changed from CHAR(30) to DATE", "confidence": 1.0, "table": "claims"},
+    {"source": "cm_byend", "target": "benefit_year_end", "type": "transform", "rationale": "COBOL CLAIM-BNF-YEAR-END renamed and type changed from CHAR(30) to DATE", "confidence": 1.0, "table": "claims"},
+    {"source": "cm_wkamt", "target": "weekly_benefit_amount", "type": "rename", "rationale": "COBOL CLAIM-WEEKLY-AMT expanded from abbreviation", "confidence": 1.0, "table": "claims"},
+    {"source": "cm_mxamt", "target": "max_benefit_amount", "type": "rename", "rationale": "COBOL CLAIM-MAX-BNF-AMT expanded from abbreviation", "confidence": 1.0, "table": "claims"},
+    {"source": "cm_totpd", "target": "total_paid", "type": "rename", "rationale": "COBOL CLAIM-TOTAL-PAID expanded from abbreviation", "confidence": 1.0, "table": "claims"},
+    {"source": "cm_wkcnt", "target": "weeks_claimed", "type": "rename", "rationale": "COBOL CLAIM-WEEKS-COUNT renamed to descriptive name", "confidence": 1.0, "table": "claims"},
+    {"source": "cm_stat", "target": "claim_status", "type": "rename", "rationale": "COBOL CLAIM-STATUS-CODE expanded from abbreviation", "confidence": 1.0, "table": "claims"},
+    {"source": "cm_lupdt", "target": "updated_at", "type": "transform", "rationale": "COBOL CLAIM-LAST-UPD-DATE renamed and type changed from CHAR(26) to TIMESTAMP", "confidence": 1.0, "table": "claims"},
+
+    {"source": "er_recid", "target": "employer_id", "type": "rename", "rationale": "COBOL EMPLOYER-RECORD-ID renamed to standard PK convention", "confidence": 1.0, "table": "employers"},
+    {"source": "er_name", "target": "employer_name", "type": "rename", "rationale": "COBOL EMPLOYER-CORP-NAME expanded from abbreviation", "confidence": 1.0, "table": "employers"},
+    {"source": "er_ein", "target": "employer_ein", "type": "rename", "rationale": "COBOL EMPLOYER-EIN expanded with table prefix for clarity", "confidence": 1.0, "table": "employers"},
+    {"source": "er_ind", "target": "industry", "type": "rename", "rationale": "COBOL EMPLOYER-INDUSTRY-CODE expanded from abbreviation", "confidence": 1.0, "table": "employers"},
+    {"source": "er_adr1", "target": "address_line1", "type": "rename", "rationale": "COBOL EMPLOYER-STREET-ADDR expanded from abbreviation", "confidence": 1.0, "table": "employers"},
+    {"source": "er_city", "target": "city", "type": "rename", "rationale": "COBOL EMPLOYER-CITY-NAME expanded from abbreviation", "confidence": 1.0, "table": "employers"},
+    {"source": "er_st", "target": "state", "type": "rename", "rationale": "COBOL EMPLOYER-STATE-CODE expanded from abbreviation", "confidence": 1.0, "table": "employers"},
+    {"source": "er_zip", "target": "zip_code", "type": "rename", "rationale": "COBOL EMPLOYER-ZIP-CODE expanded from abbreviation", "confidence": 1.0, "table": "employers"},
+    {"source": "er_phon", "target": "phone_number", "type": "transform", "rationale": "COBOL EMPLOYER-PHONE-NUM renamed and type changed from CHAR(20) to BIGINT", "confidence": 1.0, "table": "employers"},
+    {"source": "er_stat", "target": "employer_status", "type": "rename", "rationale": "COBOL EMPLOYER-STATUS-CODE expanded from abbreviation", "confidence": 1.0, "table": "employers"}
   ]
 }
