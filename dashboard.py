@@ -403,10 +403,8 @@ def render_lifecycle_bar(lifecycle: dict, phase: str = "", dataset: str = ""):
             # Pending
             phase_html += f'<span style="background:#e0e0e0;color:#888;padding:4px 12px;border-radius:12px;margin:0 3px;font-size:0.8rem">{label}</span>'
 
-    # Context line
+    # Context line — project name only
     context = f"<strong>{PROJECT_NAME}</strong>"
-    if phase and dataset:
-        context += f" &middot; {phase.upper()} &middot; {dataset.title()}"
 
     st.markdown(f"""
     <div style="background:{bg};border-left:5px solid {color};border-radius:8px;padding:12px 20px;margin-bottom:16px">
