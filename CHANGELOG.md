@@ -187,7 +187,7 @@ Added a Data Migration Lifecycle status bar that appears at the top of every das
 - **Project name** — Reads from `project.yaml` instead of displaying the full filesystem path
 - **Average confidence score** — Computed from the most recent date's validation runs only (not all historical runs). Color-coded: GREEN (>= 90), YELLOW (70-89), RED (< 70). The date of the score is displayed below the average for context.
 - **6 lifecycle phases** — Discovery, Modeling, Governance, Transformation, Compliance, Quality. Each phase shows as completed (green), current (highlighted), or pending (gray) based on which artifacts exist and which validations have been run
-- **Run context** — When a run is selected, shows the phase and dataset (e.g., "PRE - Claimants")
+- **Clean title** — Status bar shows only the project name. Phase and dataset context is displayed in the run header below, avoiding duplication.
 
 **How current phase is determined:**
 | Phase | Completed when |
