@@ -1786,7 +1786,10 @@ def render_quality_page():
                 "Other",
             ], key="signoff_role")
 
-        if st.button("✍️ Sign Off", type="primary", use_container_width=True, disabled=(not signoff_name)):
+        if st.button("✍️ Sign Off", type="primary", use_container_width=True):
+            if not signoff_name:
+                st.error("Please enter your full name before signing off.")
+                st.stop()
             from datetime import datetime
             now = datetime.now()
             new_signoff = {
