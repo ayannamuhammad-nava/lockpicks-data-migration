@@ -422,20 +422,29 @@ def render_lifecycle_bar(lifecycle: dict, phase: str = "", dataset: str = ""):
         with cols[i]:
             # Quality button turns green when signed off
             if label == "Quality" and has_signoff:
-                btn_type = "primary"
-                lbl = f"✓ {label}"
+                st.markdown(
+                    f'<div style="background:#2e7d32;color:#fff;padding:8px 16px;border-radius:8px;'
+                    f'text-align:center;font-weight:700;font-size:0.85rem;margin-bottom:4px">✓ {label}</div>',
+                    unsafe_allow_html=True,
+                )
+                if st.button("Open", key=f"lc_phase_{i}", use_container_width=True):
+                    st.session_state["lifecycle_view"] = label
+                    st.rerun()
             elif i < current:
                 btn_type = "primary"
                 lbl = f"✓ {label}"
+                if st.button(lbl, key=f"lc_phase_{i}", use_container_width=True, type=btn_type):
+                    st.session_state["lifecycle_view"] = label
+                    st.rerun()
             elif i == current:
                 btn_type = "secondary"
                 lbl = f"● {label}"
+                if st.button(lbl, key=f"lc_phase_{i}", use_container_width=True, type=btn_type):
+                    st.session_state["lifecycle_view"] = label
+                    st.rerun()
             else:
-                btn_type = "secondary"
                 lbl = label
-            if st.button(lbl, key=f"lc_phase_{i}", use_container_width=True, type=btn_type, disabled=(i > current)):
-                st.session_state["lifecycle_view"] = label
-                st.rerun()
+                st.button(lbl, key=f"lc_phase_{i}", use_container_width=True, type="secondary", disabled=True)
 
 
 def render_discovery_page():
