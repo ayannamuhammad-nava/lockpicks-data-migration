@@ -1789,24 +1789,49 @@ def render_quality_page():
         if st.button("✍️ Sign Off", type="primary", use_container_width=True):
             if not signoff_name:
                 st.error("Please enter your full name before signing off.")
-                st.stop()
-            from datetime import datetime
-            now = datetime.now()
-            new_signoff = {
-                "name": signoff_name,
-                "role": signoff_role,
-                "date": now.strftime("%Y-%m-%d"),
-                "time": now.strftime("%H:%M:%S"),
-                "score": avg_score,
-                "status": overall_status,
-                "project": PROJECT_NAME,
-            }
-            signoffs.append(new_signoff)
-            signoff_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(signoff_path, "w") as f:
-                json.dump(signoffs, f, indent=2)
-            st.success(f"Signed off by **{signoff_name}** ({signoff_role}) at score {avg_score}/100")
-            st.rerun()
+            else:
+                st.session_state["pending_signoff"] = {
+                    "name": signoff_name,
+                    "role": signoff_role,
+                    "score": avg_score,
+                    "status": overall_status,
+                }
+                st.rerun()
+
+        # Confirmation dialog
+        if "pending_signoff" in st.session_state:
+            pending = st.session_state["pending_signoff"]
+            st.warning(
+                f"**Are you sure?** Your information will be saved as signing off on these changes.\n\n"
+                f"**Name:** {pending['name']}  \n"
+                f"**Role:** {pending['role']}  \n"
+                f"**Score:** {pending['score']}/100 ({pending['status']})"
+            )
+            confirm_col, cancel_col = st.columns(2)
+            with confirm_col:
+                if st.button("✅ Confirm Sign-Off", type="primary", use_container_width=True):
+                    from datetime import datetime
+                    now = datetime.now()
+                    new_signoff = {
+                        "name": pending["name"],
+                        "role": pending["role"],
+                        "date": now.strftime("%Y-%m-%d"),
+                        "time": now.strftime("%H:%M:%S"),
+                        "score": pending["score"],
+                        "status": pending["status"],
+                        "project": PROJECT_NAME,
+                    }
+                    signoffs.append(new_signoff)
+                    signoff_path.parent.mkdir(parents=True, exist_ok=True)
+                    with open(signoff_path, "w") as f:
+                        json.dump(signoffs, f, indent=2)
+                    del st.session_state["pending_signoff"]
+                    st.success(f"Signed off by **{pending['name']}** ({pending['role']}) at score {pending['score']}/100")
+                    st.rerun()
+            with cancel_col:
+                if st.button("❌ Cancel", use_container_width=True):
+                    del st.session_state["pending_signoff"]
+                    st.rerun()
 
         st.divider()
 
