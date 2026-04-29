@@ -890,6 +890,363 @@ def render_modeling_page():
     )
 
 
+def render_governance_page():
+    """Render the Governance detail page showing PII inventory, compliance, naming, nulls, and audit trail."""
+    st.markdown("## 🔒 Governance — Compliance & Data Controls")
+    st.caption(f"Project: {PROJECT_NAME}")
+
+    # Load data sources
+    glossary_path = METADATA_DIR / "glossary.json"
+    mappings_path = METADATA_DIR / "mappings.json"
+
+    if not glossary_path.exists():
+        st.warning("No discovery data found. Run `dm discover --enrich` first.")
+        return
+
+    glossary = json.loads(glossary_path.read_text())
+    columns = glossary.get("columns", [])
+    legacy_cols = [c for c in columns if c.get("system") == "legacy"]
+    pii_cols = [c for c in legacy_cols if c.get("pii")]
+
+    mappings_data = json.loads(mappings_path.read_text()) if mappings_path.exists() else {"mappings": []}
+    mappings = mappings_data.get("mappings", [])
+    mappings_by_source = {m["source"]: m for m in mappings}
+
+    # Load project governance config
+    import yaml as _yaml_gov
+    _proj_yaml = PROJECT_DIR / "project.yaml"
+    _gov_config = {}
+    if _proj_yaml.exists():
+        _pc = _yaml_gov.safe_load(_proj_yaml.read_text()) or {}
+        _gov_config = _pc.get("validation", {}).get("governance", {})
+
+    pii_keywords = _gov_config.get("pii_keywords", [])
+    naming_regex = _gov_config.get("naming_regex", r"^[a-z0-9_]+$")
+    max_null_pct = _gov_config.get("max_null_percent", 10)
+
+    # Load governance reports from validation runs
+    gov_reports = []
+    runs = get_runs()
+    for run_name in runs:
+        gov_csv = ARTIFACTS_DIR / run_name / "governance_report.csv"
+        if gov_csv.exists():
+            meta = load_json(run_name, "run_metadata.json") or {}
+            gov_reports.append({
+                "run": run_name,
+                "meta": meta,
+                "csv": gov_csv,
+            })
+
+    # ── Compliance Summary
+    archived_count = sum(1 for m in mappings if m.get("type") == "archived")
+    removed_count = sum(1 for m in mappings if m.get("type") == "removed")
+    pii_handled = sum(1 for c in pii_cols if mappings_by_source.get(c["name"], {}).get("type") in ("archived", "transform"))
+    pii_unhandled = len(pii_cols) - pii_handled
+
+    st.markdown("### Compliance Summary")
+    mc1, mc2, mc3, mc4, mc5 = st.columns(5)
+    mc1.metric("PII Fields Detected", len(pii_cols))
+    mc2.metric("PII Properly Handled", pii_handled)
+    mc3.metric("PII Unhandled", pii_unhandled, delta=f"-{pii_unhandled}" if pii_unhandled else "0", delta_color="inverse")
+    mc4.metric("Fields Archived", archived_count)
+    mc5.metric("Fields Removed", removed_count)
+
+    if pii_unhandled > 0:
+        st.markdown(f"""
+        <div class="pii-alert">
+            ⚠️ <strong>{pii_unhandled} PII field(s) may not be properly handled.</strong><br>
+            <small>Review the PII Inventory tab to ensure all sensitive data is hashed, masked, or archived before migration.</small>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.success("All detected PII fields have been properly handled (archived or transformed).")
+
+    st.divider()
+
+    tabs = st.tabs([
+        "🔐 PII Inventory",
+        "📝 Data Modification Controls",
+        "✅ Naming Compliance",
+        "📊 Null Threshold Report",
+        "📜 Audit Trail",
+    ])
+    tab_pii, tab_mods, tab_naming, tab_nulls, tab_audit = tabs
+
+    # ── PII Inventory
+    with tab_pii:
+        st.markdown("#### PII / Sensitive Data Inventory")
+        st.caption("All fields identified as containing personally identifiable information, with the action taken for each.")
+
+        if pii_cols:
+            rows = []
+            for c in pii_cols:
+                col_name = c["name"]
+                mapping = mappings_by_source.get(col_name, {})
+                action = mapping.get("type", "unknown")
+                target = mapping.get("target") or "—"
+                rationale = mapping.get("rationale", "")
+
+                # Infer regulation
+                desc_lower = c.get("description", "").lower()
+                col_lower = col_name.lower()
+                if any(k in col_lower for k in ("ssn", "social")):
+                    regulation = "HIPAA / PII"
+                elif any(k in col_lower for k in ("bact", "brtn", "bank", "acct", "routing", "credit")):
+                    regulation = "PCI-DSS"
+                elif any(k in col_lower for k in ("dln", "driver", "license")):
+                    regulation = "PII"
+                elif any(k in col_lower for k in ("dob", "birth")):
+                    regulation = "HIPAA"
+                elif any(k in col_lower for k in ("email", "emal", "phone", "phon", "tel")):
+                    regulation = "PII"
+                elif any(k in col_lower for k in ("zip", "addr", "adr")):
+                    regulation = "PII"
+                else:
+                    regulation = "PII"
+
+                action_display = {
+                    "archived": "🔒 Archived (not migrated)",
+                    "transform": "⚙️ Transformed (hashed/masked)",
+                    "rename": "→ Renamed (review needed)",
+                    "removed": "🗑️ Removed",
+                    "pending": "⚠️ Pending",
+                }.get(action, f"⚠️ {action}")
+
+                rows.append({
+                    "Table": c.get("table", ""),
+                    "Legacy Field": col_name,
+                    "Description": c.get("description", ""),
+                    "Regulation": regulation,
+                    "Action": action_display,
+                    "Modern Field": target,
+                    "Rationale": rationale,
+                })
+
+            df = pd.DataFrame(rows)
+
+            def highlight_pii_action(row):
+                action = row["Action"]
+                if "Archived" in action:
+                    return ["background-color: #e8f5e9; color: #000"] * len(row)
+                elif "Transformed" in action:
+                    return ["background-color: #e8f5e9; color: #000"] * len(row)
+                elif "Pending" in action or "review" in action.lower():
+                    return ["background-color: #ffebee; color: #000"] * len(row)
+                return [""] * len(row)
+
+            st.dataframe(
+                df.style.apply(highlight_pii_action, axis=1),
+                use_container_width=True, hide_index=True,
+                column_config={"Rationale": st.column_config.TextColumn(width="large")},
+            )
+        else:
+            st.success("No PII fields detected in the legacy data.")
+
+    # ── Data Modification Controls
+    with tab_mods:
+        st.markdown("#### Data Modification Controls")
+        st.caption("Complete audit of every field change during migration — what changed, why, and the mapping type.")
+
+        if mappings:
+            rows = []
+            for m in mappings:
+                target = m.get("target") or "—"
+                mtype = m.get("type", "")
+                icon = {"rename": "→", "transform": "⚙️", "archived": "🔒", "removed": "🗑️"}.get(mtype, "?")
+                rows.append({
+                    "Table": m.get("table", ""),
+                    "Legacy Field": m["source"],
+                    "Action": f"{icon} {mtype}",
+                    "Modern Field": target,
+                    "Confidence": f"{int(m.get('confidence', 0) * 100)}%",
+                    "Rationale": m.get("rationale", ""),
+                })
+            df = pd.DataFrame(rows)
+
+            # Summary counts
+            type_counts = {}
+            for m in mappings:
+                t = m.get("type", "unknown")
+                type_counts[t] = type_counts.get(t, 0) + 1
+
+            cols_summary = st.columns(len(type_counts))
+            for i, (t, count) in enumerate(sorted(type_counts.items())):
+                icon = {"rename": "→", "transform": "⚙️", "archived": "🔒", "removed": "🗑️"}.get(t, "")
+                cols_summary[i].metric(f"{icon} {t.title()}", count)
+
+            st.divider()
+
+            def highlight_mod(row):
+                action = row["Action"]
+                if "archived" in action:
+                    return ["background-color: #ffebee; color: #000"] * len(row)
+                if "transform" in action:
+                    return ["background-color: #fff9c4; color: #000"] * len(row)
+                if "removed" in action:
+                    return ["background-color: #f5f5f5; color: #888"] * len(row)
+                return [""] * len(row)
+
+            st.dataframe(
+                df.style.apply(highlight_mod, axis=1),
+                use_container_width=True, hide_index=True,
+                column_config={"Rationale": st.column_config.TextColumn(width="large")},
+            )
+        else:
+            st.info("No mappings found. Run `dm enrich` first.")
+
+    # ── Naming Compliance
+    with tab_naming:
+        st.markdown("#### Naming Convention Compliance")
+        st.caption(f"Checks modern column names against the configured regex: `{naming_regex}`")
+
+        import re as _re_naming
+        modern_fields = [m for m in mappings if m.get("target") and m.get("type") not in ("archived", "removed")]
+        if modern_fields:
+            pass_count = 0
+            fail_rows = []
+            for m in modern_fields:
+                target = m.get("target", "")
+                if _re_naming.match(naming_regex, target):
+                    pass_count += 1
+                else:
+                    fail_rows.append({
+                        "Legacy Field": m["source"],
+                        "Modern Field": target,
+                        "Issue": f"Does not match `{naming_regex}`",
+                    })
+
+            nc1, nc2 = st.columns(2)
+            nc1.metric("Passing", pass_count)
+            nc2.metric("Violations", len(fail_rows), delta=f"-{len(fail_rows)}" if fail_rows else "0", delta_color="inverse")
+
+            if fail_rows:
+                st.dataframe(pd.DataFrame(fail_rows), use_container_width=True, hide_index=True)
+            else:
+                st.success(f"All {pass_count} modern column names comply with naming convention.")
+        else:
+            st.info("No modern field mappings to check.")
+
+    # ── Null Threshold Report
+    with tab_nulls:
+        st.markdown("#### Null Threshold Report")
+        st.caption(f"Fields exceeding the configured maximum null percentage: **{max_null_pct}%**")
+
+        # Try to get null data from legacy DB
+        import yaml as _yaml_null
+        _proj_yaml_null = PROJECT_DIR / "project.yaml"
+        _null_config = _yaml_null.safe_load(_proj_yaml_null.read_text()) or {} if _proj_yaml_null.exists() else {}
+        legacy_conn_cfg = _null_config.get("connections", {}).get("legacy", {})
+
+        if legacy_conn_cfg:
+            try:
+                import psycopg2
+
+                def _resolve_null(val):
+                    if isinstance(val, str) and val.startswith("${"):
+                        import re as _re_null
+                        m = _re_null.match(r'\$\{([^:}]+):?(.*)\}', val)
+                        if m:
+                            return os.environ.get(m.group(1), m.group(2))
+                    return val
+
+                conn = psycopg2.connect(
+                    host=_resolve_null(legacy_conn_cfg.get("host", "localhost")),
+                    port=int(_resolve_null(legacy_conn_cfg.get("port", 5432))),
+                    database=_resolve_null(legacy_conn_cfg.get("database", "legacy_db")),
+                    user=_resolve_null(legacy_conn_cfg.get("user", "postgres")),
+                    password=_resolve_null(legacy_conn_cfg.get("password", "postgres")),
+                )
+
+                tables = sorted(set(c.get("table", "") for c in legacy_cols))
+                all_null_rows = []
+                for table in tables:
+                    total_query = f"SELECT COUNT(*) FROM {table}"
+                    total = pd.read_sql(total_query, conn).iloc[0, 0]
+                    if total == 0:
+                        continue
+
+                    table_cols_list = [c["name"] for c in legacy_cols if c.get("table") == table]
+                    for col_name in table_cols_list:
+                        null_query = f"SELECT COUNT(*) FROM {table} WHERE {col_name} IS NULL OR TRIM({col_name}::text) = ''"
+                        try:
+                            null_count = pd.read_sql(null_query, conn).iloc[0, 0]
+                            null_pct = round((null_count / total) * 100, 1)
+                            status = "VIOLATION" if null_pct > max_null_pct else "PASS"
+                            all_null_rows.append({
+                                "Table": table,
+                                "Column": col_name,
+                                "Null/Empty": null_count,
+                                "Total Rows": total,
+                                "Null %": null_pct,
+                                "Status": status,
+                            })
+                        except Exception:
+                            pass
+
+                conn.close()
+
+                if all_null_rows:
+                    df_null = pd.DataFrame(all_null_rows)
+                    violations = df_null[df_null["Status"] == "VIOLATION"]
+                    passing = df_null[df_null["Status"] == "PASS"]
+
+                    nc1, nc2 = st.columns(2)
+                    nc1.metric("Violations", len(violations))
+                    nc2.metric("Passing", len(passing))
+
+                    if not violations.empty:
+                        st.markdown("##### Fields Exceeding Null Threshold")
+                        styled = violations.style.map(
+                            lambda v: "background-color: #ffebee; color: #c62828; font-weight: bold" if v == "VIOLATION" else "",
+                            subset=["Status"]
+                        )
+                        st.dataframe(styled, use_container_width=True, hide_index=True)
+
+                    with st.expander("Show all columns"):
+                        st.dataframe(df_null, use_container_width=True, hide_index=True)
+                else:
+                    st.success("No null data found.")
+
+            except Exception as e:
+                st.error(f"Could not connect to legacy database: {e}")
+        else:
+            st.warning("No legacy connection configured in project.yaml.")
+
+    # ── Audit Trail
+    with tab_audit:
+        st.markdown("#### Validation Audit Trail")
+        st.caption("Timestamped history of all validation runs with governance scores.")
+
+        if runs:
+            rows = []
+            for run_name in sorted(runs, reverse=True):
+                meta = load_json(run_name, "run_metadata.json") or {}
+                phase = meta.get("phase", "?")
+                dataset = meta.get("dataset", "?")
+                score = meta.get("confidence_score", "?")
+                gov_score = meta.get("governance_score", "—")
+                run_status = meta.get("status", "?")
+                ts = run_name.replace("run_", "")
+                emoji = STATUS_EMOJI.get(run_status, "⚪")
+
+                has_gov = (ARTIFACTS_DIR / run_name / "governance_report.csv").exists()
+
+                rows.append({
+                    "Timestamp": ts,
+                    "Phase": phase.upper(),
+                    "Dataset": dataset,
+                    "Score": score,
+                    "Gov Score": gov_score,
+                    "Status": f"{emoji} {run_status}",
+                    "Gov Report": "Yes" if has_gov else "—",
+                })
+
+            df_audit = pd.DataFrame(rows)
+            st.dataframe(df_audit, use_container_width=True, hide_index=True)
+        else:
+            st.info("No validation runs found.")
+
+
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 
 with st.sidebar:
@@ -972,6 +1329,8 @@ if lifecycle_view:
         render_discovery_page()
     elif lifecycle_view == "Modeling":
         render_modeling_page()
+    elif lifecycle_view == "Governance":
+        render_governance_page()
     else:
         st.markdown(f"## {lifecycle_view}")
         st.info(f"Detail page for **{lifecycle_view}** phase coming soon.")
