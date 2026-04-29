@@ -1247,6 +1247,171 @@ def render_governance_page():
             st.info("No validation runs found.")
 
 
+def render_transformation_page():
+    """Render the Transformation detail page showing ETL transform scripts, converted SQL, and warnings."""
+    st.markdown("## ⚙️ Transformation — ETL Logic & Converted SQL")
+    st.caption(f"Project: {PROJECT_NAME}")
+
+    schema_dir = ARTIFACTS_DIR / "generated_schema"
+    converted_dir = ARTIFACTS_DIR / "converted"
+
+    if not schema_dir.exists():
+        st.warning("No transformation artifacts found. Run `dm generate-schema --all` and `dm convert` first.")
+        return
+
+    # Collect transform scripts and converted files
+    transform_files = sorted([f for f in schema_dir.iterdir() if "_transforms" in f.name])
+    converted_files = []
+    if converted_dir.exists():
+        for dialect_dir in sorted(converted_dir.iterdir()):
+            if dialect_dir.is_dir():
+                for f in sorted(dialect_dir.iterdir()):
+                    converted_files.append(f)
+
+    # Summary
+    mc1, mc2, mc3 = st.columns(3)
+    mc1.metric("Transform Scripts", len(transform_files))
+    mc2.metric("Converted Files", len(converted_files))
+    target_dialect = converted_files[0].parent.name if converted_files else "—"
+    mc3.metric("Target Platform", target_dialect.title())
+
+    st.divider()
+
+    tabs = st.tabs([
+        "🔀 Transform Scripts",
+        "🎯 Converted SQL",
+        "⚖️ Before / After",
+        "⚠️ Warnings & TODOs",
+    ])
+    tab_transforms, tab_converted, tab_compare, tab_warnings = tabs
+
+    # ── Transform Scripts
+    with tab_transforms:
+        st.markdown("#### ETL Transform Scripts")
+        st.caption("INSERT...SELECT statements that define how each legacy column maps to the modern table. "
+                   "Includes type conversions, PII hashing, and format transformations.")
+
+        if transform_files:
+            for tf in transform_files:
+                table_name = tf.stem.replace("_transforms", "")
+                sql = tf.read_text()
+
+                # Count transforms (look for function calls in SELECT)
+                import re
+                transform_patterns = re.findall(r'(encode\(sha256|CASE\s+WHEN|CAST\(|TO_DATE|TO_TIMESTAMP|COALESCE|TRIM|UPPER|LOWER|NOW\(\))', sql, re.IGNORECASE)
+                transform_count = len(transform_patterns)
+
+                st.markdown(f"##### `{table_name}` — {transform_count} transformation(s)")
+                st.code(sql, language="sql", line_numbers=True)
+
+                # Highlight key transforms
+                if "sha256" in sql.lower():
+                    st.markdown("🔐 **PII Hashing:** SSN field hashed via SHA-256")
+                if "now()" in sql.lower():
+                    st.markdown("🕐 **Auto-timestamps:** `created_at`/`updated_at` set to current time")
+
+                st.divider()
+        else:
+            st.info("No transform scripts found. Run `dm generate-schema --all` to generate.")
+
+    # ── Converted SQL
+    with tab_converted:
+        st.markdown("#### Platform-Converted SQL")
+        st.caption("Final SQL after dialect translation. Ready for deployment to the target database.")
+
+        if converted_files:
+            for cf in converted_files:
+                dialect = cf.parent.name
+                sql = cf.read_text()
+
+                st.markdown(f"##### `{cf.name}` — Target: {dialect.title()}")
+                st.code(sql, language="sql", line_numbers=True)
+
+                st.download_button(
+                    f"Download {cf.name}",
+                    sql,
+                    file_name=cf.name,
+                    mime="text/sql",
+                    key=f"dl_{cf.name}",
+                )
+                st.divider()
+        else:
+            st.info("No converted SQL found. Run `dm convert` to generate.")
+
+    # ── Before / After Comparison
+    with tab_compare:
+        st.markdown("#### Before / After SQL Comparison")
+        st.caption("Side-by-side view of the generated schema vs the platform-converted output.")
+
+        source_schema = schema_dir / "full_schema.sql"
+        if source_schema.exists() and converted_files:
+            source_sql = source_schema.read_text()
+            converted_sql = converted_files[0].read_text()
+
+            col_before, col_after = st.columns(2)
+            with col_before:
+                st.markdown("##### Generated Schema (Before)")
+                st.code(source_sql, language="sql")
+
+            with col_after:
+                st.markdown(f"##### Converted ({target_dialect.title()}) (After)")
+                st.code(converted_sql, language="sql")
+
+            # Diff summary
+            source_lines = set(source_sql.strip().splitlines())
+            converted_lines = set(converted_sql.strip().splitlines())
+            only_source = source_lines - converted_lines
+            only_converted = converted_lines - source_lines
+
+            if only_source or only_converted:
+                st.markdown(f"**Diff:** {len(only_source)} lines removed, {len(only_converted)} lines added during conversion")
+            else:
+                st.success("No differences — source and target dialects are identical.")
+        elif not source_schema.exists():
+            st.info("No generated schema found. Run `dm generate-schema --all` first.")
+        else:
+            st.info("No converted SQL found. Run `dm convert` first.")
+
+    # ── Warnings & TODOs
+    with tab_warnings:
+        st.markdown("#### Conversion Warnings & Manual TODOs")
+        st.caption("Statements that could not be fully translated and require manual review.")
+
+        has_warnings = False
+        if converted_files:
+            for cf in converted_files:
+                sql = cf.read_text()
+                # Find TODO comments
+                import re
+                todos = re.findall(r'-- TODO:.*', sql)
+                # Find commented-out CREATE TABLE blocks (failed conversions)
+                commented_creates = re.findall(r'-- CREATE TABLE \w+', sql)
+
+                if todos or commented_creates:
+                    has_warnings = True
+                    st.markdown(f"##### `{cf.name}`")
+
+                    if todos:
+                        st.markdown(f"**{len(todos)} TODO(s) requiring manual review:**")
+                        for todo in todos:
+                            st.markdown(f"""
+                            <div style="background:#fff9c4;border-left:4px solid #f57f17;padding:8px 12px;margin:4px 0;border-radius:4px;color:#000">
+                                {todo.replace('-- ', '')}
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                    if commented_creates:
+                        st.markdown(f"**{len(commented_creates)} CREATE TABLE statement(s) commented out** (sqlglot could not parse due to inline comments in column definitions):")
+                        for cc in commented_creates:
+                            table_name = cc.replace("-- CREATE TABLE ", "")
+                            st.markdown(f"- `{table_name}` — needs manual DDL review")
+
+                    st.divider()
+
+        if not has_warnings:
+            st.success("No warnings or TODOs. All SQL was successfully converted.")
+
+
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 
 with st.sidebar:
@@ -1331,6 +1496,8 @@ if lifecycle_view:
         render_modeling_page()
     elif lifecycle_view == "Governance":
         render_governance_page()
+    elif lifecycle_view == "Transformation":
+        render_transformation_page()
     else:
         st.markdown(f"## {lifecycle_view}")
         st.info(f"Detail page for **{lifecycle_view}** phase coming soon.")
