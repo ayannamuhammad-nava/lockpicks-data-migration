@@ -698,6 +698,188 @@ def render_discovery_page():
             st.info("No rationalization data. Run `dm rationalize` first.")
 
 
+def render_modeling_page():
+    """Render the Modeling detail page showing generated modern schema tables, columns, and types."""
+    st.markdown("## 🏗️ Modeling — Generated Modern Schema")
+    st.caption(f"Project: {PROJECT_NAME}")
+
+    schema_dir = ARTIFACTS_DIR / "generated_schema"
+    diff_path = schema_dir / "diff_report.json"
+    norm_path = METADATA_DIR / "normalization_plan.json"
+    full_schema_path = schema_dir / "full_schema.sql"
+
+    if not schema_dir.exists():
+        st.warning("No generated schema found. Run `dm generate-schema --all` first.")
+        return
+
+    # Load diff report for structured column data
+    diff_data = {}
+    if diff_path.exists():
+        diff_data = json.loads(diff_path.read_text())
+
+    # Load normalization plan
+    norm_plan = {}
+    if norm_path.exists():
+        norm_plan = json.loads(norm_path.read_text())
+
+    # Parse tables from SQL files
+    sql_files = sorted([f for f in schema_dir.iterdir() if f.suffix == ".sql" and f.name != "full_schema.sql" and "_transforms" not in f.name])
+    transform_files = sorted([f for f in schema_dir.iterdir() if "_transforms" in f.name])
+
+    # Summary metrics
+    legacy_col_count = diff_data.get("legacy_column_count", 0)
+    modern_table_count = diff_data.get("modern_table_count", len(sql_files))
+
+    mc1, mc2, mc3, mc4 = st.columns(4)
+    mc1.metric("Legacy Columns", legacy_col_count)
+    mc2.metric("Modern Tables", modern_table_count)
+    mc3.metric("Schema Files", len(sql_files))
+    mc4.metric("Transform Files", len(transform_files))
+
+    st.divider()
+
+    tabs = st.tabs(["📐 Table Schemas", "🔀 Column Mapping", "📐 Normalization Plan", "📄 Full DDL"])
+    tab_schemas, tab_col_map, tab_norm, tab_ddl = tabs
+
+    # ── Table Schemas tab
+    with tab_schemas:
+        st.markdown("#### Generated Modern Tables")
+        st.caption("New table structures with expanded column names, optimized types, and constraints.")
+
+        for sql_file in sql_files:
+            table_name = sql_file.stem
+            sql_content = sql_file.read_text()
+
+            # Parse columns from CREATE TABLE statement
+            import re
+            col_rows = []
+            in_create = False
+            for line in sql_content.splitlines():
+                if "CREATE TABLE" in line:
+                    in_create = True
+                    continue
+                if in_create and line.strip().startswith(")"):
+                    break
+                if in_create and line.strip() and not line.strip().startswith("CONSTRAINT") and not line.strip().startswith("CREATE"):
+                    # Parse: column_name TYPE -- comment
+                    col_match = re.match(r'\s+([\w_]+)\s+(\S+(?:\([^)]*\))?(?:\s+\S+)*?)\s*(?:--\s*(.*))?[,]?\s*$', line)
+                    if col_match:
+                        col_name = col_match.group(1)
+                        col_type = col_match.group(2).rstrip(",")
+                        comment = col_match.group(3) or ""
+                        # Extract source field from comment
+                        source = ""
+                        source_match = re.search(r'Source:\s*([\w_]+)', comment)
+                        if source_match:
+                            source = source_match.group(1)
+                        col_rows.append({
+                            "Column": col_name,
+                            "Type": col_type,
+                            "Source (Legacy)": source,
+                            "Notes": comment.strip(),
+                        })
+
+            # Determine table role from SQL comment
+            role = "primary"
+            if "child" in sql_content.lower():
+                role = "child"
+            elif "lookup" in sql_content.lower():
+                role = "lookup"
+
+            role_icon = {"primary": "🟢", "child": "🔵", "lookup": "🟡"}.get(role, "⚪")
+
+            st.markdown(f"##### {role_icon} `{table_name}` — {len(col_rows)} columns ({role})")
+
+            if col_rows:
+                df = pd.DataFrame(col_rows)
+                st.dataframe(df, use_container_width=True, hide_index=True, column_config={
+                    "Notes": st.column_config.TextColumn(width="large"),
+                })
+            else:
+                st.code(sql_content, language="sql")
+
+    # ── Column Mapping tab
+    with tab_col_map:
+        st.markdown("#### Legacy → Modern Column Mapping")
+        st.caption("How each legacy column maps to the new table structure.")
+
+        columns_data = diff_data.get("columns", {})
+        if columns_data:
+            for category in ["renamed", "transformed", "archived", "removed"]:
+                items = columns_data.get(category, {})
+                if items:
+                    cat_icon = {"renamed": "→", "transformed": "⚙️", "archived": "🔒", "removed": "🗑️"}.get(category, "")
+                    st.markdown(f"##### {cat_icon} {category.title()} ({len(items)} columns)")
+                    rows = []
+                    for src_col, info in items.items():
+                        rows.append({
+                            "Legacy Column": src_col,
+                            "Target Table": info.get("target_table", ""),
+                            "Target Column": info.get("target_column", ""),
+                            "Transform": info.get("transform", "") or "",
+                            "PII Action": info.get("pii_action", "") or "",
+                        })
+                    df = pd.DataFrame(rows)
+
+                    if category == "archived":
+                        styled = df.style.apply(lambda r: ["background-color: #ffebee; color: #000"] * len(r), axis=1)
+                        st.dataframe(styled, use_container_width=True, hide_index=True)
+                    elif category == "transformed":
+                        styled = df.style.apply(lambda r: ["background-color: #fff9c4; color: #000"] * len(r), axis=1)
+                        st.dataframe(styled, use_container_width=True, hide_index=True)
+                    else:
+                        st.dataframe(df, use_container_width=True, hide_index=True)
+        else:
+            st.info("No diff report found. Run `dm generate-schema --all` to generate.")
+
+    # ── Normalization Plan tab
+    with tab_norm:
+        st.markdown("#### Normalization Plan")
+        st.caption("How the legacy table was decomposed into normalized modern entities.")
+
+        if norm_plan:
+            entities = norm_plan.get("entities", norm_plan.get("tables", []))
+            if isinstance(entities, list):
+                for entity in entities:
+                    role = entity.get("role", "primary")
+                    name = entity.get("name", entity.get("table", ""))
+                    confidence = entity.get("confidence", 0)
+                    columns = entity.get("columns", [])
+                    role_icon = {"primary": "🟢", "child": "🔵", "lookup": "🟡"}.get(role, "⚪")
+                    st.markdown(f"**{role_icon} {name}** — {role} (confidence: {confidence:.0%})")
+                    if columns:
+                        st.markdown(f"  Columns: `{'`, `'.join(columns)}`")
+                    rels = entity.get("relationships", [])
+                    if rels:
+                        for rel in rels:
+                            st.markdown(f"  FK: `{rel.get('column', '')}` → `{rel.get('references', '')}`")
+                    st.markdown("")
+            elif isinstance(entities, dict):
+                st.json(entities)
+            else:
+                st.json(norm_plan)
+        else:
+            st.info("No normalization plan found. Run `dm generate-schema --all` to generate.")
+
+    # ── Full DDL tab
+    with tab_ddl:
+        st.markdown("#### Full Generated DDL")
+        st.caption("Complete SQL schema ready for deployment to the modern database.")
+
+        if full_schema_path.exists():
+            sql_text = full_schema_path.read_text()
+            st.code(sql_text, language="sql", line_numbers=True)
+
+            st.download_button(
+                "Download full_schema.sql",
+                sql_text,
+                file_name="full_schema.sql",
+                mime="text/sql",
+            )
+        else:
+            st.info("No full_schema.sql found.")
+
+
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 
 with st.sidebar:
@@ -778,6 +960,8 @@ if lifecycle_view:
 
     if lifecycle_view == "Discovery":
         render_discovery_page()
+    elif lifecycle_view == "Modeling":
+        render_modeling_page()
     else:
         st.markdown(f"## {lifecycle_view}")
         st.info(f"Detail page for **{lifecycle_view}** phase coming soon.")
