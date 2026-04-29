@@ -407,7 +407,13 @@ def render_lifecycle_bar(lifecycle: dict, phase: str = "", dataset: str = ""):
 
     # Check if Quality has been signed off
     signoff_path = ARTIFACTS_DIR / "signoff.json"
-    has_signoff = signoff_path.exists() and json.loads(signoff_path.read_text()) if signoff_path.exists() else False
+    has_signoff = False
+    if signoff_path.exists():
+        try:
+            _signoff_data = json.loads(signoff_path.read_text())
+            has_signoff = bool(_signoff_data) and len(_signoff_data) > 0
+        except Exception:
+            pass
 
     # Phase buttons — clickable
     cols = st.columns(len(LIFECYCLE_PHASES))
