@@ -1412,6 +1412,423 @@ def render_transformation_page():
             st.success("No warnings or TODOs. All SQL was successfully converted.")
 
 
+def render_compliance_page():
+    """Render the Compliance detail page showing pre-migration evidence package."""
+    st.markdown("## ✅ Compliance — Pre-Migration Evidence")
+    st.caption(f"Project: {PROJECT_NAME}")
+
+    # Find the latest pre-validation run
+    runs = get_runs()
+    pre_runs = []
+    for run_name in runs:
+        meta = load_json(run_name, "run_metadata.json") or {}
+        if meta.get("phase") == "pre":
+            pre_runs.append((run_name, meta))
+
+    if not pre_runs:
+        st.warning("No pre-migration validation runs found. Run `dm validate --phase pre` first.")
+        return
+
+    # Use most recent pre-run
+    latest_run, latest_meta = pre_runs[-1]
+    score = float(latest_meta.get("confidence_score", 0))
+    run_status = latest_meta.get("status", "UNKNOWN")
+    struct_score = latest_meta.get("structure_score")
+    gov_score = latest_meta.get("governance_score")
+    dataset = latest_meta.get("dataset", "?")
+    emoji = STATUS_EMOJI.get(run_status, "⚪")
+    color = STATUS_COLOR.get(run_status, "#999")
+
+    # ── Compliance Checklist Summary
+    st.markdown("### Compliance Checklist")
+
+    # Load governance report
+    gov_csv_path = ARTIFACTS_DIR / latest_run / "governance_report.csv"
+    gov_df = None
+    if gov_csv_path.exists():
+        gov_df = pd.read_csv(gov_csv_path)
+
+    # Build checklist
+    checks = []
+
+    # PII check
+    glossary_path = METADATA_DIR / "glossary.json"
+    mappings_path = METADATA_DIR / "mappings.json"
+    if glossary_path.exists() and mappings_path.exists():
+        glossary = json.loads(glossary_path.read_text())
+        mappings_data = json.loads(mappings_path.read_text())
+        legacy_cols = [c for c in glossary.get("columns", []) if c.get("system") == "legacy"]
+        pii_cols = [c for c in legacy_cols if c.get("pii")]
+        mappings_by_src = {m["source"]: m for m in mappings_data.get("mappings", [])}
+        pii_handled = all(
+            mappings_by_src.get(c["name"], {}).get("type") in ("archived", "transform")
+            for c in pii_cols
+        )
+        checks.append(("PII fields properly handled (hashed/archived)", pii_handled, f"{len(pii_cols)} PII fields detected"))
+    else:
+        checks.append(("PII fields properly handled", False, "No glossary data"))
+
+    # Naming convention
+    if mappings_path.exists():
+        import re as _re_comp
+        naming_regex = r"^[a-z0-9_]+$"
+        mappings_list = json.loads(mappings_path.read_text()).get("mappings", [])
+        modern_names = [m["target"] for m in mappings_list if m.get("target") and m.get("type") not in ("archived", "removed")]
+        naming_pass = all(_re_comp.match(naming_regex, n) for n in modern_names)
+        checks.append(("Modern column names follow naming convention", naming_pass, f"{len(modern_names)} columns checked"))
+
+    # Governance violations
+    if gov_df is not None:
+        violations = int((gov_df["status"] == "VIOLATION").sum())
+        checks.append(("No governance violations", violations == 0, f"{violations} violation(s)" if violations else "All clear"))
+
+    # Confidence threshold
+    checks.append(("Confidence score >= 70 (YELLOW+)", score >= 70, f"Score: {score}"))
+    checks.append(("Confidence score >= 90 (GREEN)", score >= 90, f"Score: {score}"))
+
+    # Schema generated
+    schema_exists = (ARTIFACTS_DIR / "generated_schema" / "full_schema.sql").exists()
+    checks.append(("Modern schema generated", schema_exists, ""))
+
+    # Render checklist
+    all_pass = True
+    for label, passed, detail in checks:
+        icon = "✅" if passed else "❌"
+        if not passed:
+            all_pass = False
+        detail_str = f" — {detail}" if detail else ""
+        st.markdown(f"{icon} **{label}**{detail_str}")
+
+    st.divider()
+
+    if all_pass:
+        st.markdown(f"""
+        <div style="background:#e8f5e9;border-left:5px solid #2e7d32;padding:12px 20px;border-radius:8px;margin-bottom:16px">
+            <div style="font-size:1.1rem;font-weight:700;color:#2e7d32">🟢 COMPLIANT — Ready to proceed with migration</div>
+            <div style="font-size:0.85rem;color:#444">All compliance checks passed. Score: {score}/100</div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown(f"""
+        <div style="background:#ffebee;border-left:5px solid #c62828;padding:12px 20px;border-radius:8px;margin-bottom:16px">
+            <div style="font-size:1.1rem;font-weight:700;color:#c62828">🔴 NOT COMPLIANT — Issues must be resolved</div>
+            <div style="font-size:0.85rem;color:#444">One or more compliance checks failed. Score: {score}/100</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ── Tabs
+    tabs = st.tabs([
+        "📋 Readiness Report",
+        "🔒 Governance Report",
+        "🔍 Schema Diff",
+        "📊 Risk Assessment",
+    ])
+    tab_readiness, tab_gov_report, tab_schema_diff, tab_risk = tabs
+
+    # ── Readiness Report
+    with tab_readiness:
+        report_md = load_text(latest_run, "readiness_report.md")
+        if report_md:
+            st.markdown(report_md)
+        else:
+            st.info("No readiness report found for this run.")
+
+    # ── Governance Report
+    with tab_gov_report:
+        if gov_df is not None:
+            violations = int((gov_df["status"] == "VIOLATION").sum())
+            warnings = int((gov_df["status"] == "WARNING").sum())
+            passes = int((gov_df["status"] == "PASS").sum())
+
+            gc1, gc2, gc3, gc4 = st.columns(4)
+            gc1.metric("Violations", violations)
+            gc2.metric("Warnings", warnings)
+            gc3.metric("Passing", passes)
+            gc4.metric("Total Checks", len(gov_df))
+
+            styled = gov_df.style.map(color_gov_status, subset=["status"])
+            st.dataframe(styled, use_container_width=True, hide_index=True)
+        else:
+            st.info("No governance report found for this run.")
+
+    # ── Schema Diff
+    with tab_schema_diff:
+        schema_md = load_text(latest_run, "schema_diff.md")
+        if schema_md:
+            st.markdown(schema_md)
+            st.info("**Note:** Columns listed as 'missing in modern' are renamed, not lost. "
+                    "COBOL abbreviated names (ct_fnam, bp_payam) were expanded to descriptive "
+                    "modern names (first_name, payment_amount). See the Field Mappings in Discovery for details.")
+        else:
+            st.info("No schema diff found for this run.")
+
+    # ── Risk Assessment
+    with tab_risk:
+        st.markdown("#### Confidence Score Breakdown")
+
+        st.markdown(f"**Overall Score:** {emoji} **{score}/100** — {run_status}")
+        st.markdown(f"**Dataset:** {dataset} &nbsp;&nbsp; **Run:** `{latest_run}`")
+
+        st.divider()
+
+        rc1, rc2, rc3 = st.columns(3)
+        with rc1:
+            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+            st.markdown('<div class="metric-label">Structure (40%)</div>', unsafe_allow_html=True)
+            val = f"{struct_score}/100" if struct_score is not None else "N/A"
+            st.markdown(f'<div class="metric-value">{val}</div>', unsafe_allow_html=True)
+            st.markdown("<div style='font-size:0.75rem;color:#888'>Schema compatibility</div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+        with rc2:
+            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+            st.markdown('<div class="metric-label">Integrity (40%)</div>', unsafe_allow_html=True)
+            st.markdown('<div class="metric-value">N/A</div>', unsafe_allow_html=True)
+            st.markdown("<div style='font-size:0.75rem;color:#888'>Post-migration only</div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+        with rc3:
+            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+            st.markdown('<div class="metric-label">Governance (20%)</div>', unsafe_allow_html=True)
+            val = f"{gov_score}/100" if gov_score is not None else "N/A"
+            st.markdown(f'<div class="metric-value">{val}</div>', unsafe_allow_html=True)
+            st.markdown("<div style='font-size:0.75rem;color:#888'>PII & compliance</div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        st.divider()
+
+        st.markdown("**Scoring formula:** `confidence = (0.4 × structure) + (0.4 × integrity) + (0.2 × governance)`")
+        st.markdown(
+            "**Thresholds:** &nbsp; "
+            "🟢 GREEN >= 90 (safe to proceed) &nbsp;&nbsp; "
+            "🟡 YELLOW 70-89 (review recommended) &nbsp;&nbsp; "
+            "🔴 RED < 70 (fix issues first)"
+        )
+
+
+def render_quality_page():
+    """Render the Quality detail page showing post-migration results and sign-off."""
+    st.markdown("## 📊 Quality — Post-Migration Validation & Sign-Off")
+    st.caption(f"Project: {PROJECT_NAME}")
+
+    # Collect all runs
+    runs = get_runs()
+    pre_runs = []
+    post_runs = []
+    prove_runs = []
+    for run_name in runs:
+        meta = load_json(run_name, "run_metadata.json") or {}
+        phase = meta.get("phase", "")
+        if phase == "pre":
+            pre_runs.append((run_name, meta))
+        elif phase == "post":
+            post_runs.append((run_name, meta))
+        elif phase == "prove":
+            prove_runs.append((run_name, meta))
+
+    # Compute overall scores
+    all_scores = []
+    for _, meta in pre_runs + post_runs:
+        s = meta.get("confidence_score")
+        if s is not None and float(s) > 0:
+            all_scores.append(float(s))
+
+    avg_score = round(sum(all_scores) / len(all_scores), 1) if all_scores else 0
+    if avg_score >= 90:
+        overall_status = "GREEN"
+    elif avg_score >= 70:
+        overall_status = "YELLOW"
+    else:
+        overall_status = "RED"
+    overall_emoji = STATUS_EMOJI.get(overall_status, "⚪")
+    overall_color = STATUS_COLOR.get(overall_status, "#999")
+
+    # Load sign-offs
+    signoff_path = ARTIFACTS_DIR / "signoff.json"
+    signoffs = []
+    if signoff_path.exists():
+        signoffs = json.loads(signoff_path.read_text())
+
+    # ── Overall Quality Summary
+    st.markdown("### Overall Quality Status")
+
+    mc1, mc2, mc3, mc4 = st.columns(4)
+    mc1.metric("Avg Score", f"{avg_score}/100")
+    mc2.metric("Pre Runs", len(pre_runs))
+    mc3.metric("Post Runs", len(post_runs))
+    mc4.metric("Proof Reports", len(prove_runs))
+
+    # Sign-off status banner
+    if signoffs:
+        latest_signoff = signoffs[-1]
+        st.markdown(f"""
+        <div style="background:#e8f5e9;border-left:5px solid #2e7d32;padding:12px 20px;border-radius:8px;margin:12px 0">
+            <div style="font-size:1rem;font-weight:700;color:#2e7d32">✅ SIGNED OFF</div>
+            <div style="font-size:0.85rem;color:#444">
+                Last sign-off by <strong>{latest_signoff.get('name', '')}</strong>
+                ({latest_signoff.get('role', '')})
+                on {latest_signoff.get('date', '')} at {latest_signoff.get('time', '')}
+                — Score: {latest_signoff.get('score', '')}/100
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown(f"""
+        <div style="background:#ffebee;border-left:5px solid #c62828;padding:12px 20px;border-radius:8px;margin:12px 0">
+            <div style="font-size:1rem;font-weight:700;color:#c62828">🔴 NOT SIGNED OFF</div>
+            <div style="font-size:0.85rem;color:#444">No sign-offs recorded. Review the results below and sign off when satisfied.</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.divider()
+
+    # ── Tabs
+    tabs = st.tabs([
+        "📋 Reconciliation",
+        "📊 Proof Reports",
+        "📈 Score Summary",
+        "✍️ Sign-Off",
+    ])
+    tab_recon, tab_proof, tab_scores, tab_signoff = tabs
+
+    # ── Reconciliation
+    with tab_recon:
+        st.markdown("#### Post-Migration Reconciliation Reports")
+
+        if post_runs:
+            for run_name, meta in sorted(post_runs, reverse=True):
+                dataset = meta.get("dataset", "?")
+                score = meta.get("confidence_score", "?")
+                run_status = meta.get("status", "?")
+                emoji = STATUS_EMOJI.get(run_status, "⚪")
+
+                st.markdown(f"##### {emoji} {dataset.title()} — {score}/100 ({run_status})")
+
+                recon_md = load_text(run_name, "reconciliation_report.md")
+                if recon_md:
+                    with st.expander("View Report", expanded=False):
+                        st.markdown(recon_md)
+                st.divider()
+        else:
+            st.info("No post-migration runs found. Run `dm validate --phase post` first.")
+
+    # ── Proof Reports
+    with tab_proof:
+        st.markdown("#### Migration Proof Reports")
+        st.caption("Combined pre + post validation results for audit.")
+
+        if prove_runs:
+            for run_name, meta in sorted(prove_runs, reverse=True):
+                dataset = meta.get("dataset", "?")
+                pre_score = meta.get("pre_score", "?")
+                post_score = meta.get("post_score", "?")
+                final = meta.get("confidence_score", meta.get("final_score", "?"))
+                run_status = meta.get("status", "?")
+                emoji = STATUS_EMOJI.get(run_status, "⚪")
+
+                st.markdown(f"##### {emoji} {dataset.title()} — Final: {final}/100 ({run_status})")
+                st.markdown(f"Pre: {pre_score} &nbsp;&nbsp; Post: {post_score} &nbsp;&nbsp; Final: {final}")
+
+                proof_md = load_text(run_name, "proof_report.md")
+                if proof_md:
+                    with st.expander("View Proof Report", expanded=False):
+                        st.markdown(proof_md)
+                st.divider()
+        else:
+            st.info("No proof reports found. Run `dm prove` first.")
+
+    # ── Score Summary
+    with tab_scores:
+        st.markdown("#### All Validation Scores")
+
+        all_run_rows = []
+        for run_name in sorted(runs, reverse=True):
+            meta = load_json(run_name, "run_metadata.json") or {}
+            phase = meta.get("phase", "?")
+            dataset = meta.get("dataset", "?")
+            score = meta.get("confidence_score", "?")
+            run_status = meta.get("status", "?")
+            emoji = STATUS_EMOJI.get(run_status, "⚪")
+            ts = run_name.replace("run_", "")
+            all_run_rows.append({
+                "Timestamp": ts,
+                "Phase": phase.upper(),
+                "Dataset": dataset,
+                "Score": score,
+                "Status": f"{emoji} {run_status}",
+            })
+
+        if all_run_rows:
+            st.dataframe(pd.DataFrame(all_run_rows), use_container_width=True, hide_index=True)
+        else:
+            st.info("No runs found.")
+
+    # ── Sign-Off
+    with tab_signoff:
+        st.markdown("#### Migration Sign-Off")
+        st.caption("Record formal approval of the migration results. Each sign-off captures the signer's name, role, timestamp, and the current confidence score.")
+
+        st.markdown(f"**Current Overall Score:** {overall_emoji} **{avg_score}/100** — {overall_status}")
+
+        st.divider()
+
+        # Sign-off form
+        st.markdown("##### Add Sign-Off")
+        so_col1, so_col2 = st.columns(2)
+        with so_col1:
+            signoff_name = st.text_input("Full Name", key="signoff_name", placeholder="e.g., Ayanna Muhammad")
+        with so_col2:
+            signoff_role = st.selectbox("Role", [
+                "Data Migration Lead",
+                "Technical Lead",
+                "Compliance Officer",
+                "Program Manager",
+                "Data Steward",
+                "QA Lead",
+                "Other",
+            ], key="signoff_role")
+
+        if st.button("✍️ Sign Off", type="primary", use_container_width=True, disabled=(not signoff_name)):
+            from datetime import datetime
+            now = datetime.now()
+            new_signoff = {
+                "name": signoff_name,
+                "role": signoff_role,
+                "date": now.strftime("%Y-%m-%d"),
+                "time": now.strftime("%H:%M:%S"),
+                "score": avg_score,
+                "status": overall_status,
+                "project": PROJECT_NAME,
+            }
+            signoffs.append(new_signoff)
+            signoff_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(signoff_path, "w") as f:
+                json.dump(signoffs, f, indent=2)
+            st.success(f"Signed off by **{signoff_name}** ({signoff_role}) at score {avg_score}/100")
+            st.rerun()
+
+        st.divider()
+
+        # Display existing sign-offs
+        st.markdown("##### Sign-Off History")
+
+        if signoffs:
+            for i, so in enumerate(reversed(signoffs)):
+                so_status = so.get("status", "")
+                so_color = STATUS_COLOR.get(so_status, "#999")
+                so_emoji = STATUS_EMOJI.get(so_status, "⚪")
+                st.markdown(f"""
+                <div style="background:#f8f9fa;border-left:4px solid {so_color};padding:10px 16px;margin:6px 0;border-radius:4px">
+                    <div style="font-weight:700;color:#333">{so_emoji} {so.get('name', '')} — {so.get('role', '')}</div>
+                    <div style="font-size:0.85rem;color:#666">
+                        {so.get('date', '')} at {so.get('time', '')} &nbsp;&nbsp;
+                        Score: <strong>{so.get('score', '')}/100</strong> ({so_status}) &nbsp;&nbsp;
+                        Project: {so.get('project', '')}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.markdown("*No sign-offs recorded yet.*")
+
+
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 
 with st.sidebar:
@@ -1498,6 +1915,10 @@ if lifecycle_view:
         render_governance_page()
     elif lifecycle_view == "Transformation":
         render_transformation_page()
+    elif lifecycle_view == "Compliance":
+        render_compliance_page()
+    elif lifecycle_view == "Quality":
+        render_quality_page()
     else:
         st.markdown(f"## {lifecycle_view}")
         st.info(f"Detail page for **{lifecycle_view}** phase coming soon.")
