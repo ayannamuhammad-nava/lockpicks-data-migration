@@ -879,6 +879,16 @@ def render_modeling_page():
         else:
             st.info("No full_schema.sql found.")
 
+    # Legend
+    st.divider()
+    st.markdown(
+        "**Legend:** &nbsp;&nbsp; "
+        "🟢 **Primary** — Main entity table containing core fields &nbsp;&nbsp; "
+        "🔵 **Child** — Normalized out from the primary table (address, contact info groups) with FK back to primary &nbsp;&nbsp; "
+        "🟡 **Lookup** — Low-cardinality reference table extracted for status codes, types, etc.",
+        unsafe_allow_html=True,
+    )
+
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 
