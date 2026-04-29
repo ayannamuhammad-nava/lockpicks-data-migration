@@ -366,7 +366,7 @@ def get_lifecycle_status() -> dict:
     if phase_map["pre"]:
         current_phase = 4  # Compliance
     if phase_map["post"]:
-        current_phase = 5  # Quality
+        current_phase = 6  # Quality completed (beyond all phases)
 
     return {
         "avg_score": avg,
