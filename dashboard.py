@@ -421,15 +421,37 @@ def render_lifecycle_bar(lifecycle: dict, phase: str = "", dataset: str = ""):
     for i, (label, _cmd) in enumerate(LIFECYCLE_PHASES):
         with cols[i]:
             # Quality button turns green when signed off
-            if label == "Quality" and has_signoff:
-                st.markdown(
-                    f'<div style="background:#2e7d32;color:#fff;padding:3px 0;border-radius:6px;'
-                    f'text-align:center;font-weight:700;font-size:0.75rem">SIGNED OFF</div>',
-                    unsafe_allow_html=True,
-                )
-                if st.button(f"✓ {label}", key=f"lc_phase_{i}", use_container_width=True, type="primary"):
-                    st.session_state["lifecycle_view"] = label
-                    st.rerun()
+            if label == "Quality" and i <= current:
+                if has_signoff:
+                    st.markdown("""<style>
+                        div[data-testid="column"]:last-child button[kind="primary"] {
+                            background-color: #2e7d32 !important;
+                            border-color: #2e7d32 !important;
+                            color: white !important;
+                        }
+                        div[data-testid="column"]:last-child button[kind="primary"]:hover {
+                            background-color: #1b5e20 !important;
+                            border-color: #1b5e20 !important;
+                        }
+                    </style>""", unsafe_allow_html=True)
+                    if st.button(f"✓ {label}", key=f"lc_phase_{i}", use_container_width=True, type="primary"):
+                        st.session_state["lifecycle_view"] = label
+                        st.rerun()
+                else:
+                    st.markdown("""<style>
+                        div[data-testid="column"]:last-child button[kind="secondary"] {
+                            background-color: #c62828 !important;
+                            border-color: #c62828 !important;
+                            color: white !important;
+                        }
+                        div[data-testid="column"]:last-child button[kind="secondary"]:hover {
+                            background-color: #b71c1c !important;
+                            border-color: #b71c1c !important;
+                        }
+                    </style>""", unsafe_allow_html=True)
+                    if st.button(f"● {label}", key=f"lc_phase_{i}", use_container_width=True, type="secondary"):
+                        st.session_state["lifecycle_view"] = label
+                        st.rerun()
             elif i < current:
                 btn_type = "primary"
                 lbl = f"✓ {label}"
