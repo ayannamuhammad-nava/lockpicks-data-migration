@@ -366,7 +366,18 @@ def get_lifecycle_status() -> dict:
     if phase_map["pre"]:
         current_phase = 4  # Compliance
     if phase_map["post"]:
-        current_phase = 6  # Quality completed (beyond all phases)
+        # Quality is completed only if signed off
+        signoff_file = ARTIFACTS_DIR / "signoff.json"
+        has_signoff = False
+        if signoff_file.exists():
+            try:
+                has_signoff = bool(json.loads(signoff_file.read_text()))
+            except Exception:
+                pass
+        if has_signoff:
+            current_phase = 6  # Quality completed (signed off)
+        else:
+            current_phase = 5  # Quality is current (awaiting sign-off)
 
     return {
         "avg_score": avg,
