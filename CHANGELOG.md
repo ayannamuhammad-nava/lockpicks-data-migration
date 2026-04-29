@@ -177,6 +177,45 @@ This was the most significant issue. The toolkit's column matcher could not hand
 
 ## Enhancements
 
+### Clickable Lifecycle Detail Pages
+
+**File:** `dashboard.py`
+
+All 6 lifecycle phases in the status bar are now fully built as clickable detail pages with comprehensive drill-down views:
+
+| Phase | Detail Page Contents |
+|-------|---------------------|
+| Discovery | Tables, Sample Data, Glossary, Field Mappings, PII Detection, Abbreviations, Rationalization |
+| Modeling | Table Schemas, Column Mapping, Normalization Plan, Full DDL with download. Legend at bottom (green=Primary, blue=Child, yellow=Lookup) |
+| Governance | PII Inventory with regulations, Data Modification Controls, Naming Compliance, Null Threshold Report (live DB query), Audit Trail |
+| Transformation | Transform Scripts (ETL INSERT...SELECT), Converted SQL with download, Before/After comparison, Warnings & TODOs |
+| Compliance | Compliance Checklist (pass/fail), Readiness Report, Governance Report, Schema Diff, Risk Assessment with score breakdown |
+| Quality | Reconciliation, Proof Reports, Score Summary, Sign-Off workflow |
+
+### Sign-Off Workflow
+
+**File:** `dashboard.py`
+
+Added a formal sign-off workflow to the Quality lifecycle page. Authorized personnel can sign off on migration results directly from the dashboard.
+
+**How it works:**
+1. Enter name and role, click Sign Off
+2. Confirmation dialog: "Are you sure? Your information will be saved as signing off on these changes"
+3. Confirm or Cancel
+4. Sign-off record stored in `artifacts/signoff.json` with name, role, date, time, score, status, and project
+
+**Features:**
+- Multiple sign-offs supported (e.g., tech lead, compliance officer, program manager)
+- Sign-off history displayed with color-coded status cards
+- Quality button in lifecycle bar turns green (custom HTML badge) after sign-off, stays default otherwise
+- Red "NOT SIGNED OFF" banner shown until first sign-off, then green with sign-off details
+
+### Green Quality Badge
+
+**File:** `dashboard.py`
+
+The Quality phase button in the lifecycle status bar now uses a custom HTML badge that turns green after at least one sign-off has been recorded. Before any sign-off, the button remains in its default state. This provides immediate visual feedback on whether the migration has been formally approved.
+
 ### Lifecycle Status Bar
 
 **File:** `dashboard.py`

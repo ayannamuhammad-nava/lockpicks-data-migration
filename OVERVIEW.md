@@ -74,6 +74,13 @@ LEGACY DATABASE (COBOL/DB2)
         Interactive Streamlit UI with lifecycle status bar,
         confidence scores, schema diffs, governance findings,
         and a RAG chat for asking questions about any field.
+        All 6 lifecycle phases (Discovery, Modeling, Governance,
+        Transformation, Compliance, Quality) are clickable detail
+        pages with full drill-down views. The Quality page includes
+        a sign-off workflow where authorized personnel (tech lead,
+        compliance officer, program manager) can formally sign off
+        on migration results — stored in artifacts/signoff.json
+        with name, role, date, time, score, and status.
 ```
 
 ### What Makes It Different

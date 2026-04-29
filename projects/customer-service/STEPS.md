@@ -327,6 +327,28 @@ STREAMLIT_BROWSER_GATHER_USAGE_STATS=false \
 
 **Access:** http://localhost:8501
 
-Features: lifecycle status bar, confidence gauge, schema diff & mappings, governance tab, reconciliation report, RAG chat.
+**Dashboard experience:**
+
+The dashboard opens with a lifecycle status bar at the top showing the project name, average confidence score, and 6 clickable lifecycle phases. Each phase is a fully built detail page:
+
+- **Discovery** — Tables, Sample Data, Glossary, Field Mappings, PII Detection, Abbreviations, Rationalization
+- **Modeling** — Table Schemas, Column Mapping, Normalization Plan, Full DDL with download. Legend at bottom (green=Primary, blue=Child, yellow=Lookup)
+- **Governance** — PII Inventory with regulations, Data Modification Controls, Naming Compliance, Null Threshold Report (live DB query), Audit Trail
+- **Transformation** — Transform Scripts (ETL INSERT...SELECT), Converted SQL with download, Before/After comparison, Warnings & TODOs
+- **Compliance** — Compliance Checklist (pass/fail), Readiness Report, Governance Report, Schema Diff, Risk Assessment with score breakdown
+- **Quality** — Reconciliation, Proof Reports, Score Summary, Sign-Off workflow
+
+**Sign-off workflow (Quality page):**
+
+1. Enter name and role, click Sign Off
+2. Confirmation dialog: "Are you sure? Your information will be saved as signing off on these changes"
+3. Confirm or Cancel
+4. Stored in `artifacts/signoff.json` with name, role, date, time, score, status, and project
+5. Multiple sign-offs supported (tech lead, compliance officer, program manager)
+6. Sign-off history displayed with color-coded status cards
+7. Quality button in lifecycle bar turns green (custom HTML badge) after sign-off, stays default otherwise
+8. Red "NOT SIGNED OFF" banner until first sign-off, then green with details
+
+Additional features: confidence gauge, run selector sidebar, readiness report, schema diff & mappings, governance tab, reconciliation report, RAG chat, run new validation from UI.
 
 **Status:** Not started

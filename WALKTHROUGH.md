@@ -578,6 +578,14 @@ STREAMLIT_BROWSER_GATHER_USAGE_STATS=false \
 
 **Dashboard features:**
 - **Lifecycle status bar** — Appears at the top of every page. Shows the project name (from `project.yaml`), average confidence score from the most recent date's runs with GREEN/YELLOW/RED status and the date displayed below the score, and a 6-phase lifecycle tracker (Discovery -> Modeling -> Governance -> Transformation -> Compliance -> Quality) with completed/current/pending indicators. Score thresholds: GREEN >= 90, YELLOW 70-89, RED < 70.
+- **Clickable lifecycle detail pages** — Each of the 6 lifecycle phases is a fully built, clickable detail page:
+  - **Discovery** — Tables, Sample Data, Glossary, Field Mappings, PII Detection, Abbreviations, Rationalization
+  - **Modeling** — Table Schemas, Column Mapping, Normalization Plan, Full DDL with download. Legend at bottom (green=Primary, blue=Child, yellow=Lookup)
+  - **Governance** — PII Inventory with regulations, Data Modification Controls, Naming Compliance, Null Threshold Report (live DB query), Audit Trail
+  - **Transformation** — Transform Scripts (ETL INSERT...SELECT), Converted SQL with download, Before/After comparison, Warnings & TODOs
+  - **Compliance** — Compliance Checklist (pass/fail), Readiness Report, Governance Report, Schema Diff, Risk Assessment with score breakdown
+  - **Quality** — Reconciliation, Proof Reports, Score Summary, Sign-Off workflow
+- **Sign-off workflow** (Quality page) — Enter name and role, click Sign Off. A confirmation dialog asks "Are you sure? Your information will be saved as signing off on these changes" with Confirm or Cancel. Sign-offs are stored in `artifacts/signoff.json` with name, role, date, time, score, status, and project. Multiple sign-offs are supported (e.g., tech lead, compliance officer, program manager). Sign-off history is displayed with color-coded status cards. The Quality button in the lifecycle bar turns green (custom HTML badge) after sign-off, and stays default otherwise. A red "NOT SIGNED OFF" banner is shown until the first sign-off, then switches to green with sign-off details.
 - **Confidence gauge** — Traffic-light score visualization for the selected run
 - **Run selector** — Browse all validation runs from the sidebar
 - **Readiness Report** (pre-migration) — Schema compatibility findings
