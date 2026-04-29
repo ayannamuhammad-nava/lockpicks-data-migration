@@ -1913,9 +1913,20 @@ with st.sidebar:
 
     with st.expander("▶ Run New Validation"):
         phase_sel = st.selectbox("Phase", ["pre", "post"], key="new_phase")
+
+        # Load datasets from project.yaml
+        _proj_yaml_sidebar = PROJECT_DIR / "project.yaml"
+        _dataset_names = ["my_table"]
+        if _proj_yaml_sidebar.exists():
+            import yaml as _yaml_sidebar
+            _sidebar_config = _yaml_sidebar.safe_load(_proj_yaml_sidebar.read_text()) or {}
+            _datasets = _sidebar_config.get("datasets", [])
+            if _datasets:
+                _dataset_names = [d.get("name", d) if isinstance(d, dict) else d for d in _datasets]
+
         dataset_sel = st.selectbox(
             "Dataset",
-            ["claimants", "employers", "claims", "benefit_payments"],
+            _dataset_names,
             key="new_dataset",
         )
         sample_sel = st.slider("Sample size", 100, 2000, 500, 100) if phase_sel == "pre" else None
