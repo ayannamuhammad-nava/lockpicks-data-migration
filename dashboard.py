@@ -406,12 +406,10 @@ def render_lifecycle_bar(lifecycle: dict, phase: str = "", dataset: str = ""):
     """, unsafe_allow_html=True)
 
     # Phase buttons — clickable
-    cols = st.columns([0.12] + [1] * len(LIFECYCLE_PHASES))
-    with cols[0]:
-        st.markdown("<div style='padding-top:6px;font-size:0.7rem;color:#666;font-weight:600'>LIFECYCLE:</div>", unsafe_allow_html=True)
+    cols = st.columns(len(LIFECYCLE_PHASES))
 
     for i, (label, _cmd) in enumerate(LIFECYCLE_PHASES):
-        with cols[i + 1]:
+        with cols[i]:
             if i < current:
                 btn_type = "primary"
                 lbl = f"✓ {label}"
