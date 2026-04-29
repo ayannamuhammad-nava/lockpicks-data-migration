@@ -422,12 +422,7 @@ def render_lifecycle_bar(lifecycle: dict, phase: str = "", dataset: str = ""):
         with cols[i]:
             # Quality button turns green when signed off
             if label == "Quality" and has_signoff:
-                st.markdown(
-                    f'<div style="background:#2e7d32;color:#fff;padding:8px 16px;border-radius:8px;'
-                    f'text-align:center;font-weight:700;font-size:0.85rem;margin-bottom:4px">✓ {label}</div>',
-                    unsafe_allow_html=True,
-                )
-                if st.button("Open", key=f"lc_phase_{i}", use_container_width=True):
+                if st.button(f"✓ {label}", key=f"lc_phase_{i}", use_container_width=True, type="primary"):
                     st.session_state["lifecycle_view"] = label
                     st.rerun()
             elif i < current:
