@@ -405,12 +405,20 @@ def render_lifecycle_bar(lifecycle: dict, phase: str = "", dataset: str = ""):
     </div>
     """, unsafe_allow_html=True)
 
+    # Check if Quality has been signed off
+    signoff_path = ARTIFACTS_DIR / "signoff.json"
+    has_signoff = signoff_path.exists() and json.loads(signoff_path.read_text()) if signoff_path.exists() else False
+
     # Phase buttons — clickable
     cols = st.columns(len(LIFECYCLE_PHASES))
 
     for i, (label, _cmd) in enumerate(LIFECYCLE_PHASES):
         with cols[i]:
-            if i < current:
+            # Quality button turns green when signed off
+            if label == "Quality" and has_signoff:
+                btn_type = "primary"
+                lbl = f"✓ {label}"
+            elif i < current:
                 btn_type = "primary"
                 lbl = f"✓ {label}"
             elif i == current:
