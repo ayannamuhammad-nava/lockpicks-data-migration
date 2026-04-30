@@ -1859,6 +1859,25 @@ def render_quality_page():
                     signoff_path.parent.mkdir(parents=True, exist_ok=True)
                     with open(signoff_path, "a") as f:
                         f.write(log_line)
+
+                    # Auto-commit signoff to git
+                    try:
+                        subprocess.run(
+                            ["git", "add", "-f", str(signoff_path)],
+                            capture_output=True, timeout=10,
+                        )
+                        subprocess.run(
+                            ["git", "commit", "-m",
+                             f"Signoff: {pending['name']} ({pending['role']}) — {pending['score']}/100 {pending['status']}"],
+                            capture_output=True, timeout=10,
+                        )
+                        subprocess.run(
+                            ["git", "push"],
+                            capture_output=True, timeout=30,
+                        )
+                    except Exception:
+                        pass  # Don't block signoff if git fails
+
                     del st.session_state["pending_signoff"]
                     st.success(f"Signed off by **{pending['name']}** ({pending['role']}) at score {pending['score']}/100")
                     st.rerun()
