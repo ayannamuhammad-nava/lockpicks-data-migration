@@ -378,11 +378,12 @@ def get_lifecycle_status() -> dict:
         current_phase = 4  # Compliance
     if phase_map["post"]:
         # Quality is completed only if signed off
-        signoff_file = ARTIFACTS_DIR / "signoff.json"
+        signoff_file = ARTIFACTS_DIR / "signoff.log"
         has_signoff = False
         if signoff_file.exists():
             try:
-                has_signoff = bool(json.loads(signoff_file.read_text()))
+                content = signoff_file.read_text().strip()
+                has_signoff = len(content) > 0
             except Exception:
                 pass
         if has_signoff:
@@ -1667,11 +1668,23 @@ def render_quality_page():
     overall_emoji = STATUS_EMOJI.get(overall_status, "⚪")
     overall_color = STATUS_COLOR.get(overall_status, "#999")
 
-    # Load sign-offs
-    signoff_path = ARTIFACTS_DIR / "signoff.json"
+    # Load sign-offs from log file
+    signoff_path = ARTIFACTS_DIR / "signoff.log"
     signoffs = []
     if signoff_path.exists():
-        signoffs = json.loads(signoff_path.read_text())
+        for line in signoff_path.read_text().strip().splitlines():
+            if line.startswith("SIGNOFF |"):
+                parts = line.split(" | ")
+                if len(parts) >= 6:
+                    signoffs.append({
+                        "date": parts[1].strip() if len(parts) > 1 else "",
+                        "time": parts[2].strip() if len(parts) > 2 else "",
+                        "name": parts[3].strip() if len(parts) > 3 else "",
+                        "role": parts[4].strip() if len(parts) > 4 else "",
+                        "score": float(parts[5].strip().replace("/100", "")) if len(parts) > 5 else 0,
+                        "status": parts[6].strip() if len(parts) > 6 else "",
+                        "project": parts[7].strip() if len(parts) > 7 else "",
+                    })
 
     # ── Overall Quality Summary
     st.markdown("### Overall Quality Status")
@@ -1692,7 +1705,7 @@ def render_quality_page():
                 Last sign-off by <strong>{latest_signoff.get('name', '')}</strong>
                 ({latest_signoff.get('role', '')})
                 on {latest_signoff.get('date', '')} at {latest_signoff.get('time', '')}
-                — Score: {latest_signoff.get('score', '')}/100
+                — Score: {latest_signoff.get('score', '')}
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -1838,19 +1851,14 @@ def render_quality_page():
                 if st.button("✅ Confirm Sign-Off", type="primary", use_container_width=True):
                     from datetime import datetime
                     now = datetime.now()
-                    new_signoff = {
-                        "name": pending["name"],
-                        "role": pending["role"],
-                        "date": now.strftime("%Y-%m-%d"),
-                        "time": now.strftime("%H:%M:%S"),
-                        "score": pending["score"],
-                        "status": pending["status"],
-                        "project": PROJECT_NAME,
-                    }
-                    signoffs.append(new_signoff)
+                    log_line = (
+                        f"SIGNOFF | {now.strftime('%Y-%m-%d')} | {now.strftime('%H:%M:%S')} | "
+                        f"{pending['name']} | {pending['role']} | "
+                        f"{pending['score']}/100 | {pending['status']} | {PROJECT_NAME}\n"
+                    )
                     signoff_path.parent.mkdir(parents=True, exist_ok=True)
-                    with open(signoff_path, "w") as f:
-                        json.dump(signoffs, f, indent=2)
+                    with open(signoff_path, "a") as f:
+                        f.write(log_line)
                     del st.session_state["pending_signoff"]
                     st.success(f"Signed off by **{pending['name']}** ({pending['role']}) at score {pending['score']}/100")
                     st.rerun()
