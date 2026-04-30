@@ -50,6 +50,17 @@ if _project_yaml.exists():
 else:
     PROJECT_NAME = PROJECT_DIR.name
 
+# Detect repo name from git
+try:
+    _git_result = subprocess.run(
+        ["git", "remote", "get-url", "origin"],
+        capture_output=True, text=True, timeout=5,
+    )
+    _remote_url = _git_result.stdout.strip()
+    REPO_NAME = _remote_url.rstrip("/").split("/")[-1].replace(".git", "") if _remote_url else ""
+except Exception:
+    REPO_NAME = ""
+
 # Data Migration Lifecycle phases
 LIFECYCLE_PHASES = [
     ("Discovery", "discover"),
@@ -1944,6 +1955,8 @@ with st.sidebar:
 
     st.divider()
     st.caption(f"Project: `{PROJECT_NAME}`")
+    if REPO_NAME:
+        st.caption(f"Repo: `{REPO_NAME}`")
     st.caption("CLI: `dm validate --help`")
 
 

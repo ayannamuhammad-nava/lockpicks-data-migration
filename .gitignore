@@ -23,4 +23,5 @@ Thumbs.db
 
 # Project artifacts (generated at runtime)
 artifacts/
+!**/artifacts/signoff.json
 metadata/.embeddings_cache.npz
