@@ -686,3 +686,54 @@ Discovery → Modeling → Governance → Transformation → Compliance → Sign
 7. `dm validate --phase post` and `dm prove` from the Post-Migration page
 
 No project-specific code required. The plugin system handles edge cases.
+
+---
+
+## Scoring Improvements (2026-05-04)
+
+Three fixes that directly improved migration confidence scores.
+
+### Rationalization Local Profiling Fallback
+
+**File:** `dm/rationalization/discoverer.py`
+
+When OpenMetadata has no profiler data, the rationalization engine now falls back to `metadata/profiling_stats.json` — the same local profiling data used by schema generation.
+
+- `MigrationRationalizer` constructor accepts optional `config` parameter
+- `_evaluate_table()` checks if OM profile is empty, loads local stats if available
+- `_load_local_profile()` reads from `profiling_stats.json`, converts file mtime to `profiled_at` timestamp
+- Pipeline passes `config` to the rationalizer
+
+**Impact:** Tables went from `0 migrate / 0 review / 4 archive` to `0 migrate / 4 review / 0 archive`. The completeness scores now reflect actual data (low null %) and freshness scores reflect when profiling was run.
+
+### Target-Specific Type Optimization
+
+**File:** `dm/discovery/schema_gen.py`
+
+The `optimize_data_type()` method now delegates profiling-based type decisions to the target adapter instead of hardcoding PostgreSQL types.
+
+| Optimization | Before (hardcoded) | After (target-aware) |
+|---|---|---|
+| Boolean detection | Always `BOOLEAN` | Oracle: `NUMBER(1)`, others: adapter's boolean type |
+| VARCHAR right-sizing | Always `VARCHAR(n)` | Oracle: `VARCHAR2(n)`, Snowflake: `VARCHAR(n)` |
+| Integer narrowing | Always `INTEGER`/`BIGINT` | Oracle: `NUMBER(10)`/`NUMBER(19)`, Snowflake: `NUMBER(38,0)` |
+| Date heuristic | Always `DATE` | Delegates to `adapter.map_type("date")` |
+| Timestamp | Always `TIMESTAMPTZ` | Delegates to `adapter.map_type("timestamp")` |
+
+**Impact:** Claimants PRE score improved from 89.0 YELLOW to 90.6 GREEN due to fewer type mismatch penalties for non-PostgreSQL targets.
+
+### `dm profile` Command
+
+**File:** `dm/cli.py`
+
+New first-class CLI command that profiles legacy tables and saves column-level statistics to `metadata/profiling_stats.json`.
+
+```bash
+dm profile --project projects/my-project
+```
+
+Computes per column: null %, distinct count, max length, min/max values, and top 10 value frequencies. Uses per-dataset source resolution (supports multi-source configs).
+
+Runs automatically as step 2 in `dm bootstrap` (6-step pipeline: init → **profile** → discover → rationalize → generate-schema → validate).
+
+**Impact:** Profiling data is now always available before discovery and rationalization, eliminating the dependency on OM's profiler pipeline.
