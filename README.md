@@ -1,3 +1,97 @@
+# Lockpicks Data Migration Toolkit
+
+> Automated mainframe-to-modern data migration with multi-target support, COBOL-aware column resolution, confidence scoring, and interactive dashboard with sign-off workflow.
+>
+> Reads from any legacy source — DB2, Oracle, COBOL copybooks, flat files, CSV, or git repos. Generates schemas for PostgreSQL, Snowflake, Oracle, and AWS Redshift. Scores adjust by target platform.
+
+## Getting Started — 3 Steps
+
+### Step 1: Setup
+```bash
+git clone https://github.com/ayannamuhammad-nava/data-migration-repo.git
+cd data-migration-repo
+./setup.sh
+```
+
+For flat file / copybook projects (no database needed):
+```bash
+./setup.sh --no-docker
+```
+
+### Step 2: Bootstrap your project (one command)
+
+```bash
+# From a git repo with mainframe artifacts
+dm bootstrap my-project --repo https://github.com/your-org/mainframe-data.git
+
+# From a local directory
+dm bootstrap my-project --data /path/to/your/files
+
+# Target a specific platform
+dm bootstrap my-project --repo <url> --target snowflake
+```
+
+This single command runs the full pre-migration pipeline:
+1. **Init** — clones repo, scans for `.cpy`, `.dat`, `.csv`, `.sql` files, pairs copybooks with data files, generates `project.yaml`
+2. **Discover** — schema introspection, COBOL abbreviation expansion (90+ patterns), PII tagging
+3. **Rationalize** — scores tables for migration scope (migrate/review/archive)
+4. **Generate Schema** — normalized DDL for all 4 target platforms (PostgreSQL, Snowflake, Oracle, AWS Redshift)
+5. **PRE Validate** — structure, governance, PII, naming, data quality checks
+
+**Accepted input files:**
+- `.cpy` / `.cob` — COBOL copybooks (PIC clause → SQL type mapping)
+- `.dat` / `.bin` — fixed-width mainframe data extracts (EBCDIC auto-decoded)
+- `.csv` / `.tsv` — delimited data files
+- `.sql` — legacy DDL/DML statements
+
+### Step 3: Launch the dashboard
+```bash
+streamlit run dashboard.py -- --project projects/my-project
+```
+Open **http://localhost:8501** — select target platform, review lifecycle phases, sign off, run POST validation, generate proof reports.
+
+### That's it.
+
+The dashboard workflow guides you through:
+**Discovery → Modeling → Governance → Transformation → Compliance → Sign-Off → Post-Migration**
+
+### Services
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| PostgreSQL | localhost:5432 | app / secret123 |
+| OpenMetadata | localhost:8585 | admin@open-metadata.org / admin |
+| Dashboard | localhost:8501 | — |
+
+### Supported Sources and Targets
+
+**Input sources:**
+| Source | Config type | Notes |
+|--------|------------|-------|
+| Git repo | `--repo <url>` | Auto-detects and pairs artifacts |
+| COBOL copybook + flat file | `copybook` | Parses PIC clauses, reads fixed-width data, EBCDIC decode |
+| CSV / TSV | `flatfile` | Standard delimited files |
+| IBM DB2 | `db2` | Via `ibm_db` (optional dependency) |
+| Oracle | `oracle` | Via `oracledb` thin mode (no client install) |
+| PostgreSQL | `postgres` | Via `psycopg2` |
+
+**Output targets (select in dashboard):**
+| Target | Key DDL Features |
+|--------|-----------------|
+| PostgreSQL | SERIAL, JSONB, TIMESTAMPTZ, enforced FK/CHECK |
+| Snowflake | CREATE OR REPLACE, VARIANT, NUMBER AUTOINCREMENT |
+| Oracle | VARCHAR2, NUMBER IDENTITY, CLOB for JSON |
+| AWS (Redshift) | IDENTITY, SUPER for JSON, DISTSTYLE/DISTKEY/SORTKEY |
+
+### Documentation
+| Doc | Description |
+|-----|-------------|
+| [OVERVIEW.md](OVERVIEW.md) | What this toolkit does and why |
+| [WALKTHROUGH.md](WALKTHROUGH.md) | Detailed step-by-step with every command |
+| [CHANGELOG.md](CHANGELOG.md) | All changes, features, and fixes |
+| [SCORING.md](SCORING.md) | Confidence scoring methodology |
+
+---
+
 # Data Migrations
 
 Data migration is a crucial, but delicate, step in transitioning away from a legacy system towards a modern system. In spite of various industry tooling around data migration, legacy to modern system data migration initiatives are quite complex and leave stakeholders involved with key questions:
@@ -653,16 +747,16 @@ Monitors schema drift, volume anomalies, data freshness, FK integrity, and null 
 
 | Command | Description |
 |---------|-------------|
-| `dm init <name>` | Scaffold new project |
-| `dm rationalize -p <project>` | Analyze migration scope (L-Discoverer) |
-| `dm discover -p <project> [--enrich]` | Generate metadata from DB or OM catalog (L-Cataloger) |
-| `dm enrich -p <project>` | Enrich existing metadata with OM profiling |
-| `dm generate-schema -p <project> [--all] [--dry-run]` | Generate normalized DDL (L-Modeler) |
-| `dm convert -s <file> -t <target> [--ai-refine]` | Translate legacy SQL (L-Converter) |
-| `dm ingest --plan\|--execute -p <project> [--resume]` | Orchestrate migration (L-Ingestor) |
-| `dm validate --phase pre\|post -d <dataset> -p <project>` | Run validation (L-Assurer / L-Validator) |
+| `dm init <name> [--repo URL] [--data PATH] [--target TYPE]` | Scaffold new project (from repo, local files, or template) |
+| `dm bootstrap <name> --repo URL [--target TYPE]` | **One-command**: init + discover + rationalize + generate-schema + validate |
+| `dm rationalize -p <project>` | Analyze migration scope (migrate/review/archive) |
+| `dm discover -p <project> [--enrich]` | Generate metadata from DB, OM catalog, or flat files |
+| `dm generate-schema -p <project> [--all]` | Generate DDL for all target platforms |
+| `dm convert -s <file> -t <target> [--ai-refine]` | Translate legacy SQL to target dialect |
+| `dm ingest --plan\|--execute -p <project>` | Orchestrate data migration |
+| `dm validate --phase pre\|post -d <dataset> -p <project>` | Run validation checks |
 | `dm prove -d <dataset> -p <project>` | Generate migration proof report |
-| `dm observe -p <project> [--once] [--set-baseline]` | Monitor pipeline health (L-Observer) |
+| `dm observe -p <project> [--once] [--set-baseline]` | Monitor pipeline health |
 | `dm status -p <project>` | Show latest run scores |
 | `dm dashboard -p <project>` | Launch Streamlit dashboard |
 
@@ -731,57 +825,44 @@ Plugins add domain-specific rules without modifying the toolkit. See `projects/l
 ```
 lockpicks-data-migration/
   dm/
-    cli.py                          # 12 CLI commands
-    config.py                       # Config loading with env var resolution
+    cli.py                          # CLI commands (init, bootstrap, discover, etc.)
+    config.py                       # Config loading with multi-source support
     pipeline.py                     # Phase orchestration
-    scoring.py                      # Confidence scoring (0-100)
+    scoring.py                      # Target-aware confidence scoring (0-100)
     hookspecs.py                    # 19 pluggy hooks
     plugin_manager.py               # Plugin discovery and loading
-    connectors/                     # Database abstraction
+    repo_loader.py                  # Git repo cloning + artifact scanning
+    connectors/                     # Database + file abstraction
       base.py                       # Abstract connector interface
-      postgres.py                   # PostgreSQL implementation
+      postgres.py                   # PostgreSQL + connector factory
+      db2.py                        # IBM DB2 connector
+      oracle.py                     # Oracle Database connector
+      flatfile.py                   # Flat file / CSV connector
+      copybook_parser.py            # COBOL copybook (.cpy) parser
     discovery/                      # L-Cataloger + L-Modeler
       openmetadata_enricher.py      # OM REST API wrapper
-      om_plugin.py                  # Pluggy adapter for OM
-      metadata_generator.py         # Glossary + mappings generation
+      metadata_generator.py         # Glossary + mappings + COBOL abbreviations
       normalization_analyzer.py     # Entity decomposition analysis
-      schema_gen.py                 # DDL generation (6 transformation rules)
-      dataset_resolver.py           # 1:N table resolution
-    rationalization/                # L-Discoverer
-      discoverer.py                 # Migration scope analysis
-      scoring.py                    # Table relevance scoring
-    conversion/                     # L-Converter
-      converter.py                  # Orchestration (Pass 1 + Pass 2)
-      rule_engine.py                # sqlglot-based SQL translation
-      ai_refiner.py                 # Claude API refinement
-    ingestion/                      # L-Ingestor
-      planner.py                    # Dependency-ordered migration plans
-      executor.py                   # Migration execution engine
-      state.py                      # State tracking (resume support)
-      strategies/                   # full_load, external
+      schema_gen.py                 # Multi-target DDL generation
+    targets/                        # Output platform adapters
+      base.py                       # Abstract target interface
+      postgres.py                   # PostgreSQL + target registry
+      snowflake.py                  # Snowflake adapter
+      oracle.py                     # Oracle adapter
+      redshift.py                   # AWS Redshift adapter
     validators/
       pre/                          # 6 pre-validators
-      post/                         # 9 post-validators
-    observer/                       # L-Observer
-      observer.py                   # Pipeline monitoring
-      baseline.py                   # Baseline snapshot management
-      checks/                       # schema_drift, volume, freshness, integrity
-      alerts/                       # log, slack
-    targets/                        # Pluggable target adapters
-      base.py                       # Abstract interface
-      postgres.py                   # PostgreSQL (built-in)
-    ai/                             # AI integration layer
-      client.py                     # Anthropic SDK wrapper
-      prompts.py                    # Prompt templates
-      fallback.py                   # Manual workflow prompt generation
-    kb/rag.py                       # Semantic search over metadata
+      post/                         # 9 post-validators (with cross-source FK)
+    ingestion/                      # L-Ingestor
+    conversion/                     # L-Converter (rule engine + AI)
+    observer/                       # L-Observer (drift detection)
+    ai/                             # Claude AI integration (optional)
     reporting/reporter.py           # Artifact output
   projects/
-    loops-nj/                       # Reference: LOOPS NJ (DB2 -> PostgreSQL)
+    loops-nj/                       # Reference: LOOPS NJ
   setup/                            # Database setup SQL scripts
-  examples/                         # Starter templates
-  docs/                             # Design docs and analysis
-  dashboard.py                      # Streamlit interactive UI
+  dashboard.py                      # Streamlit dashboard (7-phase gated workflow)
+  setup.sh                          # One-command infrastructure setup
   pyproject.toml                    # Package definition
 ```
 
@@ -792,9 +873,13 @@ lockpicks-data-migration/
 **Core:** click, pluggy, pandas, pandera, psycopg2-binary, pyyaml, numpy, requests, sqlglot
 
 **Optional extras:**
-- `[ai]` -- anthropic SDK (Claude API integration)
-- `[rag]` -- sentence-transformers (semantic search)
-- `[dashboard]` -- streamlit, plotly (interactive UI)
-- `[observer]` -- schedule (periodic monitoring)
+- `[ai]` — anthropic SDK (Claude API integration)
+- `[rag]` — sentence-transformers (semantic search)
+- `[dashboard]` — streamlit, plotly (interactive UI)
+- `[observer]` — schedule (periodic monitoring)
+- `[db2]` — ibm-db (DB2 mainframe connector)
+- `[oracle]` — oracledb (Oracle Database connector)
 
-**Requirements:** Python 3.11+, OpenMetadata instance, PostgreSQL 12+ (target)
+**Requirements:** Python 3.9+
+
+**Optional infrastructure:** Docker (for PostgreSQL + OpenMetadata). Not required for copybook/flat file projects.
