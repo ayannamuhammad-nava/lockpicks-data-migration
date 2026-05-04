@@ -1,8 +1,26 @@
 # Lockpicks Data Migration Toolkit
 
-> Automated mainframe-to-modern data migration with multi-target support, COBOL-aware column resolution, confidence scoring, and interactive dashboard with sign-off workflow.
+> A **migration planning and validation tool** for legacy mainframe systems. Reads your legacy data, profiles it, maps COBOL fields to modern names, generates target schemas, and scores migration readiness — so your team can plan with confidence before moving anything.
 >
 > Reads from any legacy source — DB2, Oracle, COBOL copybooks, flat files, CSV, or git repos. Generates schemas for PostgreSQL, Snowflake, Oracle, and AWS Redshift. Scores adjust by target platform.
+
+## What This Toolkit Does (and Doesn't Do)
+
+**This toolkit helps you plan and validate a migration. It does not execute one.**
+
+| It does | It does not |
+|---------|-------------|
+| Read and profile legacy data (DB2, Oracle, copybooks, flat files) | Create databases or tables in a target system |
+| Map COBOL abbreviated fields to modern names (90+ patterns) | Move or copy data between systems |
+| Detect PII and flag compliance requirements | Execute DDL against production databases |
+| Generate target DDL for 4 platforms (PostgreSQL, Snowflake, Oracle, AWS) | Deploy anything to production |
+| Score migration readiness with honest confidence numbers | Replace your ETL tooling (Airbyte, dbt, Informatica) |
+| Let stakeholders review, compare targets, and sign off | Make migration decisions for you |
+| Validate data integrity if you do migrate (POST validation) | |
+
+The generated DDL, transform scripts, and mappings are **artifacts for your migration team** — not automated deployments. The toolkit tells you what the migration looks like, what the risks are, and whether the data survived. Your team decides when and how to execute.
+
+---
 
 ## Getting Started — 3 Steps
 
