@@ -125,10 +125,21 @@ class MigrationPlanner:
                             deps.setdefault(child, []).append(parent)
 
         # Source 2: project.yaml referential_integrity section
+        # Supports both flat list and per-dataset dict formats
         ref_integrity = self.config.get("validation", {}).get(
             "referential_integrity", []
         )
-        for check in ref_integrity:
+        fk_checks = []
+        if isinstance(ref_integrity, dict):
+            for dataset_checks in ref_integrity.values():
+                if isinstance(dataset_checks, list):
+                    fk_checks.extend(dataset_checks)
+        elif isinstance(ref_integrity, list):
+            fk_checks = ref_integrity
+
+        for check in fk_checks:
+            if not isinstance(check, dict):
+                continue
             parent = check.get("parent", check.get("parent_table", ""))
             child = check.get("child", check.get("child_table", ""))
             if child in table_set and parent in table_set:

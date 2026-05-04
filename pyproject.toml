@@ -25,7 +25,9 @@ dashboard = ["streamlit>=1.32.0", "plotly>=5.18.0"]
 sqlalchemy = ["sqlalchemy>=2.0"]
 ai = ["anthropic>=0.30.0"]
 observer = ["schedule>=1.2.0"]
-all = ["lockpicks-data-migration[rag,dashboard,sqlalchemy,ai,observer]"]
+db2 = ["ibm-db>=3.2.0"]
+oracle = ["oracledb>=2.0.0"]
+all = ["lockpicks-data-migration[rag,dashboard,sqlalchemy,ai,observer,db2,oracle]"]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",

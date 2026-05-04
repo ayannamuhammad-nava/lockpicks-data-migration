@@ -64,10 +64,18 @@ def load_project_config(project_dir: str = ".") -> Dict:
 
 
 def get_connection_config(config: Dict, system: str) -> Dict:
-    """Extract connection config for 'legacy' or 'modern' system."""
+    """Extract connection config by name.
+
+    Supports the original 'legacy'/'modern' keys as well as
+    arbitrary named connections (e.g. 'eligibility_db', 'claims_db').
+    """
     connections = config.get("connections", {})
     if system not in connections:
-        raise KeyError(f"No '{system}' connection defined in project.yaml")
+        available = ", ".join(sorted(connections.keys()))
+        raise KeyError(
+            f"No '{system}' connection defined in project.yaml. "
+            f"Available: {available}"
+        )
     return connections[system]
 
 
@@ -83,6 +91,44 @@ def get_dataset_config(config: Dict, dataset_name: str) -> Optional[Dict]:
         if name == dataset_name:
             return ds if isinstance(ds, dict) else {"name": ds}
     return None
+
+
+def get_dataset_source(config: Dict, dataset_name: str) -> str:
+    """Return the source connection name for a dataset.
+
+    Reads the 'source' field from the dataset config in project.yaml.
+    Defaults to 'legacy' for backward compatibility.
+    """
+    ds = get_dataset_config(config, dataset_name)
+    if ds:
+        return ds.get("source", "legacy")
+    return "legacy"
+
+
+def get_dataset_target(config: Dict, dataset_name: str) -> str:
+    """Return the target connection name for a dataset.
+
+    Reads the 'target' field from the dataset config in project.yaml.
+    Defaults to 'modern' for backward compatibility.
+    """
+    ds = get_dataset_config(config, dataset_name)
+    if ds:
+        return ds.get("target", "modern")
+    return "modern"
+
+
+def get_all_sources(config: Dict) -> List[str]:
+    """Return a deduplicated list of all source connection names across datasets.
+
+    Useful for discovery and enrichment which may need to scan multiple sources.
+    """
+    sources = set()
+    for ds in get_datasets(config):
+        if isinstance(ds, dict):
+            sources.add(ds.get("source", "legacy"))
+        else:
+            sources.add("legacy")
+    return sorted(sources) if sources else ["legacy"]
 
 
 def get_validation_config(config: Dict) -> Dict:

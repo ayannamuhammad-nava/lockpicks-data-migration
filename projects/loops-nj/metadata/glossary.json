@@ -2,763 +2,579 @@
   "columns": [
     {
       "name": "cl_recid",
-      "description": "Numeric value for cl recid",
+      "description": "CLAIMANT-RECORD-ID",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.5,
-      "table": "claimants"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claimants",
+      "data_type": "INT",
+      "data_type_display": "int",
+      "is_nullable": "YES"
     },
     {
       "name": "cl_fnam",
-      "description": "Cl Fnam field",
+      "description": "CLAIMANT-FIRST-NAME",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.3,
-      "table": "claimants"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claimants",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "cl_lnam",
-      "description": "Cl Lnam field",
+      "description": "CLAIMANT-LAST-NAME",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.3,
-      "table": "claimants"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claimants",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "cl_ssn",
-      "description": "Social Security Number - highly sensitive personal identifier",
+      "description": "CLAIMANT-SSN",
       "system": "legacy",
       "pii": true,
-      "confidence": 0.95,
-      "table": "claimants"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claimants",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "cl_dob",
-      "description": "Date of birth of the individual",
+      "description": "CLAIMANT-DATE-OF-BIRTH",
       "system": "legacy",
       "pii": true,
-      "confidence": 0.9,
-      "table": "claimants"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claimants",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "cl_phon",
-      "description": "Cl Phon field",
+      "description": "CLAIMANT-PHONE-NUM",
       "system": "legacy",
-      "pii": true,
-      "confidence": 0.3,
-      "table": "claimants"
+      "pii": false,
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claimants",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "cl_emal",
-      "description": "Text field for cl emal",
+      "description": "CLAIMANT-EMAIL-ADDR",
       "system": "legacy",
-      "pii": true,
-      "confidence": 0.5,
-      "table": "claimants"
+      "pii": false,
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claimants",
+      "data_type": "VARCHAR",
+      "data_type_display": "varchar",
+      "is_nullable": "YES"
     },
     {
       "name": "cl_adr1",
-      "description": "Text field for cl adr1",
+      "description": "CLAIMANT-STREET-ADDR",
       "system": "legacy",
-      "pii": true,
-      "confidence": 0.5,
-      "table": "claimants"
+      "pii": false,
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claimants",
+      "data_type": "VARCHAR",
+      "data_type_display": "varchar",
+      "is_nullable": "YES"
     },
     {
       "name": "cl_city",
-      "description": "Cl City field",
+      "description": "CLAIMANT-CITY-NAME",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.3,
-      "table": "claimants"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claimants",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "cl_st",
-      "description": "Cl St field",
+      "description": "CLAIMANT-STATE-CODE",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.3,
-      "table": "claimants"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claimants",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "cl_zip",
-      "description": "Cl Zip field",
+      "description": "CLAIMANT-ZIP-CODE",
       "system": "legacy",
       "pii": true,
-      "confidence": 0.3,
-      "table": "claimants"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claimants",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "cl_bact",
-      "description": "Bank account number - sensitive financial information",
+      "description": "CLAIMANT-BANK-ACCT",
       "system": "legacy",
       "pii": true,
-      "confidence": 0.95,
-      "table": "claimants"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claimants",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "cl_brtn",
-      "description": "Bank routing number for electronic transfers",
+      "description": "CLAIMANT-BANK-ROUTE",
       "system": "legacy",
       "pii": true,
-      "confidence": 0.95,
-      "table": "claimants"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claimants",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "cl_stat",
-      "description": "Cl Stat field",
+      "description": "CLAIMANT-STATUS-CODE",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.3,
-      "table": "claimants"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claimants",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "cl_rgdt",
-      "description": "Cl Rgdt field",
+      "description": "CLAIMANT-REG-DATE",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.3,
-      "table": "claimants"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claimants",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "cl_dcsd",
-      "description": "Cl Dcsd field",
+      "description": "CLAIMANT-DECEASED-FLAG",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.3,
-      "table": "claimants"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claimants",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "cl_fil1",
-      "description": "Cl Fil1 field",
+      "description": "FILLER",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.3,
-      "table": "claimants"
-    },
-    {
-      "name": "claimant_id",
-      "description": "Unique identifier for claimant",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.9,
-      "table": "claimants"
-    },
-    {
-      "name": "first_name",
-      "description": "First name of the individual",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.85,
-      "table": "claimants"
-    },
-    {
-      "name": "last_name",
-      "description": "Last name of the individual",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.85,
-      "table": "claimants"
-    },
-    {
-      "name": "ssn_hash",
-      "description": "Hashed Social Security Number for secure identification",
-      "system": "modern",
-      "pii": true,
-      "confidence": 0.95,
-      "table": "claimants"
-    },
-    {
-      "name": "date_of_birth",
-      "description": "Date of birth of the individual",
-      "system": "modern",
-      "pii": true,
-      "confidence": 0.9,
-      "table": "claimants"
-    },
-    {
-      "name": "phone_number",
-      "description": "Phone number for contact purposes",
-      "system": "modern",
-      "pii": true,
-      "confidence": 0.9,
-      "table": "claimants"
-    },
-    {
-      "name": "email",
-      "description": "Email address for communication and identification",
-      "system": "modern",
-      "pii": true,
-      "confidence": 0.9,
-      "table": "claimants"
-    },
-    {
-      "name": "address_line1",
-      "description": "Text field for address line1",
-      "system": "modern",
-      "pii": true,
-      "confidence": 0.5,
-      "table": "claimants"
-    },
-    {
-      "name": "city",
-      "description": "Text field for city",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.5,
-      "table": "claimants"
-    },
-    {
-      "name": "state",
-      "description": "Text field for state",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.5,
-      "table": "claimants"
-    },
-    {
-      "name": "zip_code",
-      "description": "Text field for zip code",
-      "system": "modern",
-      "pii": true,
-      "confidence": 0.5,
-      "table": "claimants"
-    },
-    {
-      "name": "claimant_status",
-      "description": "Current status of the claimant",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.75,
-      "table": "claimants"
-    },
-    {
-      "name": "registered_at",
-      "description": "Date/time when registered occurred",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.85,
-      "table": "claimants"
-    },
-    {
-      "name": "is_deceased",
-      "description": "Boolean flag indicating deceased",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.6,
-      "table": "claimants"
-    },
-    {
-      "name": "cl_bact",
-      "description": "Bank account number - sensitive financial information",
-      "system": "modern",
-      "pii": true,
-      "confidence": 0.95,
-      "table": "claimants"
-    },
-    {
-      "name": "legacy_system_ref",
-      "description": "Text field for legacy system ref",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.5,
-      "table": "claimants"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claimants",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "er_recid",
-      "description": "Numeric value for er recid",
+      "description": "EMPLOYER-RECORD-ID",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.5,
-      "table": "employers"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "employers",
+      "data_type": "INT",
+      "data_type_display": "int",
+      "is_nullable": "YES"
     },
     {
       "name": "er_name",
-      "description": "Name field for er",
+      "description": "EMPLOYER-CORP-NAME",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.7,
-      "table": "employers"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "employers",
+      "data_type": "VARCHAR",
+      "data_type_display": "varchar",
+      "is_nullable": "YES"
     },
     {
       "name": "er_ein",
-      "description": "Employer Identification Number (federal tax ID)",
+      "description": "EMPLOYER-EIN",
       "system": "legacy",
-      "pii": true,
-      "confidence": 0.9,
-      "table": "employers"
+      "pii": false,
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "employers",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "er_ind",
-      "description": "Er Ind field",
+      "description": "EMPLOYER-INDUSTRY-CODE",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.3,
-      "table": "employers"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "employers",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "er_adr1",
-      "description": "Text field for er adr1",
+      "description": "EMPLOYER-STREET-ADDR",
       "system": "legacy",
-      "pii": true,
-      "confidence": 0.5,
-      "table": "employers"
+      "pii": false,
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "employers",
+      "data_type": "VARCHAR",
+      "data_type_display": "varchar",
+      "is_nullable": "YES"
     },
     {
       "name": "er_city",
-      "description": "Er City field",
+      "description": "EMPLOYER-CITY-NAME",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.3,
-      "table": "employers"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "employers",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "er_st",
-      "description": "Er St field",
+      "description": "EMPLOYER-STATE-CODE",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.3,
-      "table": "employers"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "employers",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "er_zip",
-      "description": "Er Zip field",
+      "description": "EMPLOYER-ZIP-CODE",
       "system": "legacy",
       "pii": true,
-      "confidence": 0.3,
-      "table": "employers"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "employers",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "er_phon",
-      "description": "Er Phon field",
+      "description": "EMPLOYER-PHONE-NUM",
       "system": "legacy",
-      "pii": true,
-      "confidence": 0.3,
-      "table": "employers"
+      "pii": false,
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "employers",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "er_stat",
-      "description": "Er Stat field",
+      "description": "EMPLOYER-STATUS-CODE",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.3,
-      "table": "employers"
-    },
-    {
-      "name": "employer_id",
-      "description": "Unique identifier for employer",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.9,
-      "table": "employers"
-    },
-    {
-      "name": "employer_name",
-      "description": "Name field for employer",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.7,
-      "table": "employers"
-    },
-    {
-      "name": "employer_ein",
-      "description": "Employer Identification Number (federal tax ID)",
-      "system": "modern",
-      "pii": true,
-      "confidence": 0.9,
-      "table": "employers"
-    },
-    {
-      "name": "industry",
-      "description": "Text field for industry",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.5,
-      "table": "employers"
-    },
-    {
-      "name": "address_line1",
-      "description": "Text field for address line1",
-      "system": "modern",
-      "pii": true,
-      "confidence": 0.5,
-      "table": "employers"
-    },
-    {
-      "name": "city",
-      "description": "Text field for city",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.5,
-      "table": "employers"
-    },
-    {
-      "name": "state",
-      "description": "Text field for state",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.5,
-      "table": "employers"
-    },
-    {
-      "name": "zip_code",
-      "description": "Text field for zip code",
-      "system": "modern",
-      "pii": true,
-      "confidence": 0.5,
-      "table": "employers"
-    },
-    {
-      "name": "phone_number",
-      "description": "Phone number for contact purposes",
-      "system": "modern",
-      "pii": true,
-      "confidence": 0.9,
-      "table": "employers"
-    },
-    {
-      "name": "employer_status",
-      "description": "Current status of the employer",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.75,
-      "table": "employers"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "employers",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "cm_recid",
-      "description": "Numeric value for cm recid",
+      "description": "CLAIM-RECORD-ID",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.5,
-      "table": "claims"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claims",
+      "data_type": "INT",
+      "data_type_display": "int",
+      "is_nullable": "YES"
     },
     {
       "name": "cm_clmnt",
-      "description": "Numeric value for cm clmnt",
+      "description": "CLAIM-CLAIMANT-REF",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.5,
-      "table": "claims"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claims",
+      "data_type": "INT",
+      "data_type_display": "int",
+      "is_nullable": "YES"
     },
     {
       "name": "cm_emplr",
-      "description": "Numeric value for cm emplr",
+      "description": "CLAIM-EMPLOYER-REF",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.5,
-      "table": "claims"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claims",
+      "data_type": "INT",
+      "data_type_display": "int",
+      "is_nullable": "YES"
     },
     {
       "name": "cm_seprs",
-      "description": "Text field for cm seprs",
+      "description": "CLAIM-SEPARATION-REASON",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.5,
-      "table": "claims"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claims",
+      "data_type": "VARCHAR",
+      "data_type_display": "varchar",
+      "is_nullable": "YES"
     },
     {
       "name": "cm_fildt",
-      "description": "Cm Fildt field",
+      "description": "CLAIM-FILING-DATE",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.3,
-      "table": "claims"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claims",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "cm_bystr",
-      "description": "Cm Bystr field",
+      "description": "CLAIM-BNF-YEAR-START",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.3,
-      "table": "claims"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claims",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "cm_byend",
-      "description": "Cm Byend field",
+      "description": "CLAIM-BNF-YEAR-END",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.3,
-      "table": "claims"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claims",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "cm_wkamt",
-      "description": "Decimal value for cm wkamt",
+      "description": "CLAIM-WEEKLY-AMT",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.5,
-      "table": "claims"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claims",
+      "data_type": "DECIMAL",
+      "data_type_display": "decimal",
+      "is_nullable": "YES"
     },
     {
       "name": "cm_mxamt",
-      "description": "Decimal value for cm mxamt",
+      "description": "CLAIM-MAX-BNF-AMT",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.5,
-      "table": "claims"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claims",
+      "data_type": "DECIMAL",
+      "data_type_display": "decimal",
+      "is_nullable": "YES"
     },
     {
       "name": "cm_totpd",
-      "description": "Decimal value for cm totpd",
+      "description": "CLAIM-TOTAL-PAID",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.5,
-      "table": "claims"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claims",
+      "data_type": "DECIMAL",
+      "data_type_display": "decimal",
+      "is_nullable": "YES"
     },
     {
       "name": "cm_wkcnt",
-      "description": "Numeric value for cm wkcnt",
+      "description": "CLAIM-WEEKS-COUNT",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.5,
-      "table": "claims"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claims",
+      "data_type": "INT",
+      "data_type_display": "int",
+      "is_nullable": "YES"
     },
     {
       "name": "cm_stat",
-      "description": "Cm Stat field",
+      "description": "CLAIM-STATUS-CODE",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.3,
-      "table": "claims"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claims",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "cm_lupdt",
-      "description": "Cm Lupdt field",
+      "description": "CLAIM-LAST-UPD-DATE",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.3,
-      "table": "claims"
-    },
-    {
-      "name": "claim_id",
-      "description": "Unique identifier for claim",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.9,
-      "table": "claims"
-    },
-    {
-      "name": "claimant_id",
-      "description": "Unique identifier for claimant",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.9,
-      "table": "claims"
-    },
-    {
-      "name": "employer_id",
-      "description": "Unique identifier for employer",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.9,
-      "table": "claims"
-    },
-    {
-      "name": "separation_reason",
-      "description": "Text field for separation reason",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.5,
-      "table": "claims"
-    },
-    {
-      "name": "filing_date",
-      "description": "Date/time when filing occurred",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.85,
-      "table": "claims"
-    },
-    {
-      "name": "benefit_year_start",
-      "description": "Date/time value for benefit year start",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.6,
-      "table": "claims"
-    },
-    {
-      "name": "benefit_year_end",
-      "description": "Date/time value for benefit year end",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.6,
-      "table": "claims"
-    },
-    {
-      "name": "weekly_benefit_amount",
-      "description": "Monetary amount for weekly benefit amount",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.8,
-      "table": "claims"
-    },
-    {
-      "name": "max_benefit_amount",
-      "description": "Monetary amount for max benefit amount",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.8,
-      "table": "claims"
-    },
-    {
-      "name": "total_paid",
-      "description": "Monetary amount for total paid",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.8,
-      "table": "claims"
-    },
-    {
-      "name": "weeks_claimed",
-      "description": "Numeric value for weeks claimed",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.5,
-      "table": "claims"
-    },
-    {
-      "name": "claim_status",
-      "description": "Current status of the claim",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.75,
-      "table": "claims"
-    },
-    {
-      "name": "updated_at",
-      "description": "Timestamp when the record was last updated",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.9,
-      "table": "claims"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "claims",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "bp_recid",
-      "description": "Numeric value for bp recid",
+      "description": "PAYMENT-RECORD-ID",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.5,
-      "table": "benefit_payments"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "benefit_payments",
+      "data_type": "INT",
+      "data_type_display": "int",
+      "is_nullable": "YES"
     },
     {
       "name": "bp_clmid",
-      "description": "Numeric value for bp clmid",
+      "description": "PAYMENT-CLAIM-REF",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.5,
-      "table": "benefit_payments"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "benefit_payments",
+      "data_type": "INT",
+      "data_type_display": "int",
+      "is_nullable": "YES"
     },
     {
       "name": "bp_paydt",
-      "description": "Bp Paydt field",
+      "description": "PAYMENT-PROCESS-DATE",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.3,
-      "table": "benefit_payments"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "benefit_payments",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "bp_payam",
-      "description": "Decimal value for bp payam",
+      "description": "PAYMENT-AMOUNT",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.5,
-      "table": "benefit_payments"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "benefit_payments",
+      "data_type": "DECIMAL",
+      "data_type_display": "decimal",
+      "is_nullable": "YES"
     },
     {
       "name": "bp_methd",
-      "description": "Bp Methd field",
+      "description": "PAYMENT-METHOD-CODE",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.3,
-      "table": "benefit_payments"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "benefit_payments",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "bp_wkedt",
-      "description": "Bp Wkedt field",
+      "description": "PAYMENT-WEEK-END-DATE",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.3,
-      "table": "benefit_payments"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "benefit_payments",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "bp_stat",
-      "description": "Bp Stat field",
+      "description": "PAYMENT-STATUS-CODE",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.3,
-      "table": "benefit_payments"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "benefit_payments",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     },
     {
       "name": "bp_chkno",
-      "description": "Bp Chkno field",
+      "description": "PAYMENT-CHECK-NUM",
       "system": "legacy",
       "pii": false,
-      "confidence": 0.3,
-      "table": "benefit_payments"
-    },
-    {
-      "name": "payment_id",
-      "description": "Unique identifier for payment",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.9,
-      "table": "benefit_payments"
-    },
-    {
-      "name": "claim_id",
-      "description": "Unique identifier for claim",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.9,
-      "table": "benefit_payments"
-    },
-    {
-      "name": "payment_date",
-      "description": "Date/time when payment occurred",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.85,
-      "table": "benefit_payments"
-    },
-    {
-      "name": "payment_amount",
-      "description": "Monetary amount for payment amount",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.8,
-      "table": "benefit_payments"
-    },
-    {
-      "name": "payment_method",
-      "description": "Text field for payment method",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.5,
-      "table": "benefit_payments"
-    },
-    {
-      "name": "week_ending_date",
-      "description": "Date/time when week ending occurred",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.85,
-      "table": "benefit_payments"
-    },
-    {
-      "name": "payment_status",
-      "description": "Current status of the payment",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.75,
-      "table": "benefit_payments"
-    },
-    {
-      "name": "check_number",
-      "description": "Text field for check number",
-      "system": "modern",
-      "pii": false,
-      "confidence": 0.5,
-      "table": "benefit_payments"
+      "pii_tags": [],
+      "confidence": 1.0,
+      "table": "benefit_payments",
+      "data_type": "CHAR",
+      "data_type_display": "char",
+      "is_nullable": "YES"
     }
   ]
 }

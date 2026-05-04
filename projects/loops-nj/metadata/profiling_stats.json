@@ -1,0 +1,2018 @@
+{
+  "claimants": {
+    "row_count": 10,
+    "column_count": 17,
+    "columns": {
+      "cl_recid": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 10,
+        "unique_percent": 100.0,
+        "max_length": 2,
+        "min_value": "1",
+        "max_value": "9",
+        "value_frequencies": [
+          {
+            "value": "4",
+            "count": 1
+          },
+          {
+            "value": "10",
+            "count": 1
+          },
+          {
+            "value": "9",
+            "count": 1
+          },
+          {
+            "value": "7",
+            "count": 1
+          },
+          {
+            "value": "6",
+            "count": 1
+          },
+          {
+            "value": "3",
+            "count": 1
+          },
+          {
+            "value": "1",
+            "count": 1
+          },
+          {
+            "value": "5",
+            "count": 1
+          },
+          {
+            "value": "2",
+            "count": 1
+          },
+          {
+            "value": "8",
+            "count": 1
+          }
+        ],
+        "row_count": 10
+      },
+      "cl_fnam": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 10,
+        "unique_percent": 100.0,
+        "max_length": 9,
+        "min_value": "  David",
+        "max_value": "Robert",
+        "value_frequencies": [
+          {
+            "value": "Jennifer",
+            "count": 1
+          },
+          {
+            "value": "Linda",
+            "count": 1
+          },
+          {
+            "value": "Michael",
+            "count": 1
+          },
+          {
+            "value": "Mary",
+            "count": 1
+          },
+          {
+            "value": "  David",
+            "count": 1
+          },
+          {
+            "value": "Robert",
+            "count": 1
+          },
+          {
+            "value": "John",
+            "count": 1
+          },
+          {
+            "value": "Patricia",
+            "count": 1
+          },
+          {
+            "value": "James",
+            "count": 1
+          },
+          {
+            "value": "Elizabeth",
+            "count": 1
+          }
+        ],
+        "row_count": 10
+      },
+      "cl_lnam": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 10,
+        "unique_percent": 100.0,
+        "max_length": 8,
+        "min_value": "  Wilson",
+        "max_value": "Williams",
+        "value_frequencies": [
+          {
+            "value": "  Wilson",
+            "count": 1
+          },
+          {
+            "value": "Smith",
+            "count": 1
+          },
+          {
+            "value": "Anderson",
+            "count": 1
+          },
+          {
+            "value": "Williams",
+            "count": 1
+          },
+          {
+            "value": "Garcia",
+            "count": 1
+          },
+          {
+            "value": "Johnson",
+            "count": 1
+          },
+          {
+            "value": "Miller",
+            "count": 1
+          },
+          {
+            "value": "Davis",
+            "count": 1
+          },
+          {
+            "value": "Brown",
+            "count": 1
+          },
+          {
+            "value": "Martinez",
+            "count": 1
+          }
+        ],
+        "row_count": 10
+      },
+      "cl_ssn": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 9,
+        "unique_percent": 90.0,
+        "max_length": 11,
+        "min_value": "123-45-6789",
+        "max_value": "987-65-4321",
+        "value_frequencies": [
+          {
+            "value": "123-45-6789",
+            "count": 2
+          },
+          {
+            "value": "444-55-6666",
+            "count": 1
+          },
+          {
+            "value": "888-99-0000",
+            "count": 1
+          },
+          {
+            "value": "222-33-4444",
+            "count": 1
+          },
+          {
+            "value": "666-77-8888",
+            "count": 1
+          },
+          {
+            "value": "777-88-9999",
+            "count": 1
+          },
+          {
+            "value": "333-44-5555",
+            "count": 1
+          },
+          {
+            "value": "555-12-3456",
+            "count": 1
+          },
+          {
+            "value": "987-65-4321",
+            "count": 1
+          }
+        ],
+        "row_count": 10
+      },
+      "cl_dob": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 10,
+        "unique_percent": 100.0,
+        "max_length": 16,
+        "min_value": "03/20/1975",
+        "max_value": "January 10, 1988",
+        "value_frequencies": [
+          {
+            "value": "03/20/1975",
+            "count": 1
+          },
+          {
+            "value": "1978-12-25",
+            "count": 1
+          },
+          {
+            "value": "90-05-01",
+            "count": 1
+          },
+          {
+            "value": "08/15/1970",
+            "count": 1
+          },
+          {
+            "value": "1985-11-22",
+            "count": 1
+          },
+          {
+            "value": "1965-06-14",
+            "count": 1
+          },
+          {
+            "value": "January 10, 1988",
+            "count": 1
+          },
+          {
+            "value": "1995-03-30",
+            "count": 1
+          },
+          {
+            "value": "1980-01-15",
+            "count": 1
+          },
+          {
+            "value": "1992-07-04",
+            "count": 1
+          }
+        ],
+        "row_count": 10
+      },
+      "cl_phon": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 10,
+        "unique_percent": 100.0,
+        "max_length": 14,
+        "min_value": "(614) 555-1002",
+        "max_value": "9045551008",
+        "value_frequencies": [
+          {
+            "value": "217-555-1001",
+            "count": 1
+          },
+          {
+            "value": "(614) 555-1002",
+            "count": 1
+          },
+          {
+            "value": "704 555 1010",
+            "count": 1
+          },
+          {
+            "value": "(614) 555-1007",
+            "count": 1
+          },
+          {
+            "value": "317.555.1009",
+            "count": 1
+          },
+          {
+            "value": "9045551008",
+            "count": 1
+          },
+          {
+            "value": "217-555-1006",
+            "count": 1
+          },
+          {
+            "value": "317.555.1004",
+            "count": 1
+          },
+          {
+            "value": "704 555 1005",
+            "count": 1
+          },
+          {
+            "value": "9045551003",
+            "count": 1
+          }
+        ],
+        "row_count": 10
+      },
+      "cl_emal": {
+        "null_count": 2,
+        "null_percent": 20.0,
+        "distinct_count": 8,
+        "unique_percent": 80.0,
+        "max_length": 26,
+        "min_value": "david.wilson22@email.com",
+        "max_value": "patricia.brown15@email.com",
+        "value_frequencies": [
+          {
+            "value": "mary.johnson7@email.com",
+            "count": 1
+          },
+          {
+            "value": "david.wilson22@email.com",
+            "count": 1
+          },
+          {
+            "value": "elizabeth.a44@email.com",
+            "count": 1
+          },
+          {
+            "value": "patricia.brown15@email.com",
+            "count": 1
+          },
+          {
+            "value": "michael.miller56@email.com",
+            "count": 1
+          },
+          {
+            "value": "jennifer.garcia3@email.com",
+            "count": 1
+          },
+          {
+            "value": "james.smith42@email.com",
+            "count": 1
+          },
+          {
+            "value": "john.davis88@email.com",
+            "count": 1
+          }
+        ],
+        "row_count": 10
+      },
+      "cl_adr1": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 10,
+        "unique_percent": 100.0,
+        "max_length": 13,
+        "min_value": "100 Maple Dr",
+        "max_value": "789 Pine St",
+        "value_frequencies": [
+          {
+            "value": "300 Hill St",
+            "count": 1
+          },
+          {
+            "value": "321 Elm St",
+            "count": 1
+          },
+          {
+            "value": "789 Pine St",
+            "count": 1
+          },
+          {
+            "value": "456 Oak Ave",
+            "count": 1
+          },
+          {
+            "value": "123 Main St",
+            "count": 1
+          },
+          {
+            "value": "500 Spring St",
+            "count": 1
+          },
+          {
+            "value": "100 Maple Dr",
+            "count": 1
+          },
+          {
+            "value": "200 Lake Rd",
+            "count": 1
+          },
+          {
+            "value": "654 Cedar Ln",
+            "count": 1
+          },
+          {
+            "value": "400 River Rd",
+            "count": 1
+          }
+        ],
+        "row_count": 10
+      },
+      "cl_city": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 5,
+        "unique_percent": 50.0,
+        "max_length": 12,
+        "min_value": "Charlotte",
+        "max_value": "Springfield",
+        "value_frequencies": [
+          {
+            "value": "Springfield",
+            "count": 2
+          },
+          {
+            "value": "Jacksonville",
+            "count": 2
+          },
+          {
+            "value": "Charlotte",
+            "count": 2
+          },
+          {
+            "value": "Columbus",
+            "count": 2
+          },
+          {
+            "value": "Indianapolis",
+            "count": 2
+          }
+        ],
+        "row_count": 10
+      },
+      "cl_st": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 5,
+        "unique_percent": 50.0,
+        "max_length": 2,
+        "min_value": "FL",
+        "max_value": "OH",
+        "value_frequencies": [
+          {
+            "value": "OH",
+            "count": 2
+          },
+          {
+            "value": "IN",
+            "count": 2
+          },
+          {
+            "value": "FL",
+            "count": 2
+          },
+          {
+            "value": "NC",
+            "count": 2
+          },
+          {
+            "value": "IL",
+            "count": 2
+          }
+        ],
+        "row_count": 10
+      },
+      "cl_zip": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 5,
+        "unique_percent": 50.0,
+        "max_length": 5,
+        "min_value": "28201",
+        "max_value": "62701",
+        "value_frequencies": [
+          {
+            "value": "28201",
+            "count": 2
+          },
+          {
+            "value": "32099",
+            "count": 2
+          },
+          {
+            "value": "43215",
+            "count": 2
+          },
+          {
+            "value": "62701",
+            "count": 2
+          },
+          {
+            "value": "46201",
+            "count": 2
+          }
+        ],
+        "row_count": 10
+      },
+      "cl_bact": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 10,
+        "unique_percent": 100.0,
+        "max_length": 10,
+        "min_value": "0987654321",
+        "max_value": "9999000011",
+        "value_frequencies": [
+          {
+            "value": "9999000011",
+            "count": 1
+          },
+          {
+            "value": "7777888899",
+            "count": 1
+          },
+          {
+            "value": "4444555566",
+            "count": 1
+          },
+          {
+            "value": "3333444455",
+            "count": 1
+          },
+          {
+            "value": "6666777788",
+            "count": 1
+          },
+          {
+            "value": "8888999900",
+            "count": 1
+          },
+          {
+            "value": "0987654321",
+            "count": 1
+          },
+          {
+            "value": "1234567890",
+            "count": 1
+          },
+          {
+            "value": "1111222233",
+            "count": 1
+          },
+          {
+            "value": "2222333344",
+            "count": 1
+          }
+        ],
+        "row_count": 10
+      },
+      "cl_brtn": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 10,
+        "unique_percent": 100.0,
+        "max_length": 9,
+        "min_value": "111000025",
+        "max_value": "111000034",
+        "value_frequencies": [
+          {
+            "value": "111000030",
+            "count": 1
+          },
+          {
+            "value": "111000026",
+            "count": 1
+          },
+          {
+            "value": "111000027",
+            "count": 1
+          },
+          {
+            "value": "111000029",
+            "count": 1
+          },
+          {
+            "value": "111000025",
+            "count": 1
+          },
+          {
+            "value": "111000031",
+            "count": 1
+          },
+          {
+            "value": "111000028",
+            "count": 1
+          },
+          {
+            "value": "111000034",
+            "count": 1
+          },
+          {
+            "value": "111000033",
+            "count": 1
+          },
+          {
+            "value": "111000032",
+            "count": 1
+          }
+        ],
+        "row_count": 10
+      },
+      "cl_stat": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 5,
+        "unique_percent": 50.0,
+        "max_length": 8,
+        "min_value": "ACT",
+        "max_value": "active",
+        "value_frequencies": [
+          {
+            "value": "ACTIVE",
+            "count": 5
+          },
+          {
+            "value": "active",
+            "count": 2
+          },
+          {
+            "value": "Active",
+            "count": 1
+          },
+          {
+            "value": "ACT",
+            "count": 1
+          },
+          {
+            "value": "INACTIVE",
+            "count": 1
+          }
+        ],
+        "row_count": 10
+      },
+      "cl_rgdt": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 10,
+        "unique_percent": 100.0,
+        "max_length": 19,
+        "min_value": "2020-12-01 00:00:00",
+        "max_value": "2023-07-18 00:00:00",
+        "value_frequencies": [
+          {
+            "value": "2023-01-10 00:00:00",
+            "count": 1
+          },
+          {
+            "value": "2023-05-01 00:00:00",
+            "count": 1
+          },
+          {
+            "value": "2023-07-18 00:00:00",
+            "count": 1
+          },
+          {
+            "value": "2020-12-01 00:00:00",
+            "count": 1
+          },
+          {
+            "value": "2022-06-20 00:00:00",
+            "count": 1
+          },
+          {
+            "value": "2021-04-22 00:00:00",
+            "count": 1
+          },
+          {
+            "value": "2021-09-12 00:00:00",
+            "count": 1
+          },
+          {
+            "value": "2022-03-15 00:00:00",
+            "count": 1
+          },
+          {
+            "value": "2023-04-05 00:00:00",
+            "count": 1
+          },
+          {
+            "value": "2022-11-05 00:00:00",
+            "count": 1
+          }
+        ],
+        "row_count": 10
+      },
+      "cl_dcsd": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 2,
+        "unique_percent": 20.0,
+        "max_length": 1,
+        "min_value": "N",
+        "max_value": "Y",
+        "value_frequencies": [
+          {
+            "value": "N",
+            "count": 9
+          },
+          {
+            "value": "Y",
+            "count": 1
+          }
+        ],
+        "row_count": 10
+      },
+      "cl_fil1": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 1,
+        "unique_percent": 10.0,
+        "max_length": 0,
+        "min_value": "",
+        "max_value": "",
+        "value_frequencies": [
+          {
+            "value": "",
+            "count": 10
+          }
+        ],
+        "row_count": 10
+      }
+    }
+  },
+  "employers": {
+    "row_count": 5,
+    "column_count": 10,
+    "columns": {
+      "er_recid": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 5,
+        "unique_percent": 100.0,
+        "max_length": 1,
+        "min_value": "1",
+        "max_value": "5",
+        "value_frequencies": [
+          {
+            "value": "4",
+            "count": 1
+          },
+          {
+            "value": "3",
+            "count": 1
+          },
+          {
+            "value": "1",
+            "count": 1
+          },
+          {
+            "value": "5",
+            "count": 1
+          },
+          {
+            "value": "2",
+            "count": 1
+          }
+        ],
+        "row_count": 5
+      },
+      "er_name": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 5,
+        "unique_percent": 100.0,
+        "max_length": 28,
+        "min_value": "Central Valley Foods Inc",
+        "max_value": "Prairie State Energy Co",
+        "value_frequencies": [
+          {
+            "value": "Great Lakes Logistics LLC",
+            "count": 1
+          },
+          {
+            "value": "Prairie State Energy Co",
+            "count": 1
+          },
+          {
+            "value": "Heartland Healthcare Systems",
+            "count": 1
+          },
+          {
+            "value": "Midwest Manufacturing Corp",
+            "count": 1
+          },
+          {
+            "value": "Central Valley Foods Inc",
+            "count": 1
+          }
+        ],
+        "row_count": 5
+      },
+      "er_ein": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 5,
+        "unique_percent": 100.0,
+        "max_length": 10,
+        "min_value": "12-3456789",
+        "max_value": "56-7890123",
+        "value_frequencies": [
+          {
+            "value": "34-5678901",
+            "count": 1
+          },
+          {
+            "value": "12-3456789",
+            "count": 1
+          },
+          {
+            "value": "23-4567890",
+            "count": 1
+          },
+          {
+            "value": "45-6789012",
+            "count": 1
+          },
+          {
+            "value": "56-7890123",
+            "count": 1
+          }
+        ],
+        "row_count": 5
+      },
+      "er_ind": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 5,
+        "unique_percent": 100.0,
+        "max_length": 15,
+        "min_value": "Energy",
+        "max_value": "Transportation",
+        "value_frequencies": [
+          {
+            "value": "Food Processing",
+            "count": 1
+          },
+          {
+            "value": "Healthcare",
+            "count": 1
+          },
+          {
+            "value": "Manufacturing",
+            "count": 1
+          },
+          {
+            "value": "Energy",
+            "count": 1
+          },
+          {
+            "value": "Transportation",
+            "count": 1
+          }
+        ],
+        "row_count": 5
+      },
+      "er_adr1": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 5,
+        "unique_percent": 100.0,
+        "max_length": 19,
+        "min_value": "100 Industrial Blvd",
+        "max_value": "500 Harvest Rd",
+        "value_frequencies": [
+          {
+            "value": "400 Power Ln",
+            "count": 1
+          },
+          {
+            "value": "300 Medical Dr",
+            "count": 1
+          },
+          {
+            "value": "500 Harvest Rd",
+            "count": 1
+          },
+          {
+            "value": "200 Harbor Way",
+            "count": 1
+          },
+          {
+            "value": "100 Industrial Blvd",
+            "count": 1
+          }
+        ],
+        "row_count": 5
+      },
+      "er_city": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 5,
+        "unique_percent": 100.0,
+        "max_length": 12,
+        "min_value": "Charlotte",
+        "max_value": "Springfield",
+        "value_frequencies": [
+          {
+            "value": "Springfield",
+            "count": 1
+          },
+          {
+            "value": "Jacksonville",
+            "count": 1
+          },
+          {
+            "value": "Charlotte",
+            "count": 1
+          },
+          {
+            "value": "Columbus",
+            "count": 1
+          },
+          {
+            "value": "Indianapolis",
+            "count": 1
+          }
+        ],
+        "row_count": 5
+      },
+      "er_st": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 5,
+        "unique_percent": 100.0,
+        "max_length": 2,
+        "min_value": "FL",
+        "max_value": "OH",
+        "value_frequencies": [
+          {
+            "value": "OH",
+            "count": 1
+          },
+          {
+            "value": "IN",
+            "count": 1
+          },
+          {
+            "value": "FL",
+            "count": 1
+          },
+          {
+            "value": "NC",
+            "count": 1
+          },
+          {
+            "value": "IL",
+            "count": 1
+          }
+        ],
+        "row_count": 5
+      },
+      "er_zip": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 5,
+        "unique_percent": 100.0,
+        "max_length": 5,
+        "min_value": "28201",
+        "max_value": "62701",
+        "value_frequencies": [
+          {
+            "value": "28201",
+            "count": 1
+          },
+          {
+            "value": "32099",
+            "count": 1
+          },
+          {
+            "value": "43215",
+            "count": 1
+          },
+          {
+            "value": "62701",
+            "count": 1
+          },
+          {
+            "value": "46201",
+            "count": 1
+          }
+        ],
+        "row_count": 5
+      },
+      "er_phon": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 5,
+        "unique_percent": 100.0,
+        "max_length": 12,
+        "min_value": "217-555-0100",
+        "max_value": "904-555-0300",
+        "value_frequencies": [
+          {
+            "value": "704-555-0500",
+            "count": 1
+          },
+          {
+            "value": "217-555-0100",
+            "count": 1
+          },
+          {
+            "value": "904-555-0300",
+            "count": 1
+          },
+          {
+            "value": "614-555-0200",
+            "count": 1
+          },
+          {
+            "value": "317-555-0400",
+            "count": 1
+          }
+        ],
+        "row_count": 5
+      },
+      "er_stat": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 1,
+        "unique_percent": 20.0,
+        "max_length": 6,
+        "min_value": "active",
+        "max_value": "active",
+        "value_frequencies": [
+          {
+            "value": "active",
+            "count": 5
+          }
+        ],
+        "row_count": 5
+      }
+    }
+  },
+  "claims": {
+    "row_count": 15,
+    "column_count": 13,
+    "columns": {
+      "cm_recid": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 15,
+        "unique_percent": 100.0,
+        "max_length": 2,
+        "min_value": "1",
+        "max_value": "9",
+        "value_frequencies": [
+          {
+            "value": "4",
+            "count": 1
+          },
+          {
+            "value": "10",
+            "count": 1
+          },
+          {
+            "value": "6",
+            "count": 1
+          },
+          {
+            "value": "14",
+            "count": 1
+          },
+          {
+            "value": "13",
+            "count": 1
+          },
+          {
+            "value": "2",
+            "count": 1
+          },
+          {
+            "value": "11",
+            "count": 1
+          },
+          {
+            "value": "9",
+            "count": 1
+          },
+          {
+            "value": "7",
+            "count": 1
+          },
+          {
+            "value": "15",
+            "count": 1
+          }
+        ],
+        "row_count": 15
+      },
+      "cm_clmnt": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 12,
+        "unique_percent": 80.0,
+        "max_length": 4,
+        "min_value": "1",
+        "max_value": "9991",
+        "value_frequencies": [
+          {
+            "value": "1",
+            "count": 2
+          },
+          {
+            "value": "6",
+            "count": 2
+          },
+          {
+            "value": "2",
+            "count": 2
+          },
+          {
+            "value": "9990",
+            "count": 1
+          },
+          {
+            "value": "9",
+            "count": 1
+          },
+          {
+            "value": "7",
+            "count": 1
+          },
+          {
+            "value": "3",
+            "count": 1
+          },
+          {
+            "value": "5",
+            "count": 1
+          },
+          {
+            "value": "9991",
+            "count": 1
+          },
+          {
+            "value": "8",
+            "count": 1
+          }
+        ],
+        "row_count": 15
+      },
+      "cm_emplr": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 5,
+        "unique_percent": 33.33,
+        "max_length": 1,
+        "min_value": "1",
+        "max_value": "5",
+        "value_frequencies": [
+          {
+            "value": "2",
+            "count": 4
+          },
+          {
+            "value": "4",
+            "count": 3
+          },
+          {
+            "value": "3",
+            "count": 3
+          },
+          {
+            "value": "1",
+            "count": 3
+          },
+          {
+            "value": "5",
+            "count": 2
+          }
+        ],
+        "row_count": 15
+      },
+      "cm_seprs": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 10,
+        "unique_percent": 66.67,
+        "max_length": 30,
+        "min_value": "Automation displacement",
+        "max_value": "Seasonal layoff",
+        "value_frequencies": [
+          {
+            "value": "Laid off - lack of work",
+            "count": 3
+          },
+          {
+            "value": "Company closure",
+            "count": 2
+          },
+          {
+            "value": "Reduction in force",
+            "count": 2
+          },
+          {
+            "value": "Seasonal layoff",
+            "count": 2
+          },
+          {
+            "value": "Automation displacement",
+            "count": 1
+          },
+          {
+            "value": "Downsizing",
+            "count": 1
+          },
+          {
+            "value": "Plant shutdown",
+            "count": 1
+          },
+          {
+            "value": "COVID-19 related",
+            "count": 1
+          },
+          {
+            "value": "Contract ended",
+            "count": 1
+          },
+          {
+            "value": "Laid off - position eliminated",
+            "count": 1
+          }
+        ],
+        "row_count": 15
+      },
+      "cm_fildt": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 15,
+        "unique_percent": 100.0,
+        "max_length": 10,
+        "min_value": "2021-03-15",
+        "max_value": "2027-06-01",
+        "value_frequencies": [
+          {
+            "value": "2024-02-01",
+            "count": 1
+          },
+          {
+            "value": "2023-11-01",
+            "count": 1
+          },
+          {
+            "value": "2021-03-15",
+            "count": 1
+          },
+          {
+            "value": "2027-06-01",
+            "count": 1
+          },
+          {
+            "value": "2022-10-01",
+            "count": 1
+          },
+          {
+            "value": "2023-09-01",
+            "count": 1
+          },
+          {
+            "value": "2023-08-01",
+            "count": 1
+          },
+          {
+            "value": "2023-02-01",
+            "count": 1
+          },
+          {
+            "value": "2023-06-01",
+            "count": 1
+          },
+          {
+            "value": "2022-06-01",
+            "count": 1
+          }
+        ],
+        "row_count": 15
+      },
+      "cm_bystr": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 15,
+        "unique_percent": 100.0,
+        "max_length": 10,
+        "min_value": "2021-03-15",
+        "max_value": "2027-06-01",
+        "value_frequencies": [
+          {
+            "value": "2024-02-01",
+            "count": 1
+          },
+          {
+            "value": "2023-11-01",
+            "count": 1
+          },
+          {
+            "value": "2021-03-15",
+            "count": 1
+          },
+          {
+            "value": "2027-06-01",
+            "count": 1
+          },
+          {
+            "value": "2022-10-01",
+            "count": 1
+          },
+          {
+            "value": "2023-09-01",
+            "count": 1
+          },
+          {
+            "value": "2023-08-01",
+            "count": 1
+          },
+          {
+            "value": "2023-02-01",
+            "count": 1
+          },
+          {
+            "value": "2023-06-01",
+            "count": 1
+          },
+          {
+            "value": "2022-06-01",
+            "count": 1
+          }
+        ],
+        "row_count": 15
+      },
+      "cm_byend": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 15,
+        "unique_percent": 100.0,
+        "max_length": 10,
+        "min_value": "2022-03-15",
+        "max_value": "2028-06-01",
+        "value_frequencies": [
+          {
+            "value": "2024-11-01",
+            "count": 1
+          },
+          {
+            "value": "2024-02-01",
+            "count": 1
+          },
+          {
+            "value": "2028-06-01",
+            "count": 1
+          },
+          {
+            "value": "2025-01-10",
+            "count": 1
+          },
+          {
+            "value": "2025-02-01",
+            "count": 1
+          },
+          {
+            "value": "2023-06-01",
+            "count": 1
+          },
+          {
+            "value": "2024-08-01",
+            "count": 1
+          },
+          {
+            "value": "2025-01-15",
+            "count": 1
+          },
+          {
+            "value": "2024-04-01",
+            "count": 1
+          },
+          {
+            "value": "2024-06-01",
+            "count": 1
+          }
+        ],
+        "row_count": 15
+      },
+      "cm_wkamt": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 13,
+        "unique_percent": 86.67,
+        "max_length": 6,
+        "min_value": "275.00",
+        "max_value": "520.00",
+        "value_frequencies": [
+          {
+            "value": "350.00",
+            "count": 2
+          },
+          {
+            "value": "450.00",
+            "count": 2
+          },
+          {
+            "value": "380.00",
+            "count": 1
+          },
+          {
+            "value": "480.00",
+            "count": 1
+          },
+          {
+            "value": "410.00",
+            "count": 1
+          },
+          {
+            "value": "425.00",
+            "count": 1
+          },
+          {
+            "value": "400.00",
+            "count": 1
+          },
+          {
+            "value": "520.00",
+            "count": 1
+          },
+          {
+            "value": "300.00",
+            "count": 1
+          },
+          {
+            "value": "395.00",
+            "count": 1
+          }
+        ],
+        "row_count": 15
+      },
+      "cm_mxamt": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 13,
+        "unique_percent": 86.67,
+        "max_length": 8,
+        "min_value": "10270.00",
+        "max_value": "9880.00",
+        "value_frequencies": [
+          {
+            "value": "11700.00",
+            "count": 2
+          },
+          {
+            "value": "9100.00",
+            "count": 2
+          },
+          {
+            "value": "7800.00",
+            "count": 1
+          },
+          {
+            "value": "10660.00",
+            "count": 1
+          },
+          {
+            "value": "11050.00",
+            "count": 1
+          },
+          {
+            "value": "8463.00",
+            "count": 1
+          },
+          {
+            "value": "13520.00",
+            "count": 1
+          },
+          {
+            "value": "10400.00",
+            "count": 1
+          },
+          {
+            "value": "9880.00",
+            "count": 1
+          },
+          {
+            "value": "7150.00",
+            "count": 1
+          }
+        ],
+        "row_count": 15
+      },
+      "cm_totpd": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 11,
+        "unique_percent": 73.33,
+        "max_length": 8,
+        "min_value": "0.00",
+        "max_value": "9100.00",
+        "value_frequencies": [
+          {
+            "value": "0.00",
+            "count": 5
+          },
+          {
+            "value": "4800.00",
+            "count": 1
+          },
+          {
+            "value": "12000.00",
+            "count": 1
+          },
+          {
+            "value": "10660.00",
+            "count": 1
+          },
+          {
+            "value": "7800.00",
+            "count": 1
+          },
+          {
+            "value": "5400.00",
+            "count": 1
+          },
+          {
+            "value": "9100.00",
+            "count": 1
+          },
+          {
+            "value": "3040.00",
+            "count": 1
+          },
+          {
+            "value": "2250.00",
+            "count": 1
+          },
+          {
+            "value": "1740.00",
+            "count": 1
+          }
+        ],
+        "row_count": 15
+      },
+      "cm_wkcnt": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 9,
+        "unique_percent": 60.0,
+        "max_length": 2,
+        "min_value": "0",
+        "max_value": "8",
+        "value_frequencies": [
+          {
+            "value": "0",
+            "count": 5
+          },
+          {
+            "value": "26",
+            "count": 2
+          },
+          {
+            "value": "5",
+            "count": 2
+          },
+          {
+            "value": "15",
+            "count": 1
+          },
+          {
+            "value": "10",
+            "count": 1
+          },
+          {
+            "value": "12",
+            "count": 1
+          },
+          {
+            "value": "30",
+            "count": 1
+          },
+          {
+            "value": "8",
+            "count": 1
+          },
+          {
+            "value": "6",
+            "count": 1
+          }
+        ],
+        "row_count": 15
+      },
+      "cm_stat": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 6,
+        "unique_percent": 40.0,
+        "max_length": 9,
+        "min_value": "ACTIVE",
+        "max_value": "active",
+        "value_frequencies": [
+          {
+            "value": "ACTIVE",
+            "count": 5
+          },
+          {
+            "value": "PENDING",
+            "count": 4
+          },
+          {
+            "value": "active",
+            "count": 2
+          },
+          {
+            "value": "EXHAUSTED",
+            "count": 2
+          },
+          {
+            "value": "CLOSED",
+            "count": 1
+          },
+          {
+            "value": "Active",
+            "count": 1
+          }
+        ],
+        "row_count": 15
+      },
+      "cm_lupdt": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 12,
+        "unique_percent": 80.0,
+        "max_length": 19,
+        "min_value": "2022-03-15 00:00:00",
+        "max_value": "2027-06-01 00:00:00",
+        "value_frequencies": [
+          {
+            "value": "2023-10-01 00:00:00",
+            "count": 3
+          },
+          {
+            "value": "2023-06-01 00:00:00",
+            "count": 2
+          },
+          {
+            "value": "2023-11-01 00:00:00",
+            "count": 1
+          },
+          {
+            "value": "2024-01-10 00:00:00",
+            "count": 1
+          },
+          {
+            "value": "2024-03-15 00:00:00",
+            "count": 1
+          },
+          {
+            "value": "2023-09-15 00:00:00",
+            "count": 1
+          },
+          {
+            "value": "2023-11-10 00:00:00",
+            "count": 1
+          },
+          {
+            "value": "2023-12-01 00:00:00",
+            "count": 1
+          },
+          {
+            "value": "2024-02-01 00:00:00",
+            "count": 1
+          },
+          {
+            "value": "2027-06-01 00:00:00",
+            "count": 1
+          }
+        ],
+        "row_count": 15
+      }
+    }
+  },
+  "benefit_payments": {
+    "row_count": 20,
+    "column_count": 8,
+    "columns": {
+      "bp_recid": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 20,
+        "unique_percent": 100.0,
+        "max_length": 2,
+        "min_value": "1",
+        "max_value": "9",
+        "value_frequencies": [
+          {
+            "value": "11",
+            "count": 1
+          },
+          {
+            "value": "9",
+            "count": 1
+          },
+          {
+            "value": "15",
+            "count": 1
+          },
+          {
+            "value": "19",
+            "count": 1
+          },
+          {
+            "value": "3",
+            "count": 1
+          },
+          {
+            "value": "17",
+            "count": 1
+          },
+          {
+            "value": "5",
+            "count": 1
+          },
+          {
+            "value": "4",
+            "count": 1
+          },
+          {
+            "value": "10",
+            "count": 1
+          },
+          {
+            "value": "6",
+            "count": 1
+          }
+        ],
+        "row_count": 20
+      },
+      "bp_clmid": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 10,
+        "unique_percent": 50.0,
+        "max_length": 4,
+        "min_value": "1",
+        "max_value": "9999",
+        "value_frequencies": [
+          {
+            "value": "1",
+            "count": 4
+          },
+          {
+            "value": "4",
+            "count": 3
+          },
+          {
+            "value": "5",
+            "count": 2
+          },
+          {
+            "value": "8",
+            "count": 2
+          },
+          {
+            "value": "9",
+            "count": 2
+          },
+          {
+            "value": "6",
+            "count": 2
+          },
+          {
+            "value": "2",
+            "count": 2
+          },
+          {
+            "value": "11",
+            "count": 1
+          },
+          {
+            "value": "9999",
+            "count": 1
+          },
+          {
+            "value": "8888",
+            "count": 1
+          }
+        ],
+        "row_count": 20
+      },
+      "bp_paydt": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 20,
+        "unique_percent": 100.0,
+        "max_length": 10,
+        "min_value": "2022-10-08",
+        "max_value": "2024-01-22",
+        "value_frequencies": [
+          {
+            "value": "2023-05-29",
+            "count": 1
+          },
+          {
+            "value": "2023-11-01",
+            "count": 1
+          },
+          {
+            "value": "2022-10-15",
+            "count": 1
+          },
+          {
+            "value": "2023-04-15",
+            "count": 1
+          },
+          {
+            "value": "2023-07-24",
+            "count": 1
+          },
+          {
+            "value": "2023-09-08",
+            "count": 1
+          },
+          {
+            "value": "2023-09-15",
+            "count": 1
+          },
+          {
+            "value": "2023-08-08",
+            "count": 1
+          },
+          {
+            "value": "2023-04-08",
+            "count": 1
+          },
+          {
+            "value": "2023-07-31",
+            "count": 1
+          }
+        ],
+        "row_count": 20
+      },
+      "bp_payam": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 10,
+        "unique_percent": 50.0,
+        "max_length": 7,
+        "min_value": "-450.00",
+        "max_value": "520.00",
+        "value_frequencies": [
+          {
+            "value": "450.00",
+            "count": 4
+          },
+          {
+            "value": "520.00",
+            "count": 3
+          },
+          {
+            "value": "400.00",
+            "count": 2
+          },
+          {
+            "value": "290.00",
+            "count": 2
+          },
+          {
+            "value": "325.50",
+            "count": 2
+          },
+          {
+            "value": "480.00",
+            "count": 2
+          },
+          {
+            "value": "380.00",
+            "count": 2
+          },
+          {
+            "value": "275.00",
+            "count": 1
+          },
+          {
+            "value": "300.00",
+            "count": 1
+          },
+          {
+            "value": "-450.00",
+            "count": 1
+          }
+        ],
+        "row_count": 20
+      },
+      "bp_methd": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 3,
+        "unique_percent": 15.0,
+        "max_length": 14,
+        "min_value": "check",
+        "max_value": "direct_deposit",
+        "value_frequencies": [
+          {
+            "value": "direct_deposit",
+            "count": 12
+          },
+          {
+            "value": "debit_card",
+            "count": 5
+          },
+          {
+            "value": "check",
+            "count": 3
+          }
+        ],
+        "row_count": 20
+      },
+      "bp_wkedt": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 20,
+        "unique_percent": 100.0,
+        "max_length": 10,
+        "min_value": "2022-10-07",
+        "max_value": "2024-01-21",
+        "value_frequencies": [
+          {
+            "value": "2023-08-14",
+            "count": 1
+          },
+          {
+            "value": "2023-09-14",
+            "count": 1
+          },
+          {
+            "value": "2023-05-21",
+            "count": 1
+          },
+          {
+            "value": "2023-07-23",
+            "count": 1
+          },
+          {
+            "value": "2023-04-21",
+            "count": 1
+          },
+          {
+            "value": "2023-04-14",
+            "count": 1
+          },
+          {
+            "value": "2022-10-07",
+            "count": 1
+          },
+          {
+            "value": "2023-05-28",
+            "count": 1
+          },
+          {
+            "value": "2023-10-31",
+            "count": 1
+          },
+          {
+            "value": "2023-04-28",
+            "count": 1
+          }
+        ],
+        "row_count": 20
+      },
+      "bp_stat": {
+        "null_count": 0,
+        "null_percent": 0.0,
+        "distinct_count": 2,
+        "unique_percent": 10.0,
+        "max_length": 9,
+        "min_value": "processed",
+        "max_value": "reversed",
+        "value_frequencies": [
+          {
+            "value": "processed",
+            "count": 19
+          },
+          {
+            "value": "reversed",
+            "count": 1
+          }
+        ],
+        "row_count": 20
+      },
+      "bp_chkno": {
+        "null_count": 17,
+        "null_percent": 85.0,
+        "distinct_count": 3,
+        "unique_percent": 15.0,
+        "max_length": 9,
+        "min_value": "CHK-10001",
+        "max_value": "CHK-99999",
+        "value_frequencies": [
+          {
+            "value": "CHK-99999",
+            "count": 1
+          },
+          {
+            "value": "CHK-10002",
+            "count": 1
+          },
+          {
+            "value": "CHK-10001",
+            "count": 1
+          }
+        ],
+        "row_count": 20
+      }
+    }
+  }
+}

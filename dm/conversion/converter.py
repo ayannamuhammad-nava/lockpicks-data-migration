@@ -125,9 +125,11 @@ class CodeConverter:
         Checks the project config first; falls back to simple keyword-based
         heuristics.
         """
-        # Check project config
+        # Check project config — try dataset-specific source, fall back to 'legacy'
         connections = self.config.get("connections", {})
-        legacy = connections.get("legacy", {})
+        from dm.config import get_all_sources
+        first_source = get_all_sources(self.config)[0]
+        legacy = connections.get(first_source, connections.get("legacy", {}))
         conn_type = legacy.get("type", "").lower()
 
         if conn_type in ("oracle", "mysql", "mssql", "sqlserver", "postgres", "postgresql"):

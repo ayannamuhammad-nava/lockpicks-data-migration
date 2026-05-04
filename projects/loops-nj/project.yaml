@@ -12,15 +12,21 @@ connections:
     host: ${DB_LEGACY_HOST:localhost}
     port: 5432
     database: ${DB_LEGACY_NAME:legacy_db}
-    user: ${DB_LEGACY_USER:postgres}
-    password: ${DB_LEGACY_PASSWORD:postgres}
+    user: ${DB_LEGACY_USER:app}
+    password: ${DB_LEGACY_PASSWORD:secret123}
   modern:
     type: postgres
     host: ${DB_MODERN_HOST:localhost}
     port: 5432
     database: ${DB_MODERN_NAME:modern_db}
-    user: ${DB_MODERN_USER:postgres}
-    password: ${DB_MODERN_PASSWORD:postgres}
+    user: ${DB_MODERN_USER:app}
+    password: ${DB_MODERN_PASSWORD:secret123}
+
+openmetadata:
+  host: http://localhost:8585
+  auth_token: ${OM_AUTH_TOKEN:}
+  legacy_service: my_legacy_service
+  legacy_database: my_database
 
 datasets:
   - name: claimants

@@ -2,387 +2,387 @@
   "mappings": [
     {
       "source": "cl_recid",
-      "target": "claimant_id",
-      "rationale": "Renamed from cl_recid to claimant_id to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "claimants",
-      "type": "rename"
+      "target": "_record_id",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: cl_recid -> _record_id",
+      "confidence": 0.85,
+      "table": "claimants"
     },
     {
       "source": "cl_fnam",
       "target": "first_name",
-      "rationale": "Renamed from cl_fnam to first_name to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "claimants",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: cl_fnam -> first_name",
+      "confidence": 0.85,
+      "table": "claimants"
     },
     {
       "source": "cl_lnam",
       "target": "last_name",
-      "rationale": "Renamed from cl_lnam to last_name to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "claimants",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: cl_lnam -> last_name",
+      "confidence": 0.85,
+      "table": "claimants"
     },
     {
       "source": "cl_ssn",
       "target": "ssn_hash",
+      "type": "transform",
       "rationale": "SHA-256 hash for HIPAA compliance \u2014 raw SSN must NEVER be written to modern system; duplicate SSNs indicate identity conflicts requiring manual resolution before migration proceeds",
       "confidence": 1.0,
-      "table": "claimants",
-      "type": "transform"
+      "table": "claimants"
     },
     {
       "source": "cl_dob",
       "target": "date_of_birth",
-      "rationale": "Renamed from cl_dob to date_of_birth to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "claimants",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: cl_dob -> date_of_birth",
+      "confidence": 0.85,
+      "table": "claimants"
     },
     {
       "source": "cl_phon",
       "target": "phone_number",
-      "rationale": "Renamed from cl_phon to phone_number to align with modern naming conventions",
-      "confidence": 0.89,
-      "table": "claimants",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: cl_phon -> phone_number",
+      "confidence": 0.85,
+      "table": "claimants"
     },
     {
       "source": "cl_emal",
       "target": "email",
-      "rationale": "Renamed from cl_emal to email to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "claimants",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: cl_emal -> email",
+      "confidence": 0.85,
+      "table": "claimants"
     },
     {
       "source": "cl_adr1",
       "target": "address_line1",
-      "rationale": "Renamed from cl_adr1 to address_line1 to align with modern naming conventions",
-      "confidence": 0.9,
-      "table": "claimants",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: cl_adr1 -> address_line1",
+      "confidence": 0.85,
+      "table": "claimants"
     },
     {
       "source": "cl_city",
       "target": "city",
-      "rationale": "Renamed from cl_city to city to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "claimants",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: cl_city -> city",
+      "confidence": 0.85,
+      "table": "claimants"
     },
     {
       "source": "cl_st",
       "target": "state",
-      "rationale": "Renamed from cl_st to state to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "claimants",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: cl_st -> state",
+      "confidence": 0.85,
+      "table": "claimants"
     },
     {
       "source": "cl_zip",
       "target": "zip_code",
-      "rationale": "Renamed from cl_zip to zip_code to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "claimants",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: cl_zip -> zip_code",
+      "confidence": 0.85,
+      "table": "claimants"
     },
     {
       "source": "cl_bact",
       "target": null,
+      "type": "archived",
       "rationale": "Bank account number NOT migrated \u2014 PCI-DSS regulated financial identifier; must be archived to encrypted vault and claimants re-enrolled through secure portal. Archive alongside cl_brtn. Any plaintext exposure is a PCI-DSS Level 1 violation. Do NOT include in ETL pipeline.",
       "confidence": 1.0,
-      "table": "claimants",
-      "type": "archived"
+      "table": "claimants"
     },
     {
       "source": "cl_brtn",
       "target": null,
+      "type": "archived",
       "rationale": "Bank routing number NOT migrated \u2014 PCI-DSS regulated financial identifier. Archive alongside cl_bact to encrypted vault. Routing numbers combined with account numbers constitute full banking credentials \u2014 any plaintext exposure is a PCI-DSS Level 1 violation. Do NOT include in ETL pipeline.",
       "confidence": 1.0,
-      "table": "claimants",
-      "type": "archived"
+      "table": "claimants"
     },
     {
       "source": "cl_stat",
       "target": "claimant_status",
-      "rationale": "Status codes normalised: 'ACTIVE'\u2192'active', 'INACTIVE'\u2192'inactive', 'SUSPENDED'\u2192'suspended'. Legacy freetext values must be mapped; unmapped values default to 'pending_review' and flagged for manual triage.",
+      "type": "transform",
+      "rationale": "Status codes normalised: 'ACTIVE'->'active', 'INACTIVE'->'inactive', 'SUSPENDED'->'suspended'. Legacy freetext values must be mapped; unmapped values default to 'pending_review' and flagged for manual triage.",
       "confidence": 1.0,
-      "table": "claimants",
-      "type": "transform"
+      "table": "claimants"
     },
     {
       "source": "cl_rgdt",
       "target": "registered_at",
-      "rationale": "Renamed from cl_rgdt to registered_at to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "claimants",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: cl_rgdt -> registered_at",
+      "confidence": 0.85,
+      "table": "claimants"
     },
     {
       "source": "cl_dcsd",
       "target": "is_deceased",
-      "rationale": "Renamed from cl_dcsd to is_deceased to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "claimants",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: cl_dcsd -> is_deceased",
+      "confidence": 0.85,
+      "table": "claimants"
     },
     {
       "source": "cl_fil1",
       "target": null,
+      "type": "removed",
       "rationale": "Legacy filler/padding field with no business meaning \u2014 safe to drop. Verify no application code reads this field before finalising ETL.",
       "confidence": 1.0,
-      "table": "claimants",
-      "type": "removed"
+      "table": "claimants"
     },
     {
       "source": "er_recid",
       "target": "employer_id",
+      "type": "transform",
       "rationale": "er_recid (legacy integer sequence) migrated to UUID-based employer_id in modern system; ETL must generate stable UUIDs and update all FK references in claims and payments before cutover.",
       "confidence": 1.0,
-      "table": "employers",
-      "type": "transform"
+      "table": "employers"
     },
     {
       "source": "er_name",
-      "target": "employer_name",
-      "rationale": "Renamed from er_name to employer_name for improved clarity and naming consistency",
-      "confidence": 0.87,
-      "table": "employers",
-      "type": "rename"
+      "target": "name",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: er_name -> name",
+      "confidence": 0.85,
+      "table": "employers"
     },
     {
       "source": "er_ein",
-      "target": "employer_ein",
-      "rationale": "Renamed from er_ein to employer_ein to align with modern naming conventions",
-      "confidence": 0.86,
-      "table": "employers",
-      "type": "rename"
+      "target": "ein",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: er_ein -> ein",
+      "confidence": 0.85,
+      "table": "employers"
     },
     {
       "source": "er_ind",
       "target": "industry",
-      "rationale": "Renamed from er_ind to industry to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "employers",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: er_ind -> industry",
+      "confidence": 0.85,
+      "table": "employers"
     },
     {
       "source": "er_adr1",
       "target": "address_line1",
-      "rationale": "Renamed from er_adr1 to address_line1 to align with modern naming conventions",
-      "confidence": 0.9,
-      "table": "employers",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: er_adr1 -> address_line1",
+      "confidence": 0.85,
+      "table": "employers"
     },
     {
       "source": "er_city",
       "target": "city",
-      "rationale": "Renamed from er_city to city to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "employers",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: er_city -> city",
+      "confidence": 0.85,
+      "table": "employers"
     },
     {
       "source": "er_st",
       "target": "state",
-      "rationale": "Renamed from er_st to state to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "employers",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: er_st -> state",
+      "confidence": 0.85,
+      "table": "employers"
     },
     {
       "source": "er_zip",
       "target": "zip_code",
-      "rationale": "Renamed from er_zip to zip_code to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "employers",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: er_zip -> zip_code",
+      "confidence": 0.85,
+      "table": "employers"
     },
     {
       "source": "er_phon",
       "target": "phone_number",
-      "rationale": "Renamed from er_phon to phone_number to align with modern naming conventions",
-      "confidence": 0.89,
-      "table": "employers",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: er_phon -> phone_number",
+      "confidence": 0.85,
+      "table": "employers"
     },
     {
       "source": "er_stat",
       "target": "employer_status",
+      "type": "transform",
       "rationale": "Employer status codes normalised to modern enum values; legacy freetext statuses require mapping table review before ETL runs.",
       "confidence": 1.0,
-      "table": "employers",
-      "type": "transform"
+      "table": "employers"
     },
     {
       "source": "cm_recid",
-      "target": "claim_id",
-      "rationale": "Renamed from cm_recid to claim_id to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "claims",
-      "type": "rename"
+      "target": "_record_id",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: cm_recid -> _record_id",
+      "confidence": 0.85,
+      "table": "claims"
     },
     {
       "source": "cm_clmnt",
       "target": "claimant_id",
-      "rationale": "Renamed from cm_clmnt to claimant_id to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "claims",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: cm_clmnt -> claimant_id",
+      "confidence": 0.85,
+      "table": "claims"
     },
     {
       "source": "cm_emplr",
       "target": "employer_id",
+      "type": "rename",
       "rationale": "Renamed to employer_id as FK to employers table; orphan risk if employer records not fully migrated first \u2014 run employer migration before claims ETL.",
       "confidence": 1.0,
-      "table": "claims",
-      "type": "rename"
+      "table": "claims"
     },
     {
       "source": "cm_seprs",
       "target": "separation_reason",
-      "rationale": "Renamed from cm_seprs to separation_reason to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "claims",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: cm_seprs -> separation_reason",
+      "confidence": 0.85,
+      "table": "claims"
     },
     {
       "source": "cm_fildt",
       "target": "filing_date",
-      "rationale": "Renamed from cm_fildt to filing_date to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "claims",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: cm_fildt -> filing_date",
+      "confidence": 0.85,
+      "table": "claims"
     },
     {
       "source": "cm_bystr",
       "target": "benefit_year_start",
+      "type": "transform",
       "rationale": "Renamed from cm_bystr to benefit_year_start; date format normalised from YYYYMMDD integer to ISO-8601 date string \u2014 ETL must parse and reformat all values.",
       "confidence": 1.0,
-      "table": "claims",
-      "type": "transform"
+      "table": "claims"
     },
     {
       "source": "cm_byend",
       "target": "benefit_year_end",
-      "rationale": "Renamed from cm_byend to benefit_year_end to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "claims",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: cm_byend -> benefit_year_end",
+      "confidence": 0.85,
+      "table": "claims"
     },
     {
       "source": "cm_wkamt",
       "target": "weekly_benefit_amount",
-      "rationale": "Renamed from cm_wkamt to weekly_benefit_amount to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "claims",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: cm_wkamt -> weekly_benefit_amount",
+      "confidence": 0.85,
+      "table": "claims"
     },
     {
       "source": "cm_mxamt",
       "target": "max_benefit_amount",
-      "rationale": "Renamed from cm_mxamt to max_benefit_amount to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "claims",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: cm_mxamt -> max_benefit_amount",
+      "confidence": 0.85,
+      "table": "claims"
     },
     {
       "source": "cm_totpd",
       "target": "total_paid",
-      "rationale": "Renamed from cm_totpd to total_paid to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "claims",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: cm_totpd -> total_paid",
+      "confidence": 0.85,
+      "table": "claims"
     },
     {
       "source": "cm_wkcnt",
       "target": "weeks_claimed",
-      "rationale": "Renamed from cm_wkcnt to weeks_claimed to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "claims",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: cm_wkcnt -> weeks_claimed",
+      "confidence": 0.85,
+      "table": "claims"
     },
     {
       "source": "cm_stat",
       "target": "claim_status",
+      "type": "transform",
       "rationale": "Claim status normalised to modern enum; CRITICAL business rule: claims with cm_stat='PAID' where cm_totpd < cm_mxamt indicate potential overpayment \u2014 flag for compliance review before migration completes.",
       "confidence": 1.0,
-      "table": "claims",
-      "type": "transform"
+      "table": "claims"
     },
     {
       "source": "cm_lupdt",
       "target": "updated_at",
-      "rationale": "Renamed from cm_lupdt to updated_at to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "claims",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: cm_lupdt -> updated_at",
+      "confidence": 0.85,
+      "table": "claims"
     },
     {
       "source": "bp_recid",
-      "target": "payment_id",
-      "rationale": "Renamed from bp_recid to payment_id to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "benefit_payments",
-      "type": "rename"
+      "target": "_record_id",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: bp_recid -> _record_id",
+      "confidence": 0.85,
+      "table": "benefit_payments"
     },
     {
       "source": "bp_clmid",
       "target": "claim_id",
-      "rationale": "Renamed from bp_clmid to claim_id to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "benefit_payments",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: bp_clmid -> claim_id",
+      "confidence": 0.85,
+      "table": "benefit_payments"
     },
     {
       "source": "bp_paydt",
       "target": "payment_date",
-      "rationale": "Renamed from bp_paydt to payment_date to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "benefit_payments",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: bp_paydt -> payment_date",
+      "confidence": 0.85,
+      "table": "benefit_payments"
     },
     {
       "source": "bp_payam",
       "target": "payment_amount",
-      "rationale": "Renamed from bp_payam to payment_amount to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "benefit_payments",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: bp_payam -> payment_amount",
+      "confidence": 0.85,
+      "table": "benefit_payments"
     },
     {
       "source": "bp_methd",
-      "target": "payment_method",
-      "rationale": "Renamed from bp_methd to payment_method to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "benefit_payments",
-      "type": "rename"
+      "target": "method",
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: bp_methd -> method",
+      "confidence": 0.85,
+      "table": "benefit_payments"
     },
     {
       "source": "bp_wkedt",
       "target": "week_ending_date",
-      "rationale": "Renamed from bp_wkedt to week_ending_date to align with modern naming conventions",
-      "confidence": 1.0,
-      "table": "benefit_payments",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: bp_wkedt -> week_ending_date",
+      "confidence": 0.85,
+      "table": "benefit_payments"
     },
     {
       "source": "bp_stat",
       "target": "payment_status",
+      "type": "transform",
       "rationale": "Payment status normalised to modern enum values ('ISSUED', 'CLEARED', 'VOIDED'); legacy 'CANC' code maps to 'VOIDED' \u2014 validate all payment records before and after transform.",
       "confidence": 1.0,
-      "table": "benefit_payments",
-      "type": "transform"
+      "table": "benefit_payments"
     },
     {
       "source": "bp_chkno",
       "target": "check_number",
-      "rationale": "Renamed from bp_chkno to check_number to align with modern naming conventions",
-      "confidence": 0.89,
-      "table": "benefit_payments",
-      "type": "rename"
+      "type": "rename",
+      "rationale": "COBOL abbreviation expanded: bp_chkno -> check_number",
+      "confidence": 0.85,
+      "table": "benefit_payments"
     }
   ]
 }

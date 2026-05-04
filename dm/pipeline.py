@@ -74,11 +74,14 @@ def run_validation(
     plugin_specs = get_plugin_specs(config)
     pm = get_plugin_manager(plugin_specs, project_dir=project_dir)
 
-    # Get connectors (with plugin extensions)
+    # Get connectors (with plugin extensions), resolved per-dataset
+    from dm.config import get_dataset_source, get_dataset_target, get_connection_config
     plugin_connectors = _collect_plugin_connectors(pm)
 
-    legacy_conn = get_connector(config["connections"]["legacy"], plugin_connectors)
-    modern_conn = get_connector(config["connections"]["modern"], plugin_connectors)
+    source_name = get_dataset_source(config, dataset)
+    target_name = get_dataset_target(config, dataset)
+    legacy_conn = get_connector(get_connection_config(config, source_name), plugin_connectors)
+    modern_conn = get_connector(get_connection_config(config, target_name), plugin_connectors)
 
     try:
         legacy_conn.connect()
@@ -376,15 +379,20 @@ def run_enrichment(
     pm.register(om_plugin, name="openmetadata")
 
     # Try to connect to modern DB for COBOL-aware column matching
+    # Uses the first dataset's target connection, or falls back to 'modern'
     modern_conn = None
     try:
         from dm.pipeline import get_connector
+        from dm.config import get_dataset_target, get_connection_config
         plugin_connectors = {}
         results = pm.hook.dm_register_connectors()
         for r in results:
             if r:
                 plugin_connectors.update(r)
-        modern_conn = get_connector(config["connections"]["modern"], plugin_connectors)
+        datasets = config.get("datasets", [])
+        first_ds = datasets[0].get("name", datasets[0]) if datasets and isinstance(datasets[0], dict) else (datasets[0] if datasets else None)
+        target_name = get_dataset_target(config, first_ds) if first_ds else "modern"
+        modern_conn = get_connector(get_connection_config(config, target_name), plugin_connectors)
         modern_conn.connect()
     except Exception:
         logger.info("Modern DB not available — using COBOL abbreviation expansion for mappings")
@@ -486,13 +494,25 @@ def run_schema_generation(
         for table in tables:
             logger.info(f"Generating schema for: {table}")
 
-            # Step 2: Get legacy schema + profiling from OM
+            # Step 2: Get legacy schema + profiling from OM (with local fallback)
             legacy_schema = om.get_table_schema(table)
             try:
                 om_profile = om.get_table_profile(table)
             except Exception:
                 om_profile = {"columns": {}}
             om_stats = om_profile.get("columns", {})
+
+            # Fallback: read from local profiling_stats.json if OM has no profile data
+            if not om_stats:
+                local_profile_path = metadata_path / "profiling_stats.json"
+                if local_profile_path.exists():
+                    try:
+                        local_profiles = json.load(open(local_profile_path))
+                        om_stats = local_profiles.get(table, {}).get("columns", {})
+                        if om_stats:
+                            logger.info(f"Using local profiling stats for {table} ({len(om_stats)} columns)")
+                    except Exception:
+                        pass
 
             # Step 3: Normalization analysis
             if normalize and gen_config.get("normalization", {}).get("enabled", True):
@@ -524,7 +544,7 @@ def run_schema_generation(
                     confidence=0.9, rationale="No normalization applied",
                 )
 
-            # Step 4: Generate schema
+            # Step 4: Generate schema (default target for backward compat)
             generator = SchemaGenerator(config, pm, om)
             result = generator.generate(
                 normalization_plan=plan,
@@ -534,9 +554,18 @@ def run_schema_generation(
                 om_profiles=om_stats,
             )
 
-            # Step 5: Save artifacts
+            # Step 5: Save artifacts — default DDL + all target variants
             if not dry_run:
                 generator.save_artifacts(result, output_path)
+                generator.save_all_targets(
+                    tables=result.tables,
+                    plan=plan,
+                    legacy_schema=legacy_schema,
+                    glossary=glossary,
+                    mappings=mappings,
+                    om_profiles=om_stats,
+                    output_base=output_path,
+                )
 
             all_results.append(result)
 
@@ -767,7 +796,7 @@ def run_observation(
     interval: str = "6h",
 ) -> Dict:
     """Monitor pipeline health and detect drift (L-Observer)."""
-    from dm.config import get_openmetadata_config
+    from dm.config import get_connection_config, get_openmetadata_config
     from dm.connectors.postgres import get_connector
     from dm.observer.observer import PipelineObserver
 
@@ -776,13 +805,17 @@ def run_observation(
 
     observer = PipelineObserver(config, pm)
 
+    # Observer monitors the target DB — resolve which one.
+    # Uses 'modern' by default; can be overridden per-dataset in future.
+    _obs_target = config.get("observer", {}).get("connection", "modern")
+
     if set_baseline:
         plugin_connectors = {}
         results = pm.hook.dm_register_connectors()
         for r in results:
             if r:
                 plugin_connectors.update(r)
-        modern_conn = get_connector(config["connections"]["modern"], plugin_connectors)
+        modern_conn = get_connector(get_connection_config(config, _obs_target), plugin_connectors)
         modern_conn.connect()
         try:
             observer.set_baseline(modern_conn)
@@ -802,7 +835,7 @@ def run_observation(
     for r in results:
         if r:
             plugin_connectors.update(r)
-    modern_conn = get_connector(config["connections"]["modern"], plugin_connectors)
+    modern_conn = get_connector(get_connection_config(config, _obs_target), plugin_connectors)
     modern_conn.connect()
     try:
         check_results = observer.run_once(modern_conn)

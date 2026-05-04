@@ -1,0 +1,226 @@
+"""
+Snowflake Target Adapter
+
+Implements the BaseTargetAdapter interface for Snowflake, providing type
+mapping, function translation, and DDL generation.
+"""
+
+import logging
+from datetime import datetime, timezone
+from typing import Dict, List, Optional
+
+from dm.targets.base import BaseTargetAdapter
+
+logger = logging.getLogger(__name__)
+
+TYPE_MAP = {
+    # Integer types
+    "integer": "NUMBER(38,0)",
+    "int": "NUMBER(38,0)",
+    "bigint": "NUMBER(38,0)",
+    "smallint": "NUMBER(38,0)",
+    "tinyint": "NUMBER(38,0)",
+    "serial": "NUMBER(38,0) AUTOINCREMENT",
+    # Numeric types
+    "numeric": "NUMBER",
+    "decimal": "NUMBER",
+    "real": "FLOAT",
+    "double precision": "FLOAT",
+    "double": "FLOAT",
+    "float": "FLOAT",
+    # String types
+    "character varying": "VARCHAR",
+    "varchar": "VARCHAR",
+    "varchar2": "VARCHAR",
+    "nvarchar": "VARCHAR",
+    "nvarchar2": "VARCHAR",
+    "character": "VARCHAR",
+    "char": "VARCHAR",
+    "nchar": "VARCHAR",
+    "text": "VARCHAR(16777216)",
+    "clob": "VARCHAR(16777216)",
+    "nclob": "VARCHAR(16777216)",
+    "long": "VARCHAR(16777216)",
+    # Boolean
+    "boolean": "BOOLEAN",
+    "bool": "BOOLEAN",
+    # Date / Time
+    "date": "DATE",
+    "timestamp without time zone": "TIMESTAMP_NTZ",
+    "timestamp with time zone": "TIMESTAMP_TZ",
+    "timestamp": "TIMESTAMP_TZ",
+    "timestamptz": "TIMESTAMP_TZ",
+    "time": "TIME",
+    "time with time zone": "TIME",
+    "interval": "VARCHAR(50)",
+    # Binary
+    "bytea": "BINARY",
+    "blob": "BINARY",
+    "raw": "BINARY",
+    "long raw": "BINARY",
+    # UUID / JSON
+    "uuid": "VARCHAR(36)",
+    "json": "VARIANT",
+    "jsonb": "VARIANT",
+    # Oracle / mainframe legacy types
+    "number": "NUMBER",
+    "string": "VARCHAR",
+    "binary_float": "FLOAT",
+    "binary_double": "FLOAT",
+    "rowid": "VARCHAR(18)",
+}
+
+FUNCTION_MAP = {
+    "nvl":       lambda args: f"NVL({', '.join(args)})",
+    "nvl2":      lambda args: f"NVL2({', '.join(args)})" if len(args) >= 3 else f"NVL({', '.join(args)})",
+    "sysdate":   lambda args: "CURRENT_TIMESTAMP()",
+    "systimestamp": lambda args: "CURRENT_TIMESTAMP()",
+    "getdate":   lambda args: "CURRENT_TIMESTAMP()",
+    "decode":    lambda args: _decode_to_case(args),
+    "to_date":   lambda args: f"TO_DATE({', '.join(args)})" if args else "CURRENT_DATE()",
+    "to_char":   lambda args: f"TO_CHAR({', '.join(args)})",
+    "to_number": lambda args: f"TO_NUMBER({args[0]})" if args else "0",
+    "instr":     lambda args: f"POSITION({args[1]} IN {args[0]})" if len(args) >= 2 else "0",
+    "substr":    lambda args: f"SUBSTR({', '.join(args)})",
+    "length":    lambda args: f"LENGTH({args[0]})" if args else "LENGTH('')",
+    "concat":    lambda args: f"CONCAT({', '.join(args)})" if args else "''",
+    "ifnull":    lambda args: f"IFNULL({', '.join(args)})",
+    "isnull":    lambda args: f"NVL({', '.join(args)})",
+    "coalesce":  lambda args: f"COALESCE({', '.join(args)})",
+    "now":       lambda args: "CURRENT_TIMESTAMP()",
+    "user":      lambda args: "CURRENT_USER()",
+    "rownum":    lambda args: "ROW_NUMBER() OVER ()",
+}
+
+
+def _decode_to_case(args: list) -> str:
+    if len(args) < 3:
+        return f"/* DECODE with insufficient args: {', '.join(args)} */"
+    expr = args[0]
+    pairs = args[1:]
+    parts = [f"CASE {expr}"]
+    i = 0
+    while i < len(pairs) - 1:
+        parts.append(f"    WHEN {pairs[i]} THEN {pairs[i + 1]}")
+        i += 2
+    if i < len(pairs):
+        parts.append(f"    ELSE {pairs[i]}")
+    parts.append("END")
+    return "\n".join(parts)
+
+
+class SnowflakeTargetAdapter(BaseTargetAdapter):
+    """Snowflake target platform adapter."""
+
+    def dialect_name(self) -> str:
+        return "snowflake"
+
+    def map_type(self, source_type: str, profiling_stats: Optional[dict] = None) -> str:
+        import re
+        raw = source_type.strip()
+        # Strip trailing keywords (PRIMARY KEY, NOT NULL, DEFAULT, etc.)
+        raw = re.split(r'\s+(?:PRIMARY|NOT|DEFAULT|UNIQUE|CHECK|REFERENCES|GENERATED)\b', raw, flags=re.IGNORECASE)[0].strip()
+        base = raw.lower().split("(")[0].strip()
+        size_match = re.search(r"\(([^)]+)\)", raw)
+        size_qualifier = size_match.group(1) if size_match else None
+
+        sf_type = TYPE_MAP.get(base)
+        if sf_type is None:
+            logger.warning(f"Unmapped source type '{source_type}', defaulting to VARCHAR")
+            sf_type = "VARCHAR"
+
+        if size_qualifier and sf_type in ("VARCHAR", "NUMBER"):
+            return f"{sf_type}({size_qualifier})"
+        return sf_type
+
+    def render_create_table(
+        self,
+        table_name: str,
+        columns: List[Dict],
+        primary_key: str,
+        foreign_keys: List[Dict] = None,
+        comment: str = "",
+    ) -> str:
+        foreign_keys = foreign_keys or []
+        lines = [
+            f"-- Generated by DM Target Adapter (snowflake)",
+            f"-- Generated: {datetime.now(timezone.utc).isoformat()}",
+            "",
+            f"CREATE OR REPLACE TABLE {table_name} (",
+        ]
+
+        col_defs = []
+        for col in columns:
+            name = col["name"]
+            data_type = col["data_type"]
+            nullable = col.get("nullable", True)
+            constraints = col.get("constraints", [])
+
+            parts = [f"    {name:<25} {data_type}"]
+            for c in constraints:
+                if not c.startswith("CHECK") and not c.startswith("REFERENCES"):
+                    parts.append(f" {c}")
+            if not nullable and "NOT NULL" not in constraints and "PRIMARY KEY" not in constraints:
+                parts.append(" NOT NULL")
+
+            col_comment = col.get("comment", "")
+            if col_comment:
+                parts.append(f"  -- {col_comment}")
+            col_defs.append("".join(parts))
+
+        lines.append(",\n".join(col_defs))
+        lines.append(");")
+
+        if comment:
+            escaped = comment.replace("'", "''")
+            lines.append(f"\nCOMMENT ON TABLE {table_name} IS '{escaped}';")
+
+        for col in columns:
+            col_comment = col.get("comment", "")
+            if col_comment:
+                escaped = col_comment.replace("'", "''")
+                lines.append(
+                    f"COMMENT ON COLUMN {table_name}.{col['name']} IS '{escaped}';"
+                )
+
+        lines.append("")
+        return "\n".join(lines)
+
+    def render_insert_select(
+        self,
+        target_table: str,
+        source_table: str,
+        column_mappings: List[Dict],
+    ) -> str:
+        if not column_mappings:
+            return f"-- No column mappings for {target_table}\n"
+        target_cols = [m["target_col"] for m in column_mappings]
+        source_exprs = [m["source_expr"] for m in column_mappings]
+        cols_str = ",\n    ".join(target_cols)
+        exprs_str = ",\n    ".join(source_exprs)
+        lines = [
+            f"-- Migration: {source_table} -> {target_table}",
+            "",
+            f"INSERT INTO {target_table} (",
+            f"    {cols_str}",
+            f")",
+            f"SELECT",
+            f"    {exprs_str}",
+            f"FROM {source_table};",
+            "",
+        ]
+        return "\n".join(lines)
+
+    def translate_function(self, func_name: str, args: list) -> str:
+        key = func_name.lower().strip()
+        translator = FUNCTION_MAP.get(key)
+        if translator:
+            return translator(args)
+        args_str = ", ".join(args) if args else ""
+        return f"{func_name}({args_str})"
+
+    def supports_serial(self) -> bool:
+        return True
+
+    def supports_check_constraints(self) -> bool:
+        return False

@@ -1,0 +1,235 @@
+"""
+Oracle Target Adapter
+
+Implements the BaseTargetAdapter interface for Oracle Database, providing type
+mapping, function translation, and DDL generation.
+"""
+
+import logging
+from datetime import datetime, timezone
+from typing import Dict, List, Optional
+
+from dm.targets.base import BaseTargetAdapter
+
+logger = logging.getLogger(__name__)
+
+TYPE_MAP = {
+    # Integer types
+    "integer": "NUMBER(10)",
+    "int": "NUMBER(10)",
+    "bigint": "NUMBER(19)",
+    "smallint": "NUMBER(5)",
+    "tinyint": "NUMBER(3)",
+    "serial": "NUMBER(10) GENERATED ALWAYS AS IDENTITY",
+    # Numeric types
+    "numeric": "NUMBER",
+    "decimal": "NUMBER",
+    "real": "BINARY_FLOAT",
+    "double precision": "BINARY_DOUBLE",
+    "double": "BINARY_DOUBLE",
+    "float": "BINARY_DOUBLE",
+    # String types
+    "character varying": "VARCHAR2",
+    "varchar": "VARCHAR2",
+    "varchar2": "VARCHAR2",
+    "nvarchar": "NVARCHAR2",
+    "nvarchar2": "NVARCHAR2",
+    "character": "CHAR",
+    "char": "CHAR",
+    "nchar": "NCHAR",
+    "text": "CLOB",
+    "clob": "CLOB",
+    "nclob": "NCLOB",
+    "long": "CLOB",
+    # Boolean — Oracle has no native BOOLEAN for tables prior to 23c
+    "boolean": "NUMBER(1)",
+    "bool": "NUMBER(1)",
+    # Date / Time
+    "date": "DATE",
+    "timestamp without time zone": "TIMESTAMP",
+    "timestamp with time zone": "TIMESTAMP WITH TIME ZONE",
+    "timestamp": "TIMESTAMP WITH TIME ZONE",
+    "timestamptz": "TIMESTAMP WITH TIME ZONE",
+    "time": "TIMESTAMP",
+    "time with time zone": "TIMESTAMP WITH TIME ZONE",
+    "interval": "INTERVAL DAY TO SECOND",
+    # Binary
+    "bytea": "RAW(2000)",
+    "blob": "BLOB",
+    "raw": "RAW",
+    "long raw": "BLOB",
+    # UUID / JSON
+    "uuid": "VARCHAR2(36)",
+    "json": "CLOB",
+    "jsonb": "CLOB",
+    # Oracle / mainframe legacy types (pass-through)
+    "number": "NUMBER",
+    "string": "VARCHAR2(4000)",
+    "binary_float": "BINARY_FLOAT",
+    "binary_double": "BINARY_DOUBLE",
+    "rowid": "ROWID",
+}
+
+FUNCTION_MAP = {
+    "nvl":       lambda args: f"NVL({', '.join(args)})",
+    "nvl2":      lambda args: f"NVL2({', '.join(args)})" if len(args) >= 3 else f"NVL({', '.join(args)})",
+    "coalesce":  lambda args: f"COALESCE({', '.join(args)})",
+    "sysdate":   lambda args: "SYSDATE",
+    "systimestamp": lambda args: "SYSTIMESTAMP",
+    "getdate":   lambda args: "SYSDATE",
+    "now":       lambda args: "SYSDATE",
+    "decode":    lambda args: f"DECODE({', '.join(args)})" if args else "NULL",
+    "to_date":   lambda args: f"TO_DATE({', '.join(args)})" if args else "SYSDATE",
+    "to_char":   lambda args: f"TO_CHAR({', '.join(args)})",
+    "to_number": lambda args: f"TO_NUMBER({args[0]})" if args else "0",
+    "instr":     lambda args: f"INSTR({', '.join(args)})",
+    "substr":    lambda args: f"SUBSTR({', '.join(args)})",
+    "length":    lambda args: f"LENGTH({args[0]})" if args else "LENGTH('')",
+    "concat":    lambda args: " || ".join(args) if args else "''",
+    "ifnull":    lambda args: f"NVL({', '.join(args)})",
+    "isnull":    lambda args: f"NVL({', '.join(args)})",
+    "charindex": lambda args: f"INSTR({args[1]}, {args[0]})" if len(args) >= 2 else "0",
+    "dateadd":   lambda args: f"({args[2]} + INTERVAL '{args[1]}' {args[0]})" if len(args) >= 3 else "SYSDATE",
+    "datediff":  lambda args: f"({args[2]} - {args[1]})" if len(args) >= 3 else "0",
+    "user":      lambda args: "USER",
+    "rownum":    lambda args: "ROWNUM",
+}
+
+
+class OracleTargetAdapter(BaseTargetAdapter):
+    """Oracle Database target platform adapter."""
+
+    def dialect_name(self) -> str:
+        return "oracle"
+
+    def map_type(self, source_type: str, profiling_stats: Optional[dict] = None) -> str:
+        import re
+        raw = source_type.strip()
+        raw = re.split(r'\s+(?:PRIMARY|NOT|DEFAULT|UNIQUE|CHECK|REFERENCES|GENERATED)\b', raw, flags=re.IGNORECASE)[0].strip()
+        base = raw.lower().split("(")[0].strip()
+        size_match = re.search(r"\(([^)]+)\)", raw)
+        size_qualifier = size_match.group(1) if size_match else None
+
+        ora_type = TYPE_MAP.get(base)
+        if ora_type is None:
+            logger.warning(f"Unmapped source type '{source_type}', defaulting to VARCHAR2(4000)")
+            ora_type = "VARCHAR2(4000)"
+
+        if size_qualifier and ora_type in ("VARCHAR2", "NVARCHAR2", "CHAR", "NCHAR", "NUMBER", "RAW"):
+            return f"{ora_type}({size_qualifier})"
+
+        # Oracle VARCHAR2 requires a size — default to 4000 if none given
+        if ora_type == "VARCHAR2" and not size_qualifier:
+            return "VARCHAR2(4000)"
+
+        return ora_type
+
+    def render_create_table(
+        self,
+        table_name: str,
+        columns: List[Dict],
+        primary_key: str,
+        foreign_keys: List[Dict] = None,
+        comment: str = "",
+    ) -> str:
+        foreign_keys = foreign_keys or []
+        lines = [
+            f"-- Generated by DM Target Adapter (oracle)",
+            f"-- Generated: {datetime.now(timezone.utc).isoformat()}",
+            "",
+            f"CREATE TABLE {table_name} (",
+        ]
+
+        col_defs = []
+        for col in columns:
+            name = col["name"]
+            data_type = col["data_type"]
+            nullable = col.get("nullable", True)
+            constraints = col.get("constraints", [])
+
+            parts = [f"    {name:<25} {data_type}"]
+            for c in constraints:
+                # Oracle uses CHECK (col IN (...)) but no REFERENCES inline style here
+                if not c.startswith("REFERENCES"):
+                    parts.append(f" {c}")
+            if not nullable and "NOT NULL" not in constraints and "PRIMARY KEY" not in constraints:
+                parts.append(" NOT NULL")
+
+            col_defs.append("".join(parts))
+
+        # FK constraints
+        for fk in foreign_keys:
+            col_defs.append(
+                f"    CONSTRAINT fk_{table_name}_{fk['column']} "
+                f"FOREIGN KEY ({fk['column']}) REFERENCES {fk['references']}"
+            )
+
+        lines.append(",\n".join(col_defs))
+        lines.append(");")
+
+        # Indexes on FK columns
+        for fk in foreign_keys:
+            lines.append(
+                f"\nCREATE INDEX idx_{table_name}_{fk['column']} "
+                f"ON {table_name}({fk['column']});"
+            )
+
+        # Sequence + trigger for SERIAL-like columns (pre-12c compatibility)
+        for col in columns:
+            if "GENERATED ALWAYS AS IDENTITY" in col.get("data_type", ""):
+                # Identity columns work in 12c+, no extra DDL needed
+                pass
+
+        if comment:
+            escaped = comment.replace("'", "''")
+            lines.append(f"\nCOMMENT ON TABLE {table_name} IS '{escaped}';")
+
+        for col in columns:
+            col_comment = col.get("comment", "")
+            if col_comment:
+                escaped = col_comment.replace("'", "''")
+                lines.append(
+                    f"COMMENT ON COLUMN {table_name}.{col['name']} IS '{escaped}';"
+                )
+
+        lines.append("")
+        return "\n".join(lines)
+
+    def render_insert_select(
+        self,
+        target_table: str,
+        source_table: str,
+        column_mappings: List[Dict],
+    ) -> str:
+        if not column_mappings:
+            return f"-- No column mappings for {target_table}\n"
+        target_cols = [m["target_col"] for m in column_mappings]
+        source_exprs = [m["source_expr"] for m in column_mappings]
+        cols_str = ",\n    ".join(target_cols)
+        exprs_str = ",\n    ".join(source_exprs)
+        lines = [
+            f"-- Migration: {source_table} -> {target_table}",
+            "",
+            f"INSERT INTO {target_table} (",
+            f"    {cols_str}",
+            f")",
+            f"SELECT",
+            f"    {exprs_str}",
+            f"FROM {source_table};",
+            "",
+        ]
+        return "\n".join(lines)
+
+    def translate_function(self, func_name: str, args: list) -> str:
+        key = func_name.lower().strip()
+        translator = FUNCTION_MAP.get(key)
+        if translator:
+            return translator(args)
+        args_str = ", ".join(args) if args else ""
+        return f"{func_name}({args_str})"
+
+    def supports_serial(self) -> bool:
+        return True  # 12c+ identity columns
+
+    def supports_check_constraints(self) -> bool:
+        return True

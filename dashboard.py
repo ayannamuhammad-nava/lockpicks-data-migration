@@ -68,7 +68,8 @@ LIFECYCLE_PHASES = [
     ("Governance", "validate --phase pre"),
     ("Transformation", "convert"),
     ("Compliance", "validate --phase pre"),
-    ("Quality", "validate --phase post"),
+    ("Sign-Off", "signoff"),
+    ("Post-Migration", "validate --phase post"),
 ]
 
 STATUS_EMOJI = {"GREEN": "🟢", "YELLOW": "🟡", "RED": "🔴"}
@@ -121,7 +122,6 @@ st.markdown("""
     .section-header { font-size: 1.1rem; font-weight: 600; margin-bottom: 6px; }
     div[data-testid="stChatMessage"] { border-radius: 12px; }
     .pii-alert {
-        background: #ffebee;
         border-left: 4px solid #c62828;
         border-radius: 4px;
         padding: 10px 16px;
@@ -133,7 +133,9 @@ st.markdown("""
 
 # ── Helper functions ───────────────────────────────────────────────────────────
 
-def get_runs() -> list[str]:
+from typing import Optional, List, Dict
+
+def get_runs() -> List[str]:
     if not ARTIFACTS_DIR.exists():
         return []
     runs = [
@@ -143,24 +145,24 @@ def get_runs() -> list[str]:
     return sorted(runs, reverse=True)
 
 
-def load_json(run_name: str, filename: str) -> dict | None:
+def load_json(run_name: str, filename: str) -> Optional[dict]:
     path = ARTIFACTS_DIR / run_name / filename
     if path.exists():
         return json.loads(path.read_text())
     return None
 
 
-def load_text(run_name: str, filename: str) -> str | None:
+def load_text(run_name: str, filename: str) -> Optional[str]:
     path = ARTIFACTS_DIR / run_name / filename
     return path.read_text() if path.exists() else None
 
 
-def load_csv(run_name: str, filename: str) -> pd.DataFrame | None:
+def load_csv(run_name: str, filename: str) -> Optional[pd.DataFrame]:
     path = ARTIFACTS_DIR / run_name / filename
     return pd.read_csv(path) if path.exists() else None
 
 
-def load_mappings(table: str | None = None) -> list[dict]:
+def load_mappings(table: Optional[str] = None) -> List[dict]:
     path = METADATA_DIR / "mappings.json"
     if not path.exists():
         return []
@@ -366,7 +368,17 @@ def get_lifecycle_status() -> dict:
     else:
         status, color, bg = "RED", "#c62828", "#ffebee"
 
-    # Determine current lifecycle phase based on what's been completed
+    # Determine current lifecycle phase based on gated workflow:
+    #   Discovery → Modeling → Governance → Transformation → Compliance → Quality
+    #   PRE runs freely. POST requires sign-off. Prove requires POST.
+    signoff_file = ARTIFACTS_DIR / "signoff.log"
+    has_signoff = False
+    if signoff_file.exists():
+        try:
+            has_signoff = len(signoff_file.read_text().strip()) > 0
+        except Exception:
+            pass
+
     current_phase = 0  # Discovery
     if METADATA_DIR.exists() and (METADATA_DIR / "glossary.json").exists():
         current_phase = 1  # Modeling
@@ -375,21 +387,12 @@ def get_lifecycle_status() -> dict:
     if (ARTIFACTS_DIR / "converted").exists():
         current_phase = 3  # Transformation
     if phase_map["pre"]:
-        current_phase = 4  # Compliance
-    if phase_map["post"]:
-        # Quality is completed only if signed off
-        signoff_file = ARTIFACTS_DIR / "signoff.log"
-        has_signoff = False
-        if signoff_file.exists():
-            try:
-                content = signoff_file.read_text().strip()
-                has_signoff = len(content) > 0
-            except Exception:
-                pass
+        # PRE done — Compliance complete, Sign-Off is current
+        current_phase = 5  # Sign-Off awaiting
         if has_signoff:
-            current_phase = 6  # Quality completed (signed off)
-        else:
-            current_phase = 5  # Quality is current (awaiting sign-off)
+            current_phase = 6  # Signed off — Post-Migration unlocked
+        if has_signoff and phase_map["post"]:
+            current_phase = 7  # Fully complete
 
     return {
         "avg_score": avg,
@@ -431,24 +434,37 @@ def render_lifecycle_bar(lifecycle: dict, phase: str = "", dataset: str = ""):
     # Phase buttons — clickable
     cols = st.columns(len(LIFECYCLE_PHASES))
 
+    # Check sign-off status for Quality gate
+    _signoff_exists = (ARTIFACTS_DIR / "signoff.log").exists()
+    _has_signoff_data = False
+    if _signoff_exists:
+        try:
+            _has_signoff_data = len((ARTIFACTS_DIR / "signoff.log").read_text().strip()) > 0
+        except Exception:
+            pass
+
     for i, (label, _cmd) in enumerate(LIFECYCLE_PHASES):
         with cols[i]:
-            # Quality button turns green when signed off
             if i < current:
-                btn_type = "primary"
+                # Completed phase
                 lbl = f"✓ {label}"
-                if st.button(lbl, key=f"lc_phase_{i}", use_container_width=True, type=btn_type):
+                if st.button(lbl, key=f"lc_phase_{i}", use_container_width=True, type="primary"):
                     st.session_state["lifecycle_view"] = label
                     st.rerun()
             elif i == current:
-                btn_type = "secondary"
-                lbl = f"● {label}"
-                if st.button(lbl, key=f"lc_phase_{i}", use_container_width=True, type=btn_type):
+                # Current phase — clickable
+                if label == "Sign-Off" and not _has_signoff_data:
+                    lbl = f"🔒 {label}"
+                elif label == "Post-Migration" and not _has_signoff_data:
+                    lbl = f"🔒 {label}"
+                else:
+                    lbl = f"● {label}"
+                if st.button(lbl, key=f"lc_phase_{i}", use_container_width=True, type="secondary"):
                     st.session_state["lifecycle_view"] = label
                     st.rerun()
             else:
-                lbl = label
-                st.button(lbl, key=f"lc_phase_{i}", use_container_width=True, type="secondary", disabled=True)
+                # Future phase — disabled
+                st.button(label, key=f"lc_phase_{i}", use_container_width=True, type="secondary", disabled=True)
 
 
 def render_discovery_page():
@@ -472,29 +488,45 @@ def render_discovery_page():
     mappings_data = json.loads(mappings_path.read_text()) if mappings_path.exists() else {"mappings": []}
     mappings = mappings_data.get("mappings", [])
 
-    # Tables summary
+    # Compute discovery summary
     tables = sorted(set(c.get("table", "") for c in columns if c.get("system") == "legacy"))
     legacy_cols = [c for c in columns if c.get("system") == "legacy"]
     modern_cols = [c for c in columns if c.get("system") == "modern"]
     pii_cols = [c for c in legacy_cols if c.get("pii")]
 
-    st.markdown("### Summary")
-    mc1, mc2, mc3, mc4 = st.columns(4)
-    mc1.metric("Legacy Tables", len(tables))
-    mc2.metric("Legacy Columns", len(legacy_cols))
-    mc3.metric("Modern Columns", len(modern_cols))
+    # Mapping stats
+    mapped_count = sum(1 for m in mappings if m.get("target") and m.get("type") not in ("removed",))
+    avg_confidence = (
+        round(sum(m.get("confidence", 0) for m in mappings) / len(mappings) * 100)
+        if mappings else 0
+    )
+
+    # Rationalization stats
+    rat_data = {}
+    if rationalization_path.exists():
+        rat_data = json.loads(rationalization_path.read_text())
+    rat_summary = rat_data.get("summary", {})
+    migrate_count = rat_summary.get("migrate_count", 0)
+    review_count = rat_summary.get("review_count", 0)
+    archive_count = rat_summary.get("archive_count", 0)
+
+    st.markdown("### Discovery Summary")
+    mc1, mc2, mc3, mc4, mc5 = st.columns(5)
+    mc1.metric("Tables Discovered", len(tables))
+    mc2.metric("Columns Mapped", f"{mapped_count}/{len(legacy_cols)}")
+    mc3.metric("Mapping Confidence", f"{avg_confidence}%")
     mc4.metric("PII Fields", len(pii_cols))
+    mc5.metric("Migrate / Archive", f"{migrate_count}/{archive_count}")
 
     st.divider()
 
     # Tabs for different views
-    tab_tables, tab_sample, tab_glossary, tab_mappings, tab_pii, tab_abbrev, tab_scope = st.tabs([
+    tab_tables, tab_sample, tab_glossary, tab_mappings, tab_pii, tab_scope = st.tabs([
         "📋 Tables & Columns",
         "🗂️ Sample Data",
         "📖 Glossary",
         "🔄 Field Mappings",
         "🔒 PII Detection",
-        "🔤 Abbreviations",
         "📊 Rationalization",
     ])
 
@@ -612,17 +644,8 @@ def render_discovery_page():
                 })
             df = pd.DataFrame(rows)
 
-            def highlight_mapping(row):
-                if row["Type"] == "archived":
-                    return ["background-color: #ffebee; color: #000000"] * len(row)
-                if row["Type"] == "transform":
-                    return ["background-color: #fff9c4; color: #000000"] * len(row)
-                if row["Type"] == "removed":
-                    return ["background-color: #f5f5f5; color: #888"] * len(row)
-                return [""] * len(row)
-
             st.dataframe(
-                df.style.apply(highlight_mapping, axis=1),
+                df,
                 use_container_width=True, hide_index=True,
                 column_config={"Rationale": st.column_config.TextColumn(width="large")},
             )
@@ -659,31 +682,6 @@ def render_discovery_page():
             """, unsafe_allow_html=True)
         else:
             st.success("No PII fields detected.")
-
-    # ── Abbreviations tab
-    with tab_abbrev:
-        st.markdown("#### COBOL Abbreviation Mappings")
-        st.caption("Auto-generated from copybook descriptions. Project-specific overrides take priority over the built-in dictionary.")
-
-        if abbrev_path.exists():
-            import yaml
-            abbrev_data = yaml.safe_load(abbrev_path.read_text()) or {}
-            abbrevs = abbrev_data.get("abbreviations", {})
-            generated_from = abbrev_data.get("_generated_from", "")
-
-            if generated_from:
-                st.caption(f"Source: {generated_from}")
-
-            if abbrevs:
-                rows = [{"COBOL Suffix": k, "Modern Name": v} for k, v in sorted(abbrevs.items())]
-                st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-            else:
-                st.info("No project-specific abbreviations generated.")
-
-            st.markdown(f"**Built-in dictionary:** {len(LIFECYCLE_PHASES)} lifecycle phases tracked. "
-                        f"The built-in COBOL dictionary contains 90+ common patterns.")
-        else:
-            st.info("No abbreviations.yaml found. Run `dm discover --enrich` to auto-generate.")
 
     # ── Rationalization tab
     with tab_scope:
@@ -728,12 +726,28 @@ def render_discovery_page():
 def render_modeling_page():
     """Render the Modeling detail page showing generated modern schema tables, columns, and types."""
     st.markdown("## 🏗️ Modeling — Generated Modern Schema")
-    st.caption(f"Project: {PROJECT_NAME}")
+
+    # Target platform selector for this page
+    _active_target = st.session_state.get("selected_target", "postgres")
+    from dm.targets.postgres import get_available_targets as _get_tgts
+    _tgt_names = _get_tgts()
+    _tgt_display = _tgt_names.get(_active_target, _active_target.title())
+    st.caption(f"Project: {PROJECT_NAME}  ·  Target: **{_tgt_display}**")
 
     schema_dir = ARTIFACTS_DIR / "generated_schema"
-    diff_path = schema_dir / "diff_report.json"
+
+    # Use target-specific subfolder if available, fall back to root
+    target_schema_dir = schema_dir / _active_target
+    if target_schema_dir.exists():
+        active_schema_dir = target_schema_dir
+    else:
+        active_schema_dir = schema_dir
+
+    diff_path = active_schema_dir / "diff_report.json"
+    if not diff_path.exists():
+        diff_path = schema_dir / "diff_report.json"
     norm_path = METADATA_DIR / "normalization_plan.json"
-    full_schema_path = schema_dir / "full_schema.sql"
+    full_schema_path = active_schema_dir / "full_schema.sql"
 
     if not schema_dir.exists():
         st.warning("No generated schema found. Run `dm generate-schema --all` first.")
@@ -749,9 +763,9 @@ def render_modeling_page():
     if norm_path.exists():
         norm_plan = json.loads(norm_path.read_text())
 
-    # Parse tables from SQL files
-    sql_files = sorted([f for f in schema_dir.iterdir() if f.suffix == ".sql" and f.name != "full_schema.sql" and "_transforms" not in f.name])
-    transform_files = sorted([f for f in schema_dir.iterdir() if "_transforms" in f.name])
+    # Parse tables from SQL files (target-specific folder when available)
+    sql_files = sorted([f for f in active_schema_dir.iterdir() if f.suffix == ".sql" and f.name != "full_schema.sql" and "_transforms" not in f.name])
+    transform_files = sorted([f for f in active_schema_dir.iterdir() if "_transforms" in f.name])
 
     # Summary metrics
     legacy_col_count = diff_data.get("legacy_column_count", 0)
@@ -848,14 +862,7 @@ def render_modeling_page():
                         })
                     df = pd.DataFrame(rows)
 
-                    if category == "archived":
-                        styled = df.style.apply(lambda r: ["background-color: #ffebee; color: #000"] * len(r), axis=1)
-                        st.dataframe(styled, use_container_width=True, hide_index=True)
-                    elif category == "transformed":
-                        styled = df.style.apply(lambda r: ["background-color: #fff9c4; color: #000"] * len(r), axis=1)
-                        st.dataframe(styled, use_container_width=True, hide_index=True)
-                    else:
-                        st.dataframe(df, use_container_width=True, hide_index=True)
+                    st.dataframe(df, use_container_width=True, hide_index=True)
         else:
             st.info("No diff report found. Run `dm generate-schema --all` to generate.")
 
@@ -890,21 +897,46 @@ def render_modeling_page():
 
     # ── Full DDL tab
     with tab_ddl:
-        st.markdown("#### Full Generated DDL")
-        st.caption("Complete SQL schema ready for deployment to the modern database.")
+        st.markdown(f"#### Full Generated DDL — {_tgt_display}")
+        st.caption(f"Complete SQL schema for **{_tgt_display}** ready for deployment.")
 
+        # Show DDL for selected target
         if full_schema_path.exists():
             sql_text = full_schema_path.read_text()
             st.code(sql_text, language="sql", line_numbers=True)
 
             st.download_button(
-                "Download full_schema.sql",
+                f"Download full_schema.sql ({_tgt_display})",
                 sql_text,
-                file_name="full_schema.sql",
+                file_name=f"full_schema_{_active_target}.sql",
                 mime="text/sql",
             )
         else:
-            st.info("No full_schema.sql found.")
+            st.info("No full_schema.sql found for this target. Run `dm generate-schema --all` to generate.")
+
+        # Quick comparison: show all available targets
+        st.divider()
+        st.markdown("##### All Available Target DDLs")
+        _available = []
+        for _tk, _tname in _tgt_names.items():
+            _tp = schema_dir / _tk / "full_schema.sql"
+            if _tp.exists():
+                _available.append((_tk, _tname, _tp))
+        if _available:
+            _compare_tabs = st.tabs([_tname for _, _tname, _ in _available])
+            for _ctab, (_tk, _tname, _tp) in zip(_compare_tabs, _available):
+                with _ctab:
+                    _sql = _tp.read_text()
+                    st.code(_sql[:3000] + ("\n-- ... (truncated)" if len(_sql) > 3000 else ""), language="sql")
+                    st.download_button(
+                        f"Download ({_tname})",
+                        _sql,
+                        file_name=f"full_schema_{_tk}.sql",
+                        mime="text/sql",
+                        key=f"dl_{_tk}",
+                    )
+        else:
+            st.caption("Run `dm generate-schema --all` to generate DDL for all target platforms.")
 
     # Legend
     st.divider()
@@ -1051,18 +1083,8 @@ def render_governance_page():
 
             df = pd.DataFrame(rows)
 
-            def highlight_pii_action(row):
-                action = row["Action"]
-                if "Archived" in action:
-                    return ["background-color: #e8f5e9; color: #000"] * len(row)
-                elif "Transformed" in action:
-                    return ["background-color: #e8f5e9; color: #000"] * len(row)
-                elif "Pending" in action or "review" in action.lower():
-                    return ["background-color: #ffebee; color: #000"] * len(row)
-                return [""] * len(row)
-
             st.dataframe(
-                df.style.apply(highlight_pii_action, axis=1),
+                df,
                 use_container_width=True, hide_index=True,
                 column_config={"Rationale": st.column_config.TextColumn(width="large")},
             )
@@ -1103,18 +1125,8 @@ def render_governance_page():
 
             st.divider()
 
-            def highlight_mod(row):
-                action = row["Action"]
-                if "archived" in action:
-                    return ["background-color: #ffebee; color: #000"] * len(row)
-                if "transform" in action:
-                    return ["background-color: #fff9c4; color: #000"] * len(row)
-                if "removed" in action:
-                    return ["background-color: #f5f5f5; color: #888"] * len(row)
-                return [""] * len(row)
-
             st.dataframe(
-                df.style.apply(highlight_mod, axis=1),
+                df,
                 use_container_width=True, hide_index=True,
                 column_config={"Rationale": st.column_config.TextColumn(width="large")},
             )
@@ -1223,11 +1235,7 @@ def render_governance_page():
 
                     if not violations.empty:
                         st.markdown("##### Fields Exceeding Null Threshold")
-                        styled = violations.style.map(
-                            lambda v: "background-color: #ffebee; color: #c62828; font-weight: bold" if v == "VIOLATION" else "",
-                            subset=["Status"]
-                        )
-                        st.dataframe(styled, use_container_width=True, hide_index=True)
+                        st.dataframe(violations, use_container_width=True, hide_index=True)
 
                     with st.expander("Show all columns"):
                         st.dataframe(df_null, use_container_width=True, hide_index=True)
@@ -1630,45 +1638,37 @@ def render_compliance_page():
             "🔴 RED < 70 (fix issues first)"
         )
 
+        # Target comparison table
+        st.divider()
+        _comp_target = st.session_state.get("selected_target", "postgres")
+        from dm.scoring import calculate_confidence_all_targets as _calc_all
+        from dm.targets.postgres import get_available_targets as _tgt_disp
+        _proj_cfg = {}
+        if _project_yaml.exists():
+            _proj_cfg = _yaml.safe_load(_project_yaml.read_text()) or {}
+        _all_scores = _calc_all(
+            structure_score=float(struct_score or 0),
+            integrity_score=0.0,  # pre-migration only
+            governance_score=float(gov_score or 0),
+            config=_proj_cfg,
+        )
+        _tgt_display_names = _tgt_disp()
+        st.markdown("#### Score by Target Platform")
+        _rows = []
+        for _tk, _res in _all_scores.items():
+            _se = STATUS_EMOJI.get(_res["status"], "")
+            _rows.append({
+                "Platform": _tgt_display_names.get(_tk, _tk),
+                "Score": f"{_res['score']:.1f}/100",
+                "Status": f"{_se} {_res['status']}",
+                "Structure": f"{_res['structure_score']}/100",
+                "Governance": f"{_res['governance_score']}/100",
+            })
+        st.dataframe(pd.DataFrame(_rows), use_container_width=True, hide_index=True)
 
-def render_quality_page():
-    """Render the Quality detail page showing post-migration results and sign-off."""
-    st.markdown("## 📊 Quality — Post-Migration Validation & Sign-Off")
-    st.caption(f"Project: {PROJECT_NAME}")
 
-    # Collect all runs
-    runs = get_runs()
-    pre_runs = []
-    post_runs = []
-    prove_runs = []
-    for run_name in runs:
-        meta = load_json(run_name, "run_metadata.json") or {}
-        phase = meta.get("phase", "")
-        if phase == "pre":
-            pre_runs.append((run_name, meta))
-        elif phase == "post":
-            post_runs.append((run_name, meta))
-        elif phase == "prove":
-            prove_runs.append((run_name, meta))
-
-    # Compute overall scores
-    all_scores = []
-    for _, meta in pre_runs + post_runs:
-        s = meta.get("confidence_score")
-        if s is not None and float(s) > 0:
-            all_scores.append(float(s))
-
-    avg_score = round(sum(all_scores) / len(all_scores), 1) if all_scores else 0
-    if avg_score >= 90:
-        overall_status = "GREEN"
-    elif avg_score >= 70:
-        overall_status = "YELLOW"
-    else:
-        overall_status = "RED"
-    overall_emoji = STATUS_EMOJI.get(overall_status, "⚪")
-    overall_color = STATUS_COLOR.get(overall_status, "#999")
-
-    # Load sign-offs from log file
+def _load_signoffs():
+    """Load sign-off entries from signoff.log."""
     signoff_path = ARTIFACTS_DIR / "signoff.log"
     signoffs = []
     if signoff_path.exists():
@@ -1685,22 +1685,51 @@ def render_quality_page():
                         "status": parts[6].strip() if len(parts) > 6 else "",
                         "project": parts[7].strip() if len(parts) > 7 else "",
                     })
+    return signoffs
 
-    # ── Overall Quality Summary
-    st.markdown("### Overall Quality Status")
 
-    mc1, mc2, mc3, mc4 = st.columns(4)
-    mc1.metric("Avg Score", f"{avg_score}/100")
-    mc2.metric("Pre Runs", len(pre_runs))
-    mc3.metric("Post Runs", len(post_runs))
-    mc4.metric("Proof Reports", len(prove_runs))
+def _compute_pre_scores():
+    """Compute average PRE validation score."""
+    runs = get_runs()
+    pre_scores = []
+    for run_name in runs:
+        meta = load_json(run_name, "run_metadata.json") or {}
+        if meta.get("phase") == "pre":
+            s = meta.get("confidence_score")
+            if s is not None and float(s) > 0:
+                pre_scores.append(float(s))
+    avg = round(sum(pre_scores) / len(pre_scores), 1) if pre_scores else 0
+    if avg >= 90:
+        status = "GREEN"
+    elif avg >= 70:
+        status = "YELLOW"
+    else:
+        status = "RED"
+    return avg, status, len(pre_scores)
+
+
+def render_signoff_page():
+    """Render the Sign-Off page — PRE score summary, sign-off form, and history."""
+    st.markdown("## ✍️ Sign-Off — PRE Validation Approval")
+    st.caption(f"Project: {PROJECT_NAME}")
+
+    signoffs = _load_signoffs()
+    signoff_path = ARTIFACTS_DIR / "signoff.log"
+    avg_score, overall_status, pre_count = _compute_pre_scores()
+    overall_emoji = STATUS_EMOJI.get(overall_status, "⚪")
+
+    # Summary
+    mc1, mc2, mc3 = st.columns(3)
+    mc1.metric("PRE Avg Score", f"{avg_score}/100")
+    mc2.metric("PRE Runs", pre_count)
+    mc3.metric("Sign-Offs", len(signoffs))
 
     # Sign-off status banner
     if signoffs:
         latest_signoff = signoffs[-1]
         st.markdown(f"""
         <div style="background:#e8f5e9;border-left:5px solid #2e7d32;padding:12px 20px;border-radius:8px;margin:12px 0">
-            <div style="font-size:1rem;font-weight:700;color:#2e7d32">✅ SIGNED OFF</div>
+            <div style="font-size:1rem;font-weight:700;color:#2e7d32">SIGNED OFF</div>
             <div style="font-size:0.85rem;color:#444">
                 Last sign-off by <strong>{latest_signoff.get('name', '')}</strong>
                 ({latest_signoff.get('role', '')})
@@ -1709,24 +1738,226 @@ def render_quality_page():
             </div>
         </div>
         """, unsafe_allow_html=True)
+        st.success("POST validation and Proof generation are now unlocked.")
     else:
         st.markdown(f"""
-        <div style="background:#ffebee;border-left:5px solid #c62828;padding:12px 20px;border-radius:8px;margin:12px 0">
-            <div style="font-size:1rem;font-weight:700;color:#c62828">🔴 NOT SIGNED OFF</div>
-            <div style="font-size:0.85rem;color:#444">No sign-offs recorded. Review the results below and sign off when satisfied.</div>
+        <div style="border-left:5px solid #c62828;padding:12px 20px;border-radius:8px;margin:12px 0">
+            <div style="font-size:1rem;font-weight:700;color:#c62828">NOT SIGNED OFF</div>
+            <div style="font-size:0.85rem;color:#444">Review the PRE validation results in Compliance, then sign off below to proceed.</div>
         </div>
         """, unsafe_allow_html=True)
 
     st.divider()
 
-    # ── Tabs
+    # PRE score breakdown by dataset
+    st.markdown("### PRE Validation Scores")
+    runs = get_runs()
+    _latest_pre = {}
+    for rn in runs:
+        meta = load_json(rn, "run_metadata.json") or {}
+        if meta.get("phase") == "pre":
+            ds = meta.get("dataset", "?")
+            if ds not in _latest_pre:
+                _latest_pre[ds] = meta
+    if _latest_pre:
+        rows = []
+        for ds, meta in sorted(_latest_pre.items()):
+            s = meta.get("confidence_score", "?")
+            st_status = meta.get("status", "?")
+            e = STATUS_EMOJI.get(st_status, "⚪")
+            rows.append({"Dataset": ds, "Score": f"{s}/100", "Status": f"{e} {st_status}"})
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    # Sign-off form
+    st.markdown("### Add Sign-Off")
+    st.markdown(f"**Current PRE Score:** {overall_emoji} **{avg_score}/100** — {overall_status}")
+
+    so_col1, so_col2 = st.columns(2)
+    with so_col1:
+        signoff_name = st.text_input("Full Name", key="signoff_name", placeholder="e.g., Ayanna Muhammad")
+    with so_col2:
+        signoff_role = st.selectbox("Role", [
+            "Data Migration Lead",
+            "Technical Lead",
+            "Compliance Officer",
+            "Program Manager",
+            "Data Steward",
+            "QA Lead",
+            "Other",
+        ], key="signoff_role")
+
+    if st.button("Sign Off", type="primary", use_container_width=True):
+        if not signoff_name:
+            st.error("Please enter your full name before signing off.")
+        else:
+            st.session_state["pending_signoff"] = {
+                "name": signoff_name,
+                "role": signoff_role,
+                "score": avg_score,
+                "status": overall_status,
+            }
+            st.rerun()
+
+    # Confirmation dialog
+    if "pending_signoff" in st.session_state:
+        pending = st.session_state["pending_signoff"]
+        st.warning(
+            f"**Are you sure?** Your information will be saved as signing off on these changes.\n\n"
+            f"**Name:** {pending['name']}  \n"
+            f"**Role:** {pending['role']}  \n"
+            f"**Score:** {pending['score']}/100 ({pending['status']})"
+        )
+        confirm_col, cancel_col = st.columns(2)
+        with confirm_col:
+            if st.button("Confirm Sign-Off", type="primary", use_container_width=True):
+                from datetime import datetime
+                now = datetime.now()
+                log_line = (
+                    f"SIGNOFF | {now.strftime('%Y-%m-%d')} | {now.strftime('%H:%M:%S')} | "
+                    f"{pending['name']} | {pending['role']} | "
+                    f"{pending['score']}/100 | {pending['status']} | {PROJECT_NAME}\n"
+                )
+                signoff_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(signoff_path, "a") as f:
+                    f.write(log_line)
+
+                try:
+                    subprocess.run(["git", "add", "-f", str(signoff_path)], capture_output=True, timeout=10)
+                    subprocess.run(["git", "commit", "-m",
+                        f"Signoff: {pending['name']} ({pending['role']}) — {pending['score']}/100 {pending['status']}"],
+                        capture_output=True, timeout=10)
+                    subprocess.run(["git", "push"], capture_output=True, timeout=30)
+                except Exception:
+                    pass
+
+                del st.session_state["pending_signoff"]
+                st.success(f"Signed off by **{pending['name']}** ({pending['role']}) at score {pending['score']}/100")
+                st.rerun()
+        with cancel_col:
+            if st.button("Cancel", use_container_width=True):
+                del st.session_state["pending_signoff"]
+                st.rerun()
+
+    # Sign-off history
+    st.divider()
+    st.markdown("### Sign-Off History")
+    if signoffs:
+        for i, so in enumerate(reversed(signoffs)):
+            so_status = so.get("status", "")
+            so_emoji = STATUS_EMOJI.get(so_status, "⚪")
+            so_color = STATUS_COLOR.get(so_status, "#999")
+            st.markdown(f"""
+            <div style="border-left:4px solid {so_color};padding:10px 16px;margin:6px 0;border-radius:4px">
+                <div style="font-weight:700;color:#333">{so_emoji} {so.get('name', '')} — {so.get('role', '')}</div>
+                <div style="font-size:0.85rem;color:#666">
+                    {so.get('date', '')} at {so.get('time', '')} &nbsp;&nbsp;
+                    Score: <strong>{so.get('score', '')}/100</strong> ({so_status}) &nbsp;&nbsp;
+                    Project: {so.get('project', '')}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.markdown("*No sign-offs recorded yet.*")
+
+
+def render_post_migration_page():
+    """Render the Post-Migration page — reconciliation reports, proof reports, and score summary."""
+    st.markdown("## 📊 Post-Migration — Reconciliation & Proof")
+    st.caption(f"Project: {PROJECT_NAME}")
+
+    # Check gate
+    signoffs = _load_signoffs()
+    if not signoffs:
+        st.warning(
+            "**Sign-off required.** Complete the Sign-Off step before running POST validation. "
+            "Go to the **Sign-Off** page to approve PRE validation results."
+        )
+        return
+
+    # Load datasets from project config
+    _proj_yaml_post = PROJECT_DIR / "project.yaml"
+    _post_dataset_names = []
+    if _proj_yaml_post.exists():
+        import yaml as _yaml_post
+        _post_config = _yaml_post.safe_load(_proj_yaml_post.read_text()) or {}
+        _post_datasets = _post_config.get("datasets", [])
+        _post_dataset_names = [d.get("name", d) if isinstance(d, dict) else d for d in _post_datasets]
+
+    # ── Run POST Validation
+    st.markdown("### Run POST Validation")
+    run_col1, run_col2 = st.columns([3, 1])
+    with run_col1:
+        post_ds = st.selectbox("Dataset", _post_dataset_names, key="post_mig_dataset") if _post_dataset_names else None
+    with run_col2:
+        st.markdown("")  # spacer
+        st.markdown("")
+        run_post_clicked = st.button("Run POST", type="primary", use_container_width=True, key="btn_run_post_page")
+
+    if run_post_clicked and post_ds:
+        cmd = [
+            sys.executable, "-m", "dm.cli", "validate",
+            "--phase", "post", "--dataset", post_ds,
+            "--project", str(PROJECT_DIR),
+        ]
+        with st.spinner(f"Running POST validation on '{post_ds}'..."):
+            result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode in (0, 1):
+            st.success(f"POST validation complete for {post_ds}.")
+            st.cache_resource.clear()
+            st.rerun()
+        else:
+            st.error(result.stderr[:600] or "Unknown error")
+
+    # Run all datasets at once
+    if _post_dataset_names and st.button("Run POST for All Datasets", use_container_width=True, key="btn_run_post_all"):
+        progress = st.progress(0)
+        status_text = st.empty()
+        for i, ds in enumerate(_post_dataset_names):
+            status_text.text(f"Running POST validation: {ds}...")
+            cmd = [
+                sys.executable, "-m", "dm.cli", "validate",
+                "--phase", "post", "--dataset", ds,
+                "--project", str(PROJECT_DIR),
+            ]
+            subprocess.run(cmd, capture_output=True, text=True)
+            progress.progress((i + 1) / len(_post_dataset_names))
+        status_text.text("All POST validations complete.")
+        st.cache_resource.clear()
+        st.rerun()
+
+    st.divider()
+
+    # Collect runs
+    runs = get_runs()
+    post_runs = []
+    prove_runs = []
+    for run_name in runs:
+        meta = load_json(run_name, "run_metadata.json") or {}
+        phase = meta.get("phase", "")
+        if phase == "post":
+            post_runs.append((run_name, meta))
+        elif phase == "prove":
+            prove_runs.append((run_name, meta))
+
+    # Summary
+    post_scores = [float(m.get("confidence_score", 0)) for _, m in post_runs if m.get("confidence_score")]
+    avg_post = round(sum(post_scores) / len(post_scores), 1) if post_scores else 0
+
+    mc1, mc2, mc3 = st.columns(3)
+    mc1.metric("POST Avg Score", f"{avg_post}/100" if post_runs else "—")
+    mc2.metric("POST Runs", len(post_runs))
+    mc3.metric("Proof Reports", len(prove_runs))
+
+    st.divider()
+
     tabs = st.tabs([
         "📋 Reconciliation",
         "📊 Proof Reports",
         "📈 Score Summary",
-        "✍️ Sign-Off",
     ])
-    tab_recon, tab_proof, tab_scores, tab_signoff = tabs
+    tab_recon, tab_proof, tab_scores = tabs
 
     # ── Reconciliation
     with tab_recon:
@@ -1738,8 +1969,9 @@ def render_quality_page():
                 score = meta.get("confidence_score", "?")
                 run_status = meta.get("status", "?")
                 emoji = STATUS_EMOJI.get(run_status, "⚪")
+                run_ts = run_name.replace("run_", "").replace("_", " ", 1).replace("-", "/", 2).replace("-", ":", 2)
 
-                st.markdown(f"##### {emoji} {dataset.title()} — {score}/100 ({run_status})")
+                st.markdown(f"##### {emoji} {dataset.title()} — {score}/100 ({run_status}) &nbsp;&nbsp; <span style='font-size:0.8rem;color:#888'>{run_ts}</span>", unsafe_allow_html=True)
 
                 recon_md = load_text(run_name, "reconciliation_report.md")
                 if recon_md:
@@ -1747,12 +1979,39 @@ def render_quality_page():
                         st.markdown(recon_md)
                 st.divider()
         else:
-            st.info("No post-migration runs found. Run `dm validate --phase post` first.")
+            st.info("No POST validation runs yet. Run POST validation above to see reconciliation results.")
 
     # ── Proof Reports
     with tab_proof:
         st.markdown("#### Migration Proof Reports")
         st.caption("Combined pre + post validation results for audit.")
+
+        # Generate Proof button — always visible when POST runs exist
+        if post_runs:
+            _prove_col1, _prove_col2 = st.columns([3, 1])
+            with _prove_col1:
+                prove_ds = st.selectbox("Dataset", _post_dataset_names, key="prove_ds_inline") if _post_dataset_names else None
+            with _prove_col2:
+                st.markdown("")
+                st.markdown("")
+                _prove_clicked = st.button("Generate Proof", type="primary", use_container_width=True, key="btn_prove_inline")
+
+            if _prove_clicked and prove_ds:
+                cmd = [
+                    sys.executable, "-m", "dm.cli", "prove",
+                    "--dataset", prove_ds,
+                    "--project", str(PROJECT_DIR),
+                ]
+                with st.spinner(f"Generating proof for '{prove_ds}'..."):
+                    result = subprocess.run(cmd, capture_output=True, text=True)
+                if result.returncode in (0, 1):
+                    st.success("Proof report generated.")
+                    st.cache_resource.clear()
+                    st.rerun()
+                else:
+                    st.error(result.stderr[:600] or "Unknown error")
+
+            st.divider()
 
         if prove_runs:
             for run_name, meta in sorted(prove_runs, reverse=True):
@@ -1771,8 +2030,8 @@ def render_quality_page():
                     with st.expander("View Proof Report", expanded=False):
                         st.markdown(proof_md)
                 st.divider()
-        else:
-            st.info("No proof reports found. Run `dm prove` first.")
+        elif not post_runs:
+            st.info("Run POST validation above first, then generate proof reports here.")
 
     # ── Score Summary
     with tab_scores:
@@ -1800,114 +2059,6 @@ def render_quality_page():
         else:
             st.info("No runs found.")
 
-    # ── Sign-Off
-    with tab_signoff:
-        st.markdown("#### Migration Sign-Off")
-        st.caption("Record formal approval of the migration results. Each sign-off captures the signer's name, role, timestamp, and the current confidence score.")
-
-        st.markdown(f"**Current Overall Score:** {overall_emoji} **{avg_score}/100** — {overall_status}")
-
-        st.divider()
-
-        # Sign-off form
-        st.markdown("##### Add Sign-Off")
-        so_col1, so_col2 = st.columns(2)
-        with so_col1:
-            signoff_name = st.text_input("Full Name", key="signoff_name", placeholder="e.g., Ayanna Muhammad")
-        with so_col2:
-            signoff_role = st.selectbox("Role", [
-                "Data Migration Lead",
-                "Technical Lead",
-                "Compliance Officer",
-                "Program Manager",
-                "Data Steward",
-                "QA Lead",
-                "Other",
-            ], key="signoff_role")
-
-        if st.button("✍️ Sign Off", type="primary", use_container_width=True):
-            if not signoff_name:
-                st.error("Please enter your full name before signing off.")
-            else:
-                st.session_state["pending_signoff"] = {
-                    "name": signoff_name,
-                    "role": signoff_role,
-                    "score": avg_score,
-                    "status": overall_status,
-                }
-                st.rerun()
-
-        # Confirmation dialog
-        if "pending_signoff" in st.session_state:
-            pending = st.session_state["pending_signoff"]
-            st.warning(
-                f"**Are you sure?** Your information will be saved as signing off on these changes.\n\n"
-                f"**Name:** {pending['name']}  \n"
-                f"**Role:** {pending['role']}  \n"
-                f"**Score:** {pending['score']}/100 ({pending['status']})"
-            )
-            confirm_col, cancel_col = st.columns(2)
-            with confirm_col:
-                if st.button("✅ Confirm Sign-Off", type="primary", use_container_width=True):
-                    from datetime import datetime
-                    now = datetime.now()
-                    log_line = (
-                        f"SIGNOFF | {now.strftime('%Y-%m-%d')} | {now.strftime('%H:%M:%S')} | "
-                        f"{pending['name']} | {pending['role']} | "
-                        f"{pending['score']}/100 | {pending['status']} | {PROJECT_NAME}\n"
-                    )
-                    signoff_path.parent.mkdir(parents=True, exist_ok=True)
-                    with open(signoff_path, "a") as f:
-                        f.write(log_line)
-
-                    # Auto-commit signoff to git
-                    try:
-                        subprocess.run(
-                            ["git", "add", "-f", str(signoff_path)],
-                            capture_output=True, timeout=10,
-                        )
-                        subprocess.run(
-                            ["git", "commit", "-m",
-                             f"Signoff: {pending['name']} ({pending['role']}) — {pending['score']}/100 {pending['status']}"],
-                            capture_output=True, timeout=10,
-                        )
-                        subprocess.run(
-                            ["git", "push"],
-                            capture_output=True, timeout=30,
-                        )
-                    except Exception:
-                        pass  # Don't block signoff if git fails
-
-                    del st.session_state["pending_signoff"]
-                    st.success(f"Signed off by **{pending['name']}** ({pending['role']}) at score {pending['score']}/100")
-                    st.rerun()
-            with cancel_col:
-                if st.button("❌ Cancel", use_container_width=True):
-                    del st.session_state["pending_signoff"]
-                    st.rerun()
-
-        st.divider()
-
-        # Display existing sign-offs
-        st.markdown("##### Sign-Off History")
-
-        if signoffs:
-            for i, so in enumerate(reversed(signoffs)):
-                so_status = so.get("status", "")
-                so_color = STATUS_COLOR.get(so_status, "#999")
-                so_emoji = STATUS_EMOJI.get(so_status, "⚪")
-                st.markdown(f"""
-                <div style="background:#f8f9fa;border-left:4px solid {so_color};padding:10px 16px;margin:6px 0;border-radius:4px">
-                    <div style="font-weight:700;color:#333">{so_emoji} {so.get('name', '')} — {so.get('role', '')}</div>
-                    <div style="font-size:0.85rem;color:#666">
-                        {so.get('date', '')} at {so.get('time', '')} &nbsp;&nbsp;
-                        Score: <strong>{so.get('score', '')}/100</strong> ({so_status}) &nbsp;&nbsp;
-                        Project: {so.get('project', '')}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-        else:
-            st.markdown("*No sign-offs recorded yet.*")
 
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
@@ -1919,66 +2070,153 @@ with st.sidebar:
 
     runs = get_runs()
     if runs:
-        # Format label: show phase + dataset from metadata if available
+        # Build a summary: latest run per dataset/phase
+        _latest_by_key = {}  # {(dataset, phase): run_name}
+        _all_run_meta = {}   # {run_name: meta}
+        for rn in runs:
+            meta = load_json(rn, "run_metadata.json") or {}
+            _all_run_meta[rn] = meta
+            key = (meta.get("dataset", "?"), meta.get("phase", "?"))
+            if key not in _latest_by_key:
+                _latest_by_key[key] = rn  # runs are sorted newest first
+
+        # Group by dataset
+        _datasets_seen = []
+        _ds_summary = {}
+        for (ds, phase), rn in _latest_by_key.items():
+            if ds not in _ds_summary:
+                _ds_summary[ds] = {}
+                _datasets_seen.append(ds)
+            meta = _all_run_meta[rn]
+            score = meta.get("confidence_score", "?")
+            status = meta.get("status", "")
+            _ds_summary[ds][phase] = {"run": rn, "score": score, "status": status}
+
+        # Check sign-off status for gating POST display
+        _signoff_file = ARTIFACTS_DIR / "signoff.log"
+        _signed_off = False
+        if _signoff_file.exists():
+            try:
+                _signed_off = len(_signoff_file.read_text().strip()) > 0
+            except Exception:
+                pass
+
+        # Show summary cards
+        st.markdown("**Latest Results**")
+        for ds in _datasets_seen:
+            phases = _ds_summary[ds]
+            parts = []
+            for p in ("pre", "post"):
+                if p in phases:
+                    info = phases[p]
+                    e = STATUS_EMOJI.get(info["status"], "⚪")
+                    parts.append(f"{p.upper()}: {e} {info['score']}")
+                else:
+                    if p == "post" and not _signed_off:
+                        parts.append(f"POST: ⏳ Awaiting Sign-Off")
+                    else:
+                        parts.append(f"{p.upper()}: —")
+            st.markdown(f"**{ds}** &nbsp; {' &nbsp;|&nbsp; '.join(parts)}", unsafe_allow_html=True)
+
+        st.markdown("")
+
+        # Dropdown shows all latest runs
+        _latest_runs = list(dict.fromkeys(_latest_by_key.values()))
+
         def run_label(run_name: str) -> str:
-            meta = load_json(run_name, "run_metadata.json") or {}
+            meta = _all_run_meta.get(run_name, {})
             phase = meta.get("phase", "?").upper()
             dataset = meta.get("dataset", "?")
             score = meta.get("confidence_score", "?")
             status = meta.get("status", "")
             emoji = STATUS_EMOJI.get(status, "⚪")
-            ts = run_name.replace("run_", "")
-            return f"{emoji} {phase} · {dataset} · {score}/100 ({ts})"
+            return f"{emoji} {phase} · {dataset} · {score}/100"
 
         selected_run = st.selectbox(
-            "Select Run",
-            runs,
+            "View Run",
+            _latest_runs,
             format_func=run_label,
         )
+
+        # History expander — includes older runs and POST runs pending migration
+        _older_runs = [r for r in runs if r not in _latest_runs]
+        if _older_runs:
+            with st.expander(f"Run History ({len(runs)} total)"):
+                selected_history = st.selectbox(
+                    "Older runs",
+                    _older_runs,
+                    format_func=lambda rn: (
+                        f"{STATUS_EMOJI.get(_all_run_meta.get(rn,{}).get('status',''), '⚪')} "
+                        f"{_all_run_meta.get(rn,{}).get('phase','?').upper()} · "
+                        f"{_all_run_meta.get(rn,{}).get('dataset','?')} · "
+                        f"{_all_run_meta.get(rn,{}).get('confidence_score','?')}/100 "
+                        f"({rn.replace('run_','')})"
+                    ),
+                    key="history_run",
+                )
+                if st.button("Load this run"):
+                    selected_run = selected_history
+                    st.rerun()
     else:
         st.warning("No runs found. Run a validation first.")
         selected_run = None
 
     st.divider()
 
-    with st.expander("▶ Run New Validation"):
-        phase_sel = st.selectbox("Phase", ["pre", "post"], key="new_phase")
+    # ── Run PRE Validation ────────────────────────────────────────
+    _proj_yaml_sidebar = PROJECT_DIR / "project.yaml"
+    _dataset_names = ["my_table"]
+    if _proj_yaml_sidebar.exists():
+        import yaml as _yaml_sidebar
+        _sidebar_config = _yaml_sidebar.safe_load(_proj_yaml_sidebar.read_text()) or {}
+        _datasets = _sidebar_config.get("datasets", [])
+        if _datasets:
+            _dataset_names = [d.get("name", d) if isinstance(d, dict) else d for d in _datasets]
 
-        # Load datasets from project.yaml
-        _proj_yaml_sidebar = PROJECT_DIR / "project.yaml"
-        _dataset_names = ["my_table"]
-        if _proj_yaml_sidebar.exists():
-            import yaml as _yaml_sidebar
-            _sidebar_config = _yaml_sidebar.safe_load(_proj_yaml_sidebar.read_text()) or {}
-            _datasets = _sidebar_config.get("datasets", [])
-            if _datasets:
-                _dataset_names = [d.get("name", d) if isinstance(d, dict) else d for d in _datasets]
+    with st.expander("**Run PRE Validation**"):
+        dataset_sel = st.selectbox("Dataset", _dataset_names, key="pre_dataset")
+        sample_sel = st.slider("Sample size", 100, 2000, 500, 100, key="pre_sample")
 
-        dataset_sel = st.selectbox(
-            "Dataset",
-            _dataset_names,
-            key="new_dataset",
-        )
-        sample_sel = st.slider("Sample size", 100, 2000, 500, 100) if phase_sel == "pre" else None
-
-        if st.button("Run Validation", type="primary", use_container_width=True):
+        if st.button("Run PRE Validation", type="primary", use_container_width=True, key="btn_pre"):
             cmd = [
-                sys.executable, "-m", "dm.cli",
-                "validate",
-                "--phase", phase_sel,
-                "--dataset", dataset_sel,
-                "--project", str(PROJECT_DIR),
+                sys.executable, "-m", "dm.cli", "validate",
+                "--phase", "pre", "--dataset", dataset_sel,
+                "--project", str(PROJECT_DIR), "--sample", str(sample_sel),
             ]
-            if sample_sel:
-                cmd += ["--sample", str(sample_sel)]
-            with st.spinner(f"Running {phase_sel.upper()} check on '{dataset_sel}'…"):
+            with st.spinner(f"Running PRE check on '{dataset_sel}'…"):
                 result = subprocess.run(cmd, capture_output=True, text=True)
             if result.returncode in (0, 1):
-                st.success("Done! Refresh the run selector.")
+                st.success("Done!")
                 st.cache_resource.clear()
                 st.rerun()
             else:
                 st.error(result.stderr[:600] or "Unknown error")
+
+    st.divider()
+
+    # ── Target Platform Selector ────────────────────────────────────
+    st.markdown("### Target Platform")
+    from dm.targets.postgres import get_available_targets as _get_targets
+    _target_options = _get_targets()
+    _target_keys = list(_target_options.keys())
+    _target_labels = list(_target_options.values())
+    _selected_target_idx = st.selectbox(
+        "Migration Target",
+        range(len(_target_keys)),
+        format_func=lambda i: _target_labels[i],
+        key="target_platform",
+        help="Select the target database platform. Scores and DDL will adjust based on the platform's capabilities.",
+    )
+    selected_target = _target_keys[_selected_target_idx]
+    st.session_state["selected_target"] = selected_target
+
+    # Show target notes
+    from dm.scoring import get_target_penalties as _get_penalties
+    _tp = _get_penalties(selected_target)
+    if _tp.get("notes"):
+        with st.expander("Platform notes"):
+            for _note in _tp["notes"]:
+                st.caption(f"- {_note}")
 
     st.divider()
     st.caption(f"Project: `{PROJECT_NAME}`")
@@ -2011,8 +2249,10 @@ if lifecycle_view:
         render_transformation_page()
     elif lifecycle_view == "Compliance":
         render_compliance_page()
-    elif lifecycle_view == "Quality":
-        render_quality_page()
+    elif lifecycle_view == "Sign-Off":
+        render_signoff_page()
+    elif lifecycle_view == "Post-Migration":
+        render_post_migration_page()
     else:
         st.markdown(f"## {lifecycle_view}")
         st.info(f"Detail page for **{lifecycle_view}** phase coming soon.")
@@ -2031,11 +2271,28 @@ if not meta:
 
 phase       = meta.get("phase", "unknown").upper()
 dataset     = meta.get("dataset", "unknown")
-score       = float(meta.get("confidence_score", 0))
-status      = meta.get("status", "UNKNOWN")
+_base_score  = float(meta.get("confidence_score", 0))
+_base_status = meta.get("status", "UNKNOWN")
 struct_score = meta.get("structure_score")
 gov_score    = meta.get("governance_score")
+integ_score  = meta.get("integrity_score")
 generated_at = meta.get("generated_at", "")[:16].replace("T", " ")
+
+# Recalculate score for the selected target platform
+_active_target = st.session_state.get("selected_target", "postgres")
+from dm.scoring import calculate_confidence as _calc_conf
+_target_result = _calc_conf(
+    structure_score=float(struct_score or _base_score),
+    integrity_score=float(integ_score or _base_score),
+    governance_score=float(gov_score or _base_score),
+    config=_yaml.safe_load(_project_yaml.read_text()) if _project_yaml.exists() else {},
+    target=_active_target,
+)
+score  = _target_result["score"]
+status = _target_result["status"]
+struct_score = _target_result["structure_score"]
+gov_score    = _target_result["governance_score"]
+integ_score  = _target_result["integrity_score"]
 
 emoji = STATUS_EMOJI.get(status, "⚪")
 color = STATUS_COLOR.get(status, "#999")
@@ -2050,11 +2307,16 @@ st.markdown(
 )
 st.caption(f"Run: `{selected_run}`  ·  Generated: {generated_at}")
 
+
 # ── Score row ──────────────────────────────────────────────────────────────────
-col_gauge, col_struct, col_gov, col_status = st.columns([2.5, 1, 1, 1])
+from dm.targets.postgres import get_available_targets as _get_tgt_names
+_tgt_display = _get_tgt_names().get(_active_target, _active_target.title())
+
+col_gauge, col_struct, col_integ, col_gov, col_status = st.columns([2.5, 1, 1, 1, 1])
 
 with col_gauge:
     st.plotly_chart(build_confidence_gauge(score, status), use_container_width=True)
+    st.caption(f"Target: **{_tgt_display}**")
 
 with col_struct:
     st.markdown('<div class="metric-card">', unsafe_allow_html=True)
@@ -2062,6 +2324,14 @@ with col_struct:
     val = f"{struct_score}/100" if struct_score is not None else "N/A"
     st.markdown(f'<div class="metric-value">{val}</div>', unsafe_allow_html=True)
     st.markdown("<div style='font-size:0.75rem;color:#888'>Schema compat · 40% weight</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+with col_integ:
+    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+    st.markdown('<div class="metric-label">Integrity</div>', unsafe_allow_html=True)
+    val = f"{integ_score}/100" if integ_score is not None else "N/A"
+    st.markdown(f'<div class="metric-value">{val}</div>', unsafe_allow_html=True)
+    st.markdown("<div style='font-size:0.75rem;color:#888'>Data survival · 40% weight</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
 with col_gov:
@@ -2083,6 +2353,13 @@ with col_status:
                      "Review recommended" if status == "YELLOW" else "Fix issues first"
     st.markdown(f"<div style='font-size:0.75rem;color:#888'>{threshold_hint}</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
+
+# Show target-specific warnings if applicable
+_target_notes = _target_result.get("target_notes", [])
+if _target_notes:
+    with st.expander(f"Platform considerations for {_tgt_display}", expanded=False):
+        for _tn in _target_notes:
+            st.warning(_tn)
 
 st.divider()
 
@@ -2157,16 +2434,8 @@ if phase == "PRE":
 
                 df_map = pd.DataFrame(rows)
 
-                # Highlight transform/archived rows
-                def highlight_mapping_type(row):
-                    if row["Type"] == "archived":
-                        return ["background-color: #ffebee; color: #000000"] * len(row)
-                    if row["Type"] == "transform":
-                        return ["background-color: #fff9c4; color: #000000"] * len(row)
-                    return [""] * len(row)
-
                 st.dataframe(
-                    df_map.style.apply(highlight_mapping_type, axis=1),
+                    df_map,
                     use_container_width=True,
                     hide_index=True,
                     column_config={

@@ -157,8 +157,9 @@ class PostgresTargetAdapter(BaseTargetAdapter):
         """
         stats = profiling_stats or {}
 
-        # Extract base type and size qualifier
+        # Extract base type and size qualifier, stripping trailing SQL keywords
         raw = source_type.strip()
+        raw = re.split(r'\s+(?:PRIMARY|NOT|DEFAULT|UNIQUE|CHECK|REFERENCES|GENERATED)\b', raw, flags=re.IGNORECASE)[0].strip()
         base = raw.lower().split("(")[0].strip()
         size_match = re.search(r"\(([^)]+)\)", raw)
         size_qualifier = size_match.group(1) if size_match else None
@@ -360,10 +361,39 @@ class PostgresTargetAdapter(BaseTargetAdapter):
 
 # ── Built-in Target Registry ─────────────────────────────────────────
 
+from dm.targets.snowflake import SnowflakeTargetAdapter
+from dm.targets.oracle import OracleTargetAdapter
+from dm.targets.redshift import RedshiftTargetAdapter
+
 BUILTIN_TARGETS = {
     "postgres": PostgresTargetAdapter,
     "postgresql": PostgresTargetAdapter,
+    "snowflake": SnowflakeTargetAdapter,
+    "oracle": OracleTargetAdapter,
+    "redshift": RedshiftTargetAdapter,
+    "aws": RedshiftTargetAdapter,
 }
+
+# Display names for the dashboard and CLI
+TARGET_DISPLAY_NAMES = {
+    "postgres": "PostgreSQL",
+    "snowflake": "Snowflake",
+    "oracle": "Oracle",
+    "redshift": "AWS (Redshift)",
+}
+
+
+def get_available_targets(plugin_targets: dict = None) -> dict:
+    """Return a dict of {key: display_name} for all registered targets.
+
+    Used by the dashboard to populate the target selector.
+    """
+    targets = dict(TARGET_DISPLAY_NAMES)
+    if plugin_targets:
+        for key in plugin_targets:
+            if key not in targets:
+                targets[key] = key.title()
+    return targets
 
 
 def get_target_adapter(
@@ -373,7 +403,7 @@ def get_target_adapter(
     """Instantiate the right target adapter by name.
 
     Args:
-        target_name: Platform name (e.g., 'postgres', 'snowflake').
+        target_name: Platform name (e.g., 'postgres', 'snowflake', 'oracle', 'aws').
         plugin_targets: Extra adapters from plugins (dm_register_targets hook).
 
     Returns:

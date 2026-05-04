@@ -147,10 +147,32 @@ class PostgresConnector(BaseConnector):
 
 # ── Connector factory ────────────────────────────────────────────────
 
+# Lazy-load DB2 and Oracle connectors to avoid hard dependency on
+# ibm-db and oracledb packages.  They are only imported when the
+# connection type is actually requested.
+
+def _get_db2_class():
+    from dm.connectors.db2 import DB2Connector
+    return DB2Connector
+
+def _get_oracle_class():
+    from dm.connectors.oracle import OracleConnector
+    return OracleConnector
+
+def _get_flatfile_class():
+    from dm.connectors.flatfile import FlatFileConnector
+    return FlatFileConnector
+
+
 # Built-in registry; extended by dm_register_connectors hook.
 BUILTIN_CONNECTORS = {
     "postgres": PostgresConnector,
     "postgresql": PostgresConnector,
+    "db2": _get_db2_class,
+    "oracle": _get_oracle_class,
+    "flatfile": _get_flatfile_class,
+    "copybook": _get_flatfile_class,
+    "csv": _get_flatfile_class,
 }
 
 
@@ -175,5 +197,9 @@ def get_connector(config: Dict, plugin_connectors: Optional[Dict] = None) -> Bas
         raise ValueError(
             f"Unknown connector type '{conn_type}'. Available: {available}"
         )
+
+    # Support lazy-loaded connectors (callable that returns the real class)
+    if callable(connector_cls) and not isinstance(connector_cls, type):
+        connector_cls = connector_cls()
 
     return connector_cls(config)

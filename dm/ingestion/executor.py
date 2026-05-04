@@ -263,9 +263,18 @@ class MigrationExecutor:
             "note": "External tool migration — not handled by DM",
         }
 
-    def _get_modern_connection(self) -> Any:
-        """Instantiate the modern database connector from config."""
-        conn_config = get_connection_config(self.config, "modern")
+    def _get_modern_connection(self, dataset: str = None) -> Any:
+        """Instantiate the target database connector from config.
+
+        Resolves per-dataset target connection when a dataset is provided;
+        falls back to 'modern' for backward compatibility.
+        """
+        if dataset:
+            from dm.config import get_dataset_target
+            target_name = get_dataset_target(self.config, dataset)
+        else:
+            target_name = "modern"
+        conn_config = get_connection_config(self.config, target_name)
 
         # Collect plugin connectors if available
         plugin_connectors = {}

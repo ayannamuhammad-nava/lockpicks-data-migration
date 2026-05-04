@@ -269,4 +269,420 @@ The generated file can still be manually reviewed and edited to handle edge case
 | Governance | Pre-validation runs exist |
 | Transformation | `artifacts/converted/` exists |
 | Compliance | Pre-validation runs exist |
-| Quality | Post-validation runs exist |
+| Sign-Off | `signoff.log` has entries |
+| Post-Migration | Post-validation runs exist |
+
+---
+
+## Multi-Target Platform Support (2026-05-04)
+
+Major feature: the toolkit now supports multiple target database platforms. Users can select a target from the dashboard and see DDL, scores, and transform scripts tailored to that platform.
+
+### Target Adapters
+
+**Files:** `dm/targets/snowflake.py`, `dm/targets/oracle.py`, `dm/targets/redshift.py`, `dm/targets/postgres.py`
+
+Added three new target platform adapters alongside the existing PostgreSQL adapter:
+
+| Target | Dialect | Key Differences |
+|--------|---------|-----------------|
+| **PostgreSQL** | postgres | Full type support, JSONB, enforced FK/CHECK constraints |
+| **Snowflake** | snowflake | `CREATE OR REPLACE TABLE`, `VARIANT` for JSON, `NUMBER(38,0) AUTOINCREMENT`, FK/CHECK not enforced |
+| **Oracle** | oracle | `VARCHAR2`, `NUMBER(10) GENERATED ALWAYS AS IDENTITY`, `CLOB` for JSON, no native BOOLEAN (NUMBER(1)) |
+| **AWS (Redshift)** | redshift | `INTEGER IDENTITY(1,1)`, `SUPER` for JSON, `DISTSTYLE KEY`/`DISTKEY`/`SORTKEY`, nothing enforced |
+
+Each adapter implements the full `BaseTargetAdapter` interface: type mapping, DDL rendering, INSERT...SELECT rendering, and function translation.
+
+Registered in `BUILTIN_TARGETS` with aliases (`aws` maps to `redshift`). A `get_available_targets()` helper returns display names for the dashboard selector. A `TARGET_DISPLAY_NAMES` dict provides human-readable labels.
+
+### Target-Aware Schema Generation
+
+**Files:** `dm/discovery/schema_gen.py`, `dm/pipeline.py`
+
+- `SchemaGenerator` accepts an optional `target_adapter` parameter
+- `_map_base_type()` delegates to the adapter's `map_type()` when set
+- `render_ddl()` delegates to the adapter's `render_create_table()` when set
+- `render_transforms()` generates dialect-specific hash expressions (`SHA2()` for Snowflake, `DBMS_CRYPTO.HASH()` for Oracle, `encode(sha256())` for Postgres), cast expressions, and boolean literals
+- `render_full_ddl()` includes the target platform name in the header comment
+- `save_all_targets()` generates DDL for all four platforms into subfolders (`postgres/`, `snowflake/`, `oracle/`, `redshift/`)
+- `run_schema_generation()` in pipeline.py calls `save_all_targets()` automatically after the default save
+
+### Target-Aware Scoring
+
+**File:** `dm/scoring.py`
+
+Each target platform has different capabilities that affect migration confidence. The scoring engine now applies platform-specific penalties:
+
+| Target | Structure | Integrity | Governance | Notes |
+|--------|-----------|-----------|------------|-------|
+| PostgreSQL | 0 | 0 | 0 | Full support |
+| Snowflake | -2 | -5 | -4 | FK/CHECK not enforced, no native UUID |
+| Oracle | -3 | 0 | 0 | No native BOOLEAN, JSON→CLOB |
+| AWS (Redshift) | -3 | -8 | -4 | Nothing enforced, no binary type |
+
+- `calculate_confidence()` accepts optional `target` parameter
+- `calculate_confidence_all_targets()` returns scores for all four platforms
+- Each result includes `target_notes` explaining why points were deducted
+
+### Dashboard Target Platform Selector
+
+**File:** `dashboard.py`
+
+- **Sidebar**: "Target Platform" dropdown (PostgreSQL, Snowflake, Oracle, AWS Redshift) with expandable platform capability notes
+- **Score display**: Recalculates live when target changes; shows target name under the gauge
+- **Modeling page**: Reads DDL from target-specific subfolder; download button labeled per-platform; tabbed comparison view showing all four DDLs side-by-side
+- **Compliance page**: "Score by Target Platform" comparison table
+
+---
+
+## Multi-Source Database Support (2026-05-04)
+
+### Config Helpers
+
+**File:** `dm/config.py`
+
+Added three new functions for per-dataset source/target resolution:
+
+- `get_dataset_source(config, dataset)` — returns the source connection name (defaults to `"legacy"`)
+- `get_dataset_target(config, dataset)` — returns the target connection name (defaults to `"modern"`)
+- `get_all_sources(config)` — returns deduplicated list of all source connection names
+
+Updated `get_connection_config()` error message to list available connections.
+
+### Call Site Updates
+
+Removed all hardcoded `config["connections"]["legacy"]` and `config["connections"]["modern"]` references (9 call sites across 5 files):
+
+| File | Change |
+|------|--------|
+| `dm/pipeline.py` (run_validation) | Resolves source/target per-dataset |
+| `dm/pipeline.py` (run_enrichment) | Resolves first dataset's target for column matching |
+| `dm/pipeline.py` (observer) | Resolves target from config or defaults to `"modern"` |
+| `dm/cli.py` (discover) | Uses `get_all_sources()[0]` instead of `"legacy"` |
+| `dm/ingestion/executor.py` | `_get_modern_connection()` accepts optional dataset for per-dataset target |
+| `dm/conversion/converter.py` | Dialect detection uses first source connection type |
+
+### New project.yaml Format
+
+Datasets can now specify which connection to use:
+
+```yaml
+connections:
+  eligibility_db: { type: db2, host: mainframe.state.gov }
+  claims_db: { type: db2, host: mainframe.state.gov }
+  modern: { type: postgres, host: localhost }
+
+datasets:
+  - name: claimants
+    source: eligibility_db
+    target: modern
+  - name: claims
+    source: claims_db
+    target: modern
+```
+
+Fully backward compatible — existing configs with just `legacy`/`modern` work unchanged.
+
+---
+
+## DB2 and Oracle Source Connectors (2026-05-04)
+
+**Files:** `dm/connectors/db2.py`, `dm/connectors/oracle.py`, `dm/connectors/postgres.py`, `pyproject.toml`
+
+Added two new source database connectors for reading from legacy systems:
+
+### DB2 Connector (`dm/connectors/db2.py`)
+- Uses `ibm_db` / `ibm_db_dbi` (standard IBM Python driver)
+- Schema introspection via `SYSCAT.COLUMNS`
+- Column hashing via `HASH()` (DB2 LUW 11.1+) with fallback
+- `FETCH FIRST N ROWS ONLY` for row limiting
+- Optional SSL and schema config
+
+### Oracle Connector (`dm/connectors/oracle.py`)
+- Uses `oracledb` (thin mode — no Oracle client install required)
+- Supports both `service_name` and `sid` connection styles
+- Schema introspection via `ALL_TAB_COLUMNS`
+- Column hashing via `STANDARD_HASH()` (12c+) with `ORA_HASH()` fallback
+- `ROWNUM <= N` for row limiting
+
+### Registry
+- Both lazy-loaded in the connector factory — `ibm-db` and `oracledb` only imported when actually used
+- Added `[db2]` and `[oracle]` optional dependency groups to `pyproject.toml`
+- Factory updated to handle lazy-loaded connectors
+
+---
+
+## Cross-Source Referential Integrity (2026-05-04)
+
+**Files:** `dm/validators/post/referential.py`, `dm/observer/checks/integrity.py`
+
+When the child and parent tables live in different databases (e.g., claims in `claims_db` references claimants in `eligibility_db`), the validator now opens connections to both sources and checks for orphans in Python.
+
+### Config Format
+
+```yaml
+referential_integrity:
+  claims:
+    - child_table: claims
+      child_source: claims_db
+      parent_table: claimants
+      parent_source: eligibility_db
+      fk_column: claimant_id
+      pk_column: claimant_id
+```
+
+When `child_source` and `parent_source` are omitted or identical, falls back to original single-connection JOIN.
+
+### How It Works
+1. Opens separate connections to both databases
+2. Pulls distinct FK values from child table
+3. Pulls distinct PK values from parent table
+4. Computes orphans as `child_fks - parent_pks` in Python
+5. Cleans up both connections
+
+Results include `"cross_source": true` flag. Both the post-migration validator and the observer integrity check support this.
+
+---
+
+## Local Profiling Fallback (2026-05-04)
+
+**File:** `dm/pipeline.py`
+
+When OpenMetadata has no profiler data (common with OM 1.6.2 which can't persist profiles via REST API), the schema generation pipeline now falls back to `metadata/profiling_stats.json` — a local file containing column-level statistics (null %, distinct count, max length, value frequencies) computed directly from the database.
+
+---
+
+## Ingestion Planner Fix (2026-05-04)
+
+**File:** `dm/ingestion/planner.py`
+
+Fixed `_build_dependency_graph()` to handle both flat list and per-dataset dict formats for `referential_integrity` config. Previously crashed with `AttributeError: 'str' object has no attribute 'get'` when the config used the dict format.
+
+---
+
+## Dashboard Overhaul (2026-05-04)
+
+### Python 3.9 Compatibility
+- Replaced `dict | None`, `str | None`, `list[str]` type hints with `Optional[dict]`, `Optional[str]`, `List[str]` from `typing`
+
+### Gated Workflow
+The dashboard now enforces a strict workflow: **PRE → Sign-Off → POST → Prove**
+
+- **Sidebar**: Only shows "Run PRE Validation"
+- **Sign-Off page**: New dedicated lifecycle phase with PRE score summary, sign-off form, confirmation dialog, and history
+- **Post-Migration page**: New dedicated lifecycle phase with run buttons (single dataset + run all with progress bar), reconciliation reports with timestamps, proof report generation, and score summary
+- POST validation and Prove are locked until sign-off is recorded
+- All actions that were previously in the sidebar (POST, Prove) now live on the Post-Migration page
+
+### Lifecycle Bar Updated to 7 Phases
+```
+Discovery → Modeling → Governance → Transformation → Compliance → Sign-Off → Post-Migration
+```
+
+Sign-Off shows as locked (🔒) until PRE results are signed off. Post-Migration is disabled until sign-off.
+
+### Latest Results in Sidebar
+- Groups runs by dataset, shows only latest PRE and POST scores per dataset
+- Shows `⏳ Awaiting Sign-Off` for POST when sign-off hasn't been recorded
+- Shows actual POST scores once runs exist
+- "View Run" dropdown shows only latest runs; older runs in collapsible "Run History"
+
+### Removed Row Highlighting
+Removed background color highlighting from all dataframe rows across governance, compliance, and modeling pages. Tables now use plain text for readability.
+
+### Removed Abbreviations Tab
+Removed the standalone "Abbreviations" tab from Discovery — abbreviation expansion is already shown inline in the Modeling page's column mapping.
+
+### Updated Discovery Summary
+Changed from "Legacy Tables, Legacy Columns, Modern Columns, PII Fields" to more meaningful metrics:
+- Tables Discovered
+- Columns Mapped (e.g., 44/48)
+- Mapping Confidence (average %)
+- PII Fields
+- Migrate / Archive (e.g., 0/4)
+
+### Reconciliation Report Timestamps
+Each reconciliation report title now includes the run date and time.
+
+---
+
+## COBOL Copybook Parser & Flat File Connector (2026-05-04)
+
+Enables the toolkit to ingest mainframe data directly from copybooks and flat file extracts — no database connection required.
+
+### Copybook Parser (`dm/connectors/copybook_parser.py`)
+
+Parses COBOL `.cpy` files to extract field definitions:
+
+- Extracts field name, PIC clause, byte offset, and length
+- Handles group levels (01, 05, 10), REDEFINES, OCCURS, FILLER
+- Maps PIC clauses to SQL types:
+
+| PIC Clause | SQL Type |
+|------------|----------|
+| `PIC X(25)` | `VARCHAR(25)` |
+| `PIC 9(5)` | `INTEGER` |
+| `PIC S9(7)V99` | `NUMERIC(9,2)` |
+| `PIC 9(15)` | `BIGINT` |
+| `PIC X` | `CHAR(1)` |
+| `PIC A(10)` | `VARCHAR(10)` |
+| `PIC 9(3)` | `SMALLINT` |
+
+- Skips FILLER fields and 88-level condition names
+- Works from file path or raw text string
+- Outputs `CopybookLayout` with `to_schema()` for direct use in the pipeline
+
+### Flat File Connector (`dm/connectors/flatfile.py`)
+
+Implements the full `BaseConnector` interface for reading mainframe extracts:
+
+- **Fixed-width files** — parsed using copybook layout (field offsets and lengths)
+- **CSV/TSV files** — configurable delimiter
+- **EBCDIC encoding** — auto-decodes CP037 (US/Canada mainframes) to UTF-8
+- **All validation helpers** — row count, null %, distinct count, column hash, checksums, duplicate detection
+- Registered as three connector types: `flatfile`, `copybook`, `csv`
+
+Config format:
+```yaml
+connections:
+  mainframe_extract:
+    type: copybook
+    copybook: /data/CLAIMANT.cpy
+    datafile: /data/CLAIMANT.dat
+    encoding: ebcdic
+    format: fixed
+    table_name: claimants
+
+  federal_feed:
+    type: flatfile
+    datafile: /data/qc_sample.csv
+    format: csv
+    table_name: federal_sample
+```
+
+---
+
+## Git Repo Loader (`dm/repo_loader.py`) (2026-05-04)
+
+Enables the toolkit to ingest mainframe artifacts directly from a git repository URL.
+
+### How It Works
+
+1. **Clone** — `clone_repo(url)` clones a git repo (or pulls latest if already cloned)
+2. **Scan** — `scan_repo(path)` auto-detects mainframe artifacts:
+   - `.cpy` / `.cob` → COBOL copybooks
+   - `.dat` / `.bin` / `.raw` → fixed-width data files
+   - `.csv` / `.tsv` → delimited data
+   - `.sql` → legacy DDL/DML
+   - `.txt` → auto-detected as fixed-width (same-length lines) or CSV (delimiters)
+3. **Pair** — matches copybooks to data files by filename (e.g., `CLAIMANT.cpy` + `CLAIMANT.dat`)
+4. **Generate** — creates full `project.yaml` with connections, datasets, validation config
+
+### CLI Integration
+
+```bash
+# From a git repo
+dm init my-project --repo https://github.com/agency/mainframe-extracts.git
+
+# From a local directory
+dm init my-project --data /path/to/mainframe/files
+
+# With a specific target platform
+dm init my-project --repo <url> --target snowflake
+```
+
+The generated project is immediately ready for the pipeline:
+```bash
+dm discover --project projects/my-project
+dm generate-schema --all --project projects/my-project
+dm validate --phase pre --dataset claimants --project projects/my-project
+```
+
+---
+
+## Full Toolkit Capabilities Summary (2026-05-04)
+
+### What the toolkit can do now
+
+**Input Sources — read from any legacy system:**
+
+| Source | Connector | How |
+|--------|-----------|-----|
+| IBM DB2 mainframe | `dm/connectors/db2.py` | Direct JDBC connection via `ibm_db` |
+| Oracle Database | `dm/connectors/oracle.py` | Direct connection via `oracledb` (thin mode) |
+| PostgreSQL | `dm/connectors/postgres.py` | Direct connection via `psycopg2` |
+| COBOL copybook + flat file | `dm/connectors/flatfile.py` | Parses `.cpy` layout, reads fixed-width `.dat` files |
+| CSV / TSV files | `dm/connectors/flatfile.py` | Standard delimited file reading |
+| EBCDIC-encoded files | `dm/connectors/flatfile.py` | Auto-decodes CP037 to UTF-8 |
+| Git repository | `dm/repo_loader.py` | Clones repo, auto-detects and pairs artifacts |
+| Multiple databases | `dm/config.py` | Per-dataset `source`/`target` in `project.yaml` |
+
+**Output Targets — generate schemas for any platform:**
+
+| Target | Adapter | DDL Features |
+|--------|---------|-------------|
+| PostgreSQL | `dm/targets/postgres.py` | SERIAL, JSONB, TIMESTAMPTZ, enforced FK/CHECK |
+| Snowflake | `dm/targets/snowflake.py` | CREATE OR REPLACE, VARIANT, NUMBER AUTOINCREMENT |
+| Oracle | `dm/targets/oracle.py` | VARCHAR2, NUMBER IDENTITY, CLOB for JSON |
+| AWS Redshift | `dm/targets/redshift.py` | IDENTITY, SUPER for JSON, DISTSTYLE/DISTKEY/SORTKEY |
+
+**10-Phase Pipeline:**
+
+| Phase | Command | What it does |
+|-------|---------|-------------|
+| **Init** | `dm init --repo <url>` | Clone repo, scan artifacts, scaffold project |
+| **Profile** | Local profiler | Column stats: null %, distinct count, value frequencies |
+| **Discover** | `dm discover --enrich` | Schema introspection, COBOL abbreviation expansion, PII tagging |
+| **Rationalize** | `dm rationalize` | Score tables for migration scope (migrate/review/archive) |
+| **Generate Schema** | `dm generate-schema --all` | Normalized DDL for all 4 target platforms |
+| **Convert** | `dm convert` | Legacy SQL → target dialect (80% rule engine, 20% AI) |
+| **PRE Validate** | `dm validate --phase pre` | Structure, governance, PII, naming, data quality checks |
+| **Sign-Off** | Dashboard | Formal approval with name, role, timestamp |
+| **POST Validate** | `dm validate --phase post` | Row counts, checksums, FK integrity, aggregates |
+| **Prove** | `dm prove` | Combined pre+post audit package |
+
+**Scoring — target-aware confidence:**
+
+- Base formula: `confidence = (0.4 × structure) + (0.4 × integrity) + (0.2 × governance)`
+- Platform penalties: PostgreSQL (0), Snowflake (-11), Oracle (-3), Redshift (-15)
+- Traffic lights: GREEN >= 90, YELLOW 70-89, RED < 70
+- Cross-platform comparison table in dashboard
+
+**Dashboard — 7-phase gated workflow:**
+
+```
+Discovery → Modeling → Governance → Transformation → Compliance → Sign-Off → Post-Migration
+```
+
+- Target platform selector (live DDL and score switching)
+- PRE validation from sidebar
+- POST validation and Proof generation from Post-Migration page
+- Gated: POST requires sign-off, Prove requires POST
+- Per-dataset score summary, run history, reconciliation reports with timestamps
+
+**Cross-Source Features:**
+
+- Multiple databases per project (each dataset can point to a different source)
+- Cross-database referential integrity (FK checks across DB2 + Oracle, etc.)
+- Mixed source types (DB2 for core, flat files for federal feeds, CSV for extracts)
+
+**COBOL-Aware:**
+
+- 90+ built-in abbreviation patterns
+- Auto-generates abbreviations from copybook descriptions
+- PIC clause → SQL type mapping
+- EBCDIC → UTF-8 decoding
+- FILLER field detection and removal
+- Copybook-driven fixed-width file parsing
+
+**What a new mainframe migration needs:**
+
+1. `dm init my-project --repo <url>` (or `--data /path`)
+2. `dm discover --enrich --project projects/my-project`
+3. `dm rationalize --project projects/my-project`
+4. `dm generate-schema --all --project projects/my-project`
+5. `dm validate --phase pre --dataset <name> --project projects/my-project`
+6. Sign off in the dashboard
+7. `dm validate --phase post` and `dm prove` from the Post-Migration page
+
+No project-specific code required. The plugin system handles edge cases.
