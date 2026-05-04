@@ -110,6 +110,131 @@ def init(name, template, repo, data, target):
 
 
 @cli.command()
+@click.argument("name")
+@click.option("--repo", default=None, help="Git repo URL containing mainframe artifacts")
+@click.option("--data", default=None, help="Local directory containing mainframe artifacts")
+@click.option("--target", default="postgres", help="Target platform (postgres, snowflake, oracle, redshift)")
+@click.option("--skip-validate", is_flag=True, help="Skip PRE validation step")
+def bootstrap(name, repo, data, target, skip_validate):
+    """One-command setup: init + discover + rationalize + generate-schema + validate.
+
+    Creates a project from a git repo or local directory and runs the full
+    pre-migration pipeline automatically.
+
+    Examples:
+        dm bootstrap my-project --repo https://github.com/org/mainframe-data.git
+        dm bootstrap my-project --data /path/to/files --target snowflake
+    """
+    import subprocess as _sp
+
+    project_dir = Path("projects") / name
+
+    # Step 1: Init
+    click.echo("============================================================")
+    click.echo(f"  Bootstrapping project: {name}")
+    click.echo("============================================================")
+    click.echo("")
+
+    init_cmd = [sys.executable, "-m", "dm.cli", "init", name]
+    if repo:
+        init_cmd += ["--repo", repo]
+    elif data:
+        init_cmd += ["--data", data]
+    init_cmd += ["--target", target]
+
+    click.echo("[1/5] Initializing project...")
+    result = _sp.run(init_cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        click.echo(result.stderr, err=True)
+        sys.exit(1)
+    click.echo(result.stdout)
+
+    # Check project was created
+    if not (project_dir / "project.yaml").exists():
+        click.echo(f"ERROR: project.yaml not found at {project_dir}", err=True)
+        sys.exit(1)
+
+    project_path = str(project_dir)
+
+    # Step 2: Discover
+    click.echo("[2/5] Running discovery + enrichment...")
+    result = _sp.run(
+        [sys.executable, "-m", "dm.cli", "discover", "--enrich", "--project", project_path],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        click.echo(f"  Discovery failed (non-fatal): {result.stderr[:200]}")
+        click.echo("  Continuing — discovery can be re-run later.")
+    else:
+        click.echo("  Discovery complete.")
+    click.echo("")
+
+    # Step 3: Rationalize
+    click.echo("[3/5] Running rationalization...")
+    result = _sp.run(
+        [sys.executable, "-m", "dm.cli", "rationalize", "--project", project_path],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        click.echo(f"  Rationalization failed (non-fatal): {result.stderr[:200]}")
+    else:
+        click.echo("  Rationalization complete.")
+    click.echo("")
+
+    # Step 4: Generate schema
+    click.echo("[4/5] Generating schemas for all target platforms...")
+    result = _sp.run(
+        [sys.executable, "-m", "dm.cli", "generate-schema", "--all", "--project", project_path],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        click.echo(f"  Schema generation failed (non-fatal): {result.stderr[:200]}")
+    else:
+        click.echo("  Schemas generated for PostgreSQL, Snowflake, Oracle, AWS Redshift.")
+    click.echo("")
+
+    # Step 5: PRE validation
+    if not skip_validate:
+        click.echo("[5/5] Running PRE validation...")
+        from dm.config import load_project_config, get_datasets
+        try:
+            config = load_project_config(project_path)
+            datasets = get_datasets(config)
+            ds_names = [d.get("name", d) if isinstance(d, dict) else d for d in datasets]
+
+            for ds in ds_names:
+                click.echo(f"  Validating: {ds}")
+                result = _sp.run(
+                    [sys.executable, "-m", "dm.cli", "validate", "--phase", "pre",
+                     "--dataset", ds, "--project", project_path],
+                    capture_output=True, text=True,
+                )
+                # Extract score from output
+                for line in result.stdout.splitlines():
+                    if "CONFIDENCE" in line or "STATUS" in line:
+                        click.echo(f"    {line.strip()}")
+        except Exception as e:
+            click.echo(f"  Validation failed: {e}")
+    else:
+        click.echo("[5/5] Skipping PRE validation (--skip-validate)")
+    click.echo("")
+
+    click.echo("============================================================")
+    click.echo("  Bootstrap Complete!")
+    click.echo("============================================================")
+    click.echo("")
+    click.echo(f"  Project:    {project_dir}")
+    click.echo(f"  Target:     {target}")
+    click.echo("")
+    click.echo("  Launch the dashboard:")
+    click.echo(f"    streamlit run dashboard.py -- --project {project_dir}")
+    click.echo("")
+    click.echo("  Or continue from the CLI:")
+    click.echo(f"    dm validate --phase pre --dataset <name> --project {project_dir}")
+    click.echo("============================================================")
+
+
+@cli.command()
 @click.option("--project", "-p", default=".", help="Project directory")
 @click.option("--tables", "-t", multiple=True, help="Specific tables (default: all from config)")
 @click.option("--no-interactive", is_flag=True, help="Skip interactive prompts")
