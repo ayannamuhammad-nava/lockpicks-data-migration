@@ -455,7 +455,11 @@ class SchemaGenerator:
         column: str,
         om_stats: Optional[Dict] = None,
     ) -> str:
-        """Optimize PostgreSQL data type using OM profiling stats."""
+        """Optimize data type using profiling stats, respecting the target adapter.
+
+        When a target adapter is set, uses target-specific type names
+        (e.g., NUMBER(1) for Oracle booleans, VARCHAR2 for Oracle strings).
+        """
         if not self._gen_config.get("type_optimization", True):
             return self._map_base_type(legacy_type)
 
@@ -465,8 +469,9 @@ class SchemaGenerator:
         min_val = stats.get("min_value")
         max_val = stats.get("max_value")
         max_length = stats.get("max_length")
+        dialect = self._target.dialect_name() if self._target else "postgres"
 
-        # VARCHAR with exactly 2 values that look boolean → BOOLEAN
+        # VARCHAR with exactly 2 values that look boolean → BOOLEAN (or platform equivalent)
         frequencies = stats.get("value_frequencies", [])
         if base_type in ("character varying", "varchar", "text", "string", "char"):
             if distinct_count == 2 and frequencies:
@@ -477,37 +482,38 @@ class SchemaGenerator:
                     vals = {str(k).upper() for k in frequencies}
                 bool_pairs = [{"Y", "N"}, {"YES", "NO"}, {"T", "F"}, {"TRUE", "FALSE"}, {"1", "0"}]
                 if vals in bool_pairs:
-                    return "BOOLEAN"
+                    if dialect == "oracle":
+                        return "NUMBER(1)"
+                    return self._target.map_type("boolean") if self._target else "BOOLEAN"
 
-            # Right-size VARCHAR
+            # Right-size VARCHAR using target-appropriate type
             if max_length and isinstance(max_length, (int, float)) and max_length > 0:
-                # Add 50% headroom, round up to nearest 10
                 sized = int(max_length * 1.5)
                 sized = max(10, ((sized + 9) // 10) * 10)
+                if self._target:
+                    return self._target.map_type(f"varchar({sized})")
                 return f"VARCHAR({sized})"
 
             return self._map_base_type(legacy_type)
 
-        # NUMERIC with no decimal places → INTEGER
+        # NUMERIC with no decimal places → INTEGER (target-mapped)
         if base_type in ("numeric", "decimal", "number"):
             if min_val is not None and max_val is not None:
                 try:
                     fmin, fmax = float(min_val), float(max_val)
-                    # Check if all values are whole numbers
                     if fmin == int(fmin) and fmax == int(fmax):
                         if -2147483648 <= fmin and fmax <= 2147483647:
-                            return "INTEGER"
-                        return "BIGINT"
+                            return self._target.map_type("integer") if self._target else "INTEGER"
+                        return self._target.map_type("bigint") if self._target else "BIGINT"
                 except (ValueError, TypeError, OverflowError):
                     pass
             return self._map_base_type(legacy_type)
 
-        # TIMESTAMP with all times at midnight → DATE
+        # TIMESTAMP with date-only heuristic → DATE
         if base_type in ("timestamp", "timestamp without time zone", "timestamp with time zone"):
-            # Heuristic: if column name suggests date-only
             if any(p in column.lower() for p in ("_date", "_dt", "dob", "birth")):
-                return "DATE"
-            return "TIMESTAMPTZ"
+                return self._target.map_type("date") if self._target else "DATE"
+            return self._target.map_type("timestamp") if self._target else "TIMESTAMPTZ"
 
         return self._map_base_type(legacy_type)
 

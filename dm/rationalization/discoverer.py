@@ -112,16 +112,19 @@ class MigrationRationalizer:
         om_enricher: Any,
         plugin_manager: Any = None,
         weights: Optional[Dict[str, float]] = None,
+        config: Optional[Dict] = None,
     ):
         """
         Args:
             om_enricher: An OpenMetadataEnricher instance (connected).
             plugin_manager: Optional pluggy PluginManager for hook overrides.
             weights: Optional custom weights dict overriding DEFAULT_WEIGHTS.
+            config: Optional project config dict (for local profiling fallback).
         """
         self._om = om_enricher
         self._pm = plugin_manager
         self._weights = weights or DEFAULT_WEIGHTS
+        self._config = config or {}
 
     def rationalize(self, tables: List[str]) -> RationalizationReport:
         """Score and classify a list of tables for migration scope.
@@ -168,12 +171,22 @@ class MigrationRationalizer:
         )
 
     def _evaluate_table(self, table: str) -> TableRelevance:
-        """Fetch OM data and compute relevance for a single table."""
+        """Fetch OM data and compute relevance for a single table.
+
+        Falls back to local profiling_stats.json when OM has no profile data.
+        """
 
         # Fetch metadata, profile, and lineage from OpenMetadata
         metadata = self._om.get_table_metadata(table)
         profile = self._om.get_table_profile(table)
         lineage = self._om.get_lineage(table)
+
+        # Fallback: use local profiling stats when OM profile is empty
+        if not profile.get("columns") and not profile.get("profiled_at"):
+            local_profile = self._load_local_profile(table)
+            if local_profile:
+                profile = local_profile
+                logger.info(f"Using local profiling stats for rationalization of {table}")
 
         # Compute individual dimension scores
         breakdown = {
@@ -219,6 +232,37 @@ class MigrationRationalizer:
             breakdown=breakdown,
             rationale=rationale,
         )
+
+    def _load_local_profile(self, table: str) -> Optional[Dict]:
+        """Load profiling stats from local profiling_stats.json.
+
+        Returns a profile dict compatible with score_freshness() and
+        score_completeness() when OM has no profiler data.
+        """
+        config = self._config if hasattr(self, '_config') else {}
+        project_dir = config.get("_project_dir", ".")
+        metadata_rel = config.get("metadata", {}).get("path", "./metadata")
+        profile_path = Path(project_dir) / metadata_rel / "profiling_stats.json"
+
+        if not profile_path.exists():
+            return None
+
+        try:
+            import json
+            all_profiles = json.loads(profile_path.read_text())
+            table_profile = all_profiles.get(table)
+            if not table_profile:
+                return None
+
+            # Convert local format to the format score_freshness/score_completeness expect
+            return {
+                "profiled_at": profile_path.stat().st_mtime * 1000,  # file mtime as epoch ms
+                "row_count": table_profile.get("row_count", 0),
+                "columns": table_profile.get("columns", {}),
+            }
+        except Exception as e:
+            logger.debug(f"Failed to load local profile for {table}: {e}")
+            return None
 
     # ── Report Persistence ───────────────────────────────────────
 

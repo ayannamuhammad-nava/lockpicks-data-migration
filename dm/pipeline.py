@@ -699,7 +699,7 @@ def run_rationalization(
         if not tables:
             tables = om.get_tables()
 
-        rationalizer = MigrationRationalizer(om, pm)
+        rationalizer = MigrationRationalizer(om, pm, config=config)
         report = rationalizer.rationalize(list(tables))
 
         metadata_path = Path(config.get("_project_dir", ".")) / config.get(

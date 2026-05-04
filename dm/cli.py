@@ -156,8 +156,20 @@ def bootstrap(name, repo, data, target, skip_validate):
 
     project_path = str(project_dir)
 
-    # Step 2: Discover
-    click.echo("[2/5] Running discovery + enrichment...")
+    # Step 2: Profile
+    click.echo("[2/6] Profiling legacy data...")
+    result = _sp.run(
+        [sys.executable, "-m", "dm.cli", "profile", "--project", project_path],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        click.echo(f"  Profiling failed (non-fatal): {result.stderr[:200]}")
+    else:
+        click.echo("  Profiling complete.")
+    click.echo("")
+
+    # Step 3: Discover
+    click.echo("[3/6] Running discovery + enrichment...")
     result = _sp.run(
         [sys.executable, "-m", "dm.cli", "discover", "--enrich", "--project", project_path],
         capture_output=True, text=True,
@@ -169,8 +181,8 @@ def bootstrap(name, repo, data, target, skip_validate):
         click.echo("  Discovery complete.")
     click.echo("")
 
-    # Step 3: Rationalize
-    click.echo("[3/5] Running rationalization...")
+    # Step 4: Rationalize
+    click.echo("[4/6] Running rationalization...")
     result = _sp.run(
         [sys.executable, "-m", "dm.cli", "rationalize", "--project", project_path],
         capture_output=True, text=True,
@@ -181,8 +193,8 @@ def bootstrap(name, repo, data, target, skip_validate):
         click.echo("  Rationalization complete.")
     click.echo("")
 
-    # Step 4: Generate schema
-    click.echo("[4/5] Generating schemas for all target platforms...")
+    # Step 5: Generate schema
+    click.echo("[5/6] Generating schemas for all target platforms...")
     result = _sp.run(
         [sys.executable, "-m", "dm.cli", "generate-schema", "--all", "--project", project_path],
         capture_output=True, text=True,
@@ -193,9 +205,9 @@ def bootstrap(name, repo, data, target, skip_validate):
         click.echo("  Schemas generated for PostgreSQL, Snowflake, Oracle, AWS Redshift.")
     click.echo("")
 
-    # Step 5: PRE validation
+    # Step 6: PRE validation
     if not skip_validate:
-        click.echo("[5/5] Running PRE validation...")
+        click.echo("[6/6] Running PRE validation...")
         from dm.config import load_project_config, get_datasets
         try:
             config = load_project_config(project_path)
@@ -232,6 +244,116 @@ def bootstrap(name, repo, data, target, skip_validate):
     click.echo("  Or continue from the CLI:")
     click.echo(f"    dm validate --phase pre --dataset <name> --project {project_dir}")
     click.echo("============================================================")
+
+
+@cli.command()
+@click.option("--project", "-p", default=".", help="Project directory")
+def profile(project):
+    """Profile legacy tables and save column-level statistics locally.
+
+    Connects to each source database and computes null %, distinct count,
+    max length, min/max values, and value frequencies for every column.
+    Saves results to metadata/profiling_stats.json.
+
+    This runs automatically during bootstrap but can be re-run independently.
+    Used as a fallback when OpenMetadata profiler data is unavailable.
+    """
+    import json
+    from dm.config import (
+        get_all_sources, get_connection_config, get_datasets,
+        get_metadata_path, load_project_config,
+    )
+    from dm.connectors.postgres import get_connector
+
+    config = load_project_config(project)
+    metadata_path = get_metadata_path(config)
+    metadata_path.mkdir(parents=True, exist_ok=True)
+
+    datasets = get_datasets(config)
+    table_names = [d.get("name", d) if isinstance(d, dict) else d for d in datasets]
+
+    all_profiles = {}
+
+    for table in table_names:
+        # Resolve which source connection this table uses
+        from dm.config import get_dataset_source
+        source_name = get_dataset_source(config, table)
+
+        try:
+            conn_config = get_connection_config(config, source_name)
+            conn = get_connector(conn_config)
+            conn.connect()
+        except Exception as e:
+            click.echo(f"  {table}: could not connect to {source_name} ({e})")
+            continue
+
+        try:
+            row_count = conn.get_row_count(table)
+            schema = conn.get_table_schema(table)
+            col_stats = {}
+
+            for col in schema:
+                cn = col["column_name"]
+                try:
+                    null_pct = conn.get_null_percentage(table, cn)
+                    dup_count = conn.get_duplicate_count(table, cn)
+
+                    # Execute scalar queries for distinct count, min, max, max_length
+                    distinct = conn.execute_scalar(
+                        f"SELECT COUNT(DISTINCT {cn}) FROM {table}"
+                    )
+                    stats_row = conn.execute_query(
+                        f"SELECT MIN({cn}::text) as mn, MAX({cn}::text) as mx, "
+                        f"MAX(LENGTH({cn}::text)) as ml FROM {table}"
+                    )
+                    mn = stats_row.iloc[0]["mn"] if not stats_row.empty else None
+                    mx = stats_row.iloc[0]["mx"] if not stats_row.empty else None
+                    ml = stats_row.iloc[0]["ml"] if not stats_row.empty else 0
+
+                    # Value frequencies (top 10)
+                    freq_df = conn.execute_query(
+                        f"SELECT {cn}::text as value, COUNT(*) as count "
+                        f"FROM {table} WHERE {cn} IS NOT NULL "
+                        f"GROUP BY {cn} ORDER BY count DESC LIMIT 10"
+                    )
+                    freqs = [
+                        {"value": str(r["value"]), "count": int(r["count"])}
+                        for _, r in freq_df.iterrows()
+                    ] if not freq_df.empty else []
+
+                    col_stats[cn] = {
+                        "null_count": int(round(null_pct * row_count / 100)) if row_count else 0,
+                        "null_percent": round(null_pct, 2),
+                        "distinct_count": int(distinct) if distinct else 0,
+                        "unique_percent": round((int(distinct) / row_count * 100), 2) if row_count and distinct else 0,
+                        "max_length": int(ml) if ml else 0,
+                        "min_value": str(mn) if mn is not None else None,
+                        "max_value": str(mx) if mx is not None else None,
+                        "value_frequencies": freqs,
+                        "row_count": row_count,
+                    }
+                except Exception:
+                    pass
+
+            all_profiles[table] = {
+                "row_count": row_count,
+                "column_count": len(schema),
+                "columns": col_stats,
+            }
+            click.echo(f"  {table}: {row_count} rows, {len(col_stats)} columns profiled")
+
+        except Exception as e:
+            click.echo(f"  {table}: profiling failed ({e})")
+        finally:
+            conn.close()
+
+    out_path = metadata_path / "profiling_stats.json"
+    with open(out_path, "w") as f:
+        json.dump(all_profiles, f, indent=2, default=str)
+
+    click.echo("")
+    click.echo(f"Profiling complete: {len(all_profiles)} tables")
+    click.echo(f"Saved to: {out_path}")
 
 
 @cli.command()
