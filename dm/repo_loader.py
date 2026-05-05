@@ -472,20 +472,33 @@ def _infer_table_name(filename: str, copybook_path: str = None) -> str:
                 record_name = layout.fields[0].name
                 # CUSTOMER-RECORD → customer, ACCOUNT-RECORD → account
                 clean = record_name.replace("-", "_").lower()
-                clean = re.sub(r'_?(record|rec|data|file|area|work|areas)s?$', '', clean)
+                # Strip common suffixes
+                clean = re.sub(r'_?(record|rec|data|file|area|work|areas|master|mstr|detail|header|hdr)s?$', '', clean)
+                # Strip common prefixes
                 clean = re.sub(r'^(ws_|wk_|fd_)', '', clean)
+                # Strip 2-3 char COBOL table prefixes (CT_, CL_, BP_, CM_, ER_, etc.)
+                clean = re.sub(r'^[a-z]{2,3}_', '', clean)
+                # If stripping left us with nothing meaningful, try just removing suffix
+                if not clean or len(clean) < 3:
+                    clean = re.sub(r'_?(record|rec|master|mstr)s?$', '',
+                                   record_name.replace("-", "_").lower())
+                    clean = re.sub(r'^(ws_|wk_|fd_)', '', clean)
                 # Expand common short names
                 SHORT_EXPANSIONS = {
                     "tran": "transactions", "trans": "transactions",
                     "acct": "accounts", "cust": "customers",
                     "card": "cards", "xref": "cross_references",
+                    "contact": "contacts",
                 }
                 if clean in SHORT_EXPANSIONS:
                     return SHORT_EXPANSIONS[clean]
-                if clean and len(clean) >= 3:
+                # Reject generic names that lost all meaning during cleanup
+                GENERIC_NAMES = {"master", "detail", "header", "record", "file", "data", "work"}
+                if clean and len(clean) >= 3 and clean not in GENERIC_NAMES:
                     if not clean.endswith("s"):
                         clean += "s"
                     return clean
+                # Fall through to filename-based inference
         except Exception:
             pass
 
@@ -498,12 +511,17 @@ def _infer_table_name(filename: str, copybook_path: str = None) -> str:
         "GRP": "group", "BAL": "balance", "CATG": "category",
         "USR": "user", "SEC": "security", "DAILY": "daily",
         "TYPE": "type", "DATA": "", "INFO": "",
+        "CONTACT": "contact", "CLAIM": "claim", "EMPLOY": "employer",
+        "BENEFIT": "benefit", "PAYMENT": "payment", "ACCOUNT": "account",
     }
 
     # Try to expand the filename using abbreviation parts
     name_lower = name.lower()
+    # Strip trailing 's' for matching, re-add after
+    match_name = name_lower.rstrip("s") if name_lower.endswith("s") and len(name_lower) > 3 else name_lower
+
     expanded_parts = []
-    remaining = name_lower
+    remaining = match_name
     while remaining:
         matched = False
         for abbr, expansion in sorted(ABBREV_MAP.items(), key=lambda x: -len(x[0])):
@@ -514,15 +532,23 @@ def _infer_table_name(filename: str, copybook_path: str = None) -> str:
                 matched = True
                 break
         if not matched:
-            expanded_parts.append(remaining)
             break
 
-    if expanded_parts and any(p != name_lower for p in expanded_parts):
+    # Only use abbreviation expansion if everything was consumed (no leftover)
+    if not remaining and expanded_parts:
         expanded = "_".join(p for p in expanded_parts if p)
         if expanded and len(expanded) >= 3:
             if not expanded.endswith("s"):
                 expanded += "s"
             return expanded
+
+    # If the name is already a readable word (>= 5 chars, alpha), use it directly
+    clean = name_lower.replace("_", "").replace("-", "")
+    if len(clean) >= 5 and clean.isalpha():
+        result = name_lower.replace("-", "_")
+        if not result.endswith("s"):
+            result += "s"
+        return result
 
     # Remove COBOL copybook prefixes (CV, CS, CO, CB + 3-4 chars + version suffix)
     if re.match(r'^(CV|CS|CO|CB|CC|CI)[A-Z]{2,5}\d{0,2}[A-Z]?$', name):
@@ -536,10 +562,12 @@ def _infer_table_name(filename: str, copybook_path: str = None) -> str:
                 clean += "s"
             return clean
 
-    # General cleanup
-    name = re.sub(r'^[A-Z]{2,4}\d{0,2}_', '', name)
-    name = re.sub(r'_?\d{4,8}$', '', name)
-    name = name.replace("-", "_").lower()
-    if not name.endswith("s") and not name.endswith("data") and len(name) >= 3:
-        name += "s"
-    return name
+    # General cleanup — only strip prefixes if they look like COBOL table prefixes (XX_ or XXX_)
+    clean_name = name.replace("-", "_")
+    # Only strip short prefixes followed by underscore (CL_, BP_, ER_, etc.)
+    clean_name = re.sub(r'^[A-Z]{2,3}\d{0,2}_', '', clean_name)
+    clean_name = re.sub(r'_?\d{4,8}$', '', clean_name)
+    clean_name = clean_name.lower()
+    if not clean_name.endswith("s") and not clean_name.endswith("data") and len(clean_name) >= 3:
+        clean_name += "s"
+    return clean_name
