@@ -106,10 +106,10 @@ def scan_repo(repo_path: str) -> List[DiscoveredArtifact]:
 
         suffix = f.suffix.lower()
         stem = f.stem.upper()
-        # Infer table name from filename
-        table_name = _infer_table_name(f.stem)
 
         if suffix in (".cpy", ".cob", ".copybook"):
+            # For copybooks, use the record name from inside the file
+            table_name = _infer_table_name(f.stem, copybook_path=str(f))
             artifacts.append(DiscoveredArtifact(
                 path=str(f), artifact_type="copybook",
                 table_name=table_name,
@@ -117,6 +117,7 @@ def scan_repo(repo_path: str) -> List[DiscoveredArtifact]:
             copybooks[stem] = str(f)
 
         elif suffix in (".dat", ".bin", ".raw", ".ebcdic"):
+            table_name = _infer_table_name(f.stem)
             artifacts.append(DiscoveredArtifact(
                 path=str(f), artifact_type="datafile",
                 table_name=table_name,
@@ -124,6 +125,7 @@ def scan_repo(repo_path: str) -> List[DiscoveredArtifact]:
             datafiles[stem] = str(f)
 
         elif suffix in (".csv", ".tsv"):
+            table_name = _infer_table_name(f.stem)
             artifacts.append(DiscoveredArtifact(
                 path=str(f), artifact_type="csv",
                 table_name=table_name,
@@ -137,6 +139,7 @@ def scan_repo(repo_path: str) -> List[DiscoveredArtifact]:
 
         elif suffix == ".txt":
             # If file is in a data/ directory, treat as data file
+            table_name = _infer_table_name(f.stem)
             in_data_dir = any(p.lower() == "data" for p in f.parts)
             if in_data_dir:
                 artifacts.append(DiscoveredArtifact(
@@ -446,22 +449,80 @@ def _validate_pairing(first_line: str, copybook_path: str) -> int:
         return 0
 
 
-def _infer_table_name(filename: str) -> str:
-    """Infer a logical table name from a filename.
+def _infer_table_name(filename: str, copybook_path: str = None) -> str:
+    """Infer a logical table name from a filename and optionally the copybook record name.
+
+    Priority:
+      1. Copybook 01-level record name (e.g., ACCOUNT-RECORD → accounts)
+      2. Data file name (e.g., custdata → customers)
+      3. Copybook filename cleaned up
 
     Examples:
-        'SG01_CLAIMANT' -> 'claimants'
+        'custdata' -> 'customers'
+        'acctdata' -> 'accounts'
+        'CVCUS01Y' with record CUSTOMER-RECORD -> 'customers'
         'BENEFIT-PAYMENTS.cpy' -> 'benefit_payments'
-        'QC_SAMPLE_2024' -> 'qc_sample'
     """
+    # Try to get record name from copybook
+    if copybook_path:
+        try:
+            from dm.connectors.copybook_parser import parse_copybook
+            layout = parse_copybook(copybook_path)
+            if layout.fields:
+                record_name = layout.fields[0].name
+                # CUSTOMER-RECORD → customer, ACCOUNT-RECORD → account
+                clean = record_name.replace("-", "_").lower()
+                clean = re.sub(r'_?(record|rec|data|file|area|work|areas)s?$', '', clean)
+                clean = re.sub(r'^(ws_|wk_|fd_)', '', clean)
+                # Expand common short names
+                SHORT_EXPANSIONS = {
+                    "tran": "transactions", "trans": "transactions",
+                    "acct": "accounts", "cust": "customers",
+                    "card": "cards", "xref": "cross_references",
+                }
+                if clean in SHORT_EXPANSIONS:
+                    return SHORT_EXPANSIONS[clean]
+                if clean and len(clean) >= 3:
+                    if not clean.endswith("s"):
+                        clean += "s"
+                    return clean
+        except Exception:
+            pass
+
     name = filename.upper()
-    # Remove common mainframe prefixes (SG01_, RSA_, etc.)
+
+    # Common data file name mappings
+    DATA_NAME_MAP = {
+        "CUSTDATA": "customers",
+        "ACCTDATA": "accounts",
+        "CARDDATA": "cards",
+        "CARDXREF": "card_xrefs",
+        "DAILYTRAN": "transactions",
+        "TCATBAL": "transaction_category_balances",
+        "TRANCATG": "transaction_categories",
+        "TRANTYPE": "transaction_types",
+        "DISCGRP": "discount_groups",
+        "USRSEC": "user_security",
+    }
+    if name in DATA_NAME_MAP:
+        return DATA_NAME_MAP[name]
+
+    # Remove COBOL copybook prefixes (CV, CS, CO, CB + 3-4 chars + version suffix)
+    if re.match(r'^(CV|CS|CO|CB|CC|CI)[A-Z]{2,5}\d{0,2}[A-Z]?$', name):
+        # This is a coded copybook name — not useful as table name
+        # Strip prefix and version suffix
+        clean = re.sub(r'^(CV|CS|CO|CB|CC|CI)', '', name)
+        clean = re.sub(r'\d{0,2}[A-Z]?$', '', clean)
+        clean = clean.lower()
+        if clean and len(clean) >= 3:
+            if not clean.endswith("s"):
+                clean += "s"
+            return clean
+
+    # General cleanup
     name = re.sub(r'^[A-Z]{2,4}\d{0,2}_', '', name)
-    # Remove date suffixes
     name = re.sub(r'_?\d{4,8}$', '', name)
-    # Convert to snake_case
     name = name.replace("-", "_").lower()
-    # Simple pluralization for common patterns
-    if not name.endswith("s") and not name.endswith("data"):
+    if not name.endswith("s") and not name.endswith("data") and len(name) >= 3:
         name += "s"
     return name

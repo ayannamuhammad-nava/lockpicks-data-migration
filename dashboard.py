@@ -679,6 +679,21 @@ def render_discovery_page():
     st.markdown("## 🔎 Discovery — Catalog Overview")
     st.caption(f"Project: {PROJECT_NAME}")
 
+    # Re-run pipeline button
+    if st.button("Re-run Discovery & Schema Generation", key="btn_rerun_discover"):
+        with st.spinner("Running pipeline..."):
+            _rerun_cmd = [
+                sys.executable, "-m", "dm.cli", "discover",
+                "--project", str(PROJECT_DIR),
+            ]
+            _rerun_result = subprocess.run(_rerun_cmd, capture_output=True, text=True, timeout=120)
+            if _rerun_result.returncode == 0:
+                st.success("Pipeline complete. Refreshing...")
+                st.cache_resource.clear()
+                st.rerun()
+            else:
+                st.error(f"Pipeline failed: {_rerun_result.stderr[:300]}")
+
     # Load all metadata
     glossary_path = METADATA_DIR / "glossary.json"
     mappings_path = METADATA_DIR / "mappings.json"
@@ -687,7 +702,7 @@ def render_discovery_page():
     rationalization_path = METADATA_DIR / "rationalization_report.json"
 
     if not glossary_path.exists():
-        st.warning("No discovery data found. Run `dm discover --enrich` first.")
+        st.warning("No discovery data found. Click **Re-run Discovery & Schema Generation** above.")
         return
 
     glossary = json.loads(glossary_path.read_text())
@@ -2472,11 +2487,13 @@ with st.sidebar:
                 # Remove project directory
                 if PROJECT_DIR.exists():
                     shutil.rmtree(PROJECT_DIR, ignore_errors=True)
-                # Remove active project marker
-                _marker = Path(".dm_active_project")
-                if _marker.exists():
-                    _marker.unlink()
-                st.session_state.pop("confirm_start_over", None)
+                # Remove active project marker and show-run marker
+                for _mf in [Path(".dm_active_project"), Path(".dm_show_latest_run")]:
+                    if _mf.exists():
+                        _mf.unlink()
+                # Clear all session state to prevent stale data
+                for key in list(st.session_state.keys()):
+                    del st.session_state[key]
                 st.rerun()
         with c2:
             if st.button("Cancel", use_container_width=True, key="btn_cancel_reset"):
