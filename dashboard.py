@@ -1582,9 +1582,9 @@ def render_transformation_page():
 
     tabs = st.tabs([
         "🔀 Transform Scripts",
-        "🎯 Converted SQL",
+        "🎯 Target DDL",
         "⚖️ Before / After",
-        "⚠️ Warnings & TODOs",
+        "⚠️ Warnings",
     ])
     tab_transforms, tab_converted, tab_compare, tab_warnings = tabs
 
@@ -1617,29 +1617,45 @@ def render_transformation_page():
         else:
             st.info("No transform scripts found. Run `dm generate-schema --all` to generate.")
 
-    # ── Converted SQL
+    # ── Target DDL
     with tab_converted:
-        st.markdown("#### Platform-Converted SQL")
-        st.caption("Final SQL after dialect translation. Ready for deployment to the target database.")
+        st.markdown(f"#### {_tgt_display} DDL — Ready for Deployment")
+        st.caption(f"CREATE TABLE statements in **{_tgt_display}** dialect. Generated from copybook/schema analysis.")
 
-        if converted_files:
-            for cf in converted_files:
-                dialect = cf.parent.name
-                sql = cf.read_text()
+        # Show target-specific DDL files
+        _target_ddl_dir = schema_dir / _active_target
+        _ddl_files = sorted([f for f in _target_ddl_dir.iterdir()
+                            if f.suffix == ".sql" and "_transforms" not in f.name and f.name != "full_schema.sql"
+                            ]) if _target_ddl_dir.exists() else []
 
-                st.markdown(f"##### `{cf.name}` — Target: {dialect.title()}")
+        if _ddl_files:
+            for df in _ddl_files:
+                sql = df.read_text()
+                st.markdown(f"##### `{df.stem}`")
                 st.code(sql, language="sql", line_numbers=True)
-
                 st.download_button(
-                    f"Download {cf.name}",
+                    f"Download {df.name}",
                     sql,
-                    file_name=cf.name,
+                    file_name=f"{df.stem}_{_active_target}.sql",
                     mime="text/sql",
-                    key=f"dl_{cf.name}",
+                    key=f"dl_ddl_{_active_target}_{df.stem}",
                 )
                 st.divider()
+
+            # Full schema download
+            _full_ddl = _target_ddl_dir / "full_schema.sql"
+            if _full_ddl.exists():
+                st.download_button(
+                    f"Download Full {_tgt_display} Schema",
+                    _full_ddl.read_text(),
+                    file_name=f"full_schema_{_active_target}.sql",
+                    mime="text/sql",
+                    key=f"dl_full_{_active_target}",
+                    type="primary",
+                    use_container_width=True,
+                )
         else:
-            st.info("No converted SQL found. Run `dm convert` to generate.")
+            st.info(f"No {_tgt_display} DDL found. Run discovery to generate.")
 
     # ── Before / After Comparison
     with tab_compare:
