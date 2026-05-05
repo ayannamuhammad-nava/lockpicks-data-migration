@@ -51,14 +51,27 @@ def check_null_thresholds(df: pd.DataFrame, max_null_pct: float) -> Dict[str, fl
 
 
 def calculate_governance_score(gov_results: Dict) -> float:
-    """Calculate governance score (0-100) from check results."""
+    """Calculate governance score (0-100) from check results.
+
+    PII fields that are already handled (hashed, archived, encrypted) in the
+    mappings get a reduced penalty (1 point instead of 5) since the schema
+    generation has addressed them.
+    """
     penalties = 0.0
-    pii_count = len(gov_results.get("pii_columns", []))
+
+    pii_cols = gov_results.get("pii_columns", [])
+    handled_pii = gov_results.get("handled_pii", set())
+    unhandled_pii = [c for c in pii_cols if c not in handled_pii]
+    handled_count = len(pii_cols) - len(unhandled_pii)
+
+    # Unhandled PII: full penalty. Handled PII: reduced penalty (still flagged, but addressed)
+    penalties += min(len(unhandled_pii) * 5, 30)
+    penalties += min(handled_count * 1, 10)
+
     naming_violations = len(gov_results.get("naming_violations", []))
     missing_required = len(gov_results.get("missing_required", []))
     null_violations = len(gov_results.get("null_violations", {}))
 
-    penalties += min(pii_count * 5, 30)
     penalties += min(naming_violations * 2, 10)
     penalties += min(missing_required * 10, 30)
     penalties += min(null_violations * 3, 15)
@@ -86,8 +99,25 @@ class GovernanceValidator(PreValidator):
         missing_required = check_required_fields(columns, required_fields)
         null_violations = check_null_thresholds(sample_df, max_null_pct)
 
+        # Check which PII fields are already handled in mappings
+        handled_pii = set()
+        try:
+            import json
+            from pathlib import Path
+            metadata_path = Path(config.get("_project_dir", ".")) / config.get("metadata", {}).get("path", "./metadata")
+            mappings_file = metadata_path / "mappings.json"
+            if mappings_file.exists():
+                mappings_data = json.loads(mappings_file.read_text())
+                for m in mappings_data.get("mappings", []):
+                    if m.get("table", "").lower() == dataset.lower():
+                        if m.get("type") in ("transform", "archived"):
+                            handled_pii.add(m["source"])
+        except Exception:
+            pass
+
         gov_results = {
             "pii_columns": pii_cols,
+            "handled_pii": handled_pii,
             "naming_violations": naming_violations,
             "missing_required": missing_required,
             "null_violations": null_violations,

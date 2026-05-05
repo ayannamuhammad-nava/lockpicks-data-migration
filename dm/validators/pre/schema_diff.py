@@ -42,7 +42,12 @@ class SchemaDiffValidator(PreValidator):
         from dm.discovery.schema_introspector import introspect_schema, compare_schemas
 
         legacy_schema = introspect_schema(legacy_conn, dataset)
-        modern_schema = introspect_schema(modern_conn, dataset)
+
+        # Modern connection may be None for flat file projects
+        if modern_conn is not None:
+            modern_schema = introspect_schema(modern_conn, dataset)
+        else:
+            modern_schema = []
         schema_diff = compare_schemas(legacy_schema, modern_schema)
 
         # Calculate penalty using knowledge-base mapping types

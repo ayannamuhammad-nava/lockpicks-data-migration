@@ -81,19 +81,29 @@ def run_validation(
     source_name = get_dataset_source(config, dataset)
     target_name = get_dataset_target(config, dataset)
     legacy_conn = get_connector(get_connection_config(config, source_name), plugin_connectors)
-    modern_conn = get_connector(get_connection_config(config, target_name), plugin_connectors)
+
+    # Modern connection is optional for PRE validation (flat file projects may not have one)
+    modern_conn = None
+    try:
+        target_config = get_connection_config(config, target_name)
+        modern_conn = get_connector(target_config, plugin_connectors)
+        modern_conn.connect()
+    except Exception as e:
+        if phase == "post":
+            raise  # POST requires modern connection
+        logger.info(f"Modern DB not available ({e}) — PRE validation will skip schema diff against modern")
 
     try:
         legacy_conn.connect()
-        modern_conn.connect()
 
         # Create artifact folder
         from dm.reporting.reporter import create_artifact_folder
         artifacts_base = get_artifacts_path(config)
         artifact_folder = create_artifact_folder(artifacts_base)
 
-        # Auto-generate schemas if missing
-        ensure_schemas_exist(legacy_conn, modern_conn, dataset, config)
+        # Auto-generate schemas if missing (skip if modern_conn not available)
+        if modern_conn is not None:
+            ensure_schemas_exist(legacy_conn, modern_conn, dataset, config)
 
         if phase == "pre":
             result = _run_pre_phase(
@@ -110,7 +120,8 @@ def run_validation(
 
     finally:
         legacy_conn.close()
-        modern_conn.close()
+        if modern_conn is not None:
+            modern_conn.close()
 
 
 def _run_pre_phase(
@@ -119,8 +130,16 @@ def _run_pre_phase(
     """Run all pre-migration validators and generate reports."""
 
     # Sample data from legacy
-    query = f"SELECT * FROM {dataset} ORDER BY RANDOM() LIMIT {sample_size}"
-    sample_df = legacy_conn.execute_query(query)
+    # Flat file connectors return the full DataFrame for any query;
+    # database connectors use SQL. Handle both.
+    from dm.connectors.flatfile import FlatFileConnector
+    if isinstance(legacy_conn, FlatFileConnector):
+        sample_df = legacy_conn.execute_query(f"SELECT * FROM {dataset}")
+        if len(sample_df) > sample_size:
+            sample_df = sample_df.sample(n=sample_size)
+    else:
+        query = f"SELECT * FROM {dataset} ORDER BY RANDOM() LIMIT {sample_size}"
+        sample_df = legacy_conn.execute_query(query)
 
     # Instantiate built-in validators
     validators = [cls() for cls in BUILTIN_PRE_VALIDATORS if cls != DataQualityValidator]

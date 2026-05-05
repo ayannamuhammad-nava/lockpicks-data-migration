@@ -288,52 +288,81 @@ def profile(project):
             continue
 
         try:
+            from dm.connectors.flatfile import FlatFileConnector
+
             row_count = conn.get_row_count(table)
             schema = conn.get_table_schema(table)
             col_stats = {}
 
-            for col in schema:
-                cn = col["column_name"]
-                try:
-                    null_pct = conn.get_null_percentage(table, cn)
-                    dup_count = conn.get_duplicate_count(table, cn)
-
-                    # Execute scalar queries for distinct count, min, max, max_length
-                    distinct = conn.execute_scalar(
-                        f"SELECT COUNT(DISTINCT {cn}) FROM {table}"
-                    )
-                    stats_row = conn.execute_query(
-                        f"SELECT MIN({cn}::text) as mn, MAX({cn}::text) as mx, "
-                        f"MAX(LENGTH({cn}::text)) as ml FROM {table}"
-                    )
-                    mn = stats_row.iloc[0]["mn"] if not stats_row.empty else None
-                    mx = stats_row.iloc[0]["mx"] if not stats_row.empty else None
-                    ml = stats_row.iloc[0]["ml"] if not stats_row.empty else 0
-
-                    # Value frequencies (top 10)
-                    freq_df = conn.execute_query(
-                        f"SELECT {cn}::text as value, COUNT(*) as count "
-                        f"FROM {table} WHERE {cn} IS NOT NULL "
-                        f"GROUP BY {cn} ORDER BY count DESC LIMIT 10"
-                    )
-                    freqs = [
-                        {"value": str(r["value"]), "count": int(r["count"])}
-                        for _, r in freq_df.iterrows()
-                    ] if not freq_df.empty else []
+            # For flat file connectors, use DataFrame methods instead of SQL
+            if isinstance(conn, FlatFileConnector):
+                df = conn.execute_query(f"SELECT * FROM {table}")
+                for col in schema:
+                    cn = col["column_name"]
+                    if cn not in df.columns:
+                        continue
+                    series = df[cn]
+                    null_count = int(series.isnull().sum() + (series == "").sum())
+                    null_pct = round(null_count / row_count * 100, 2) if row_count else 0
+                    distinct = int(series.nunique())
+                    max_len = int(series.astype(str).str.len().max()) if not series.empty else 0
+                    mn = str(series.min()) if not series.empty else None
+                    mx = str(series.max()) if not series.empty else None
+                    vc = series[series != ""].value_counts().head(10)
+                    freqs = [{"value": str(v), "count": int(c)} for v, c in vc.items()]
 
                     col_stats[cn] = {
-                        "null_count": int(round(null_pct * row_count / 100)) if row_count else 0,
-                        "null_percent": round(null_pct, 2),
-                        "distinct_count": int(distinct) if distinct else 0,
-                        "unique_percent": round((int(distinct) / row_count * 100), 2) if row_count and distinct else 0,
-                        "max_length": int(ml) if ml else 0,
-                        "min_value": str(mn) if mn is not None else None,
-                        "max_value": str(mx) if mx is not None else None,
+                        "null_count": null_count,
+                        "null_percent": null_pct,
+                        "distinct_count": distinct,
+                        "unique_percent": round(distinct / row_count * 100, 2) if row_count else 0,
+                        "max_length": max_len,
+                        "min_value": mn,
+                        "max_value": mx,
                         "value_frequencies": freqs,
                         "row_count": row_count,
                     }
-                except Exception:
-                    pass
+            else:
+                # Database connectors — use SQL queries
+                for col in schema:
+                    cn = col["column_name"]
+                    try:
+                        null_pct = conn.get_null_percentage(table, cn)
+
+                        distinct = conn.execute_scalar(
+                            f"SELECT COUNT(DISTINCT {cn}) FROM {table}"
+                        )
+                        stats_row = conn.execute_query(
+                            f"SELECT MIN({cn}::text) as mn, MAX({cn}::text) as mx, "
+                            f"MAX(LENGTH({cn}::text)) as ml FROM {table}"
+                        )
+                        mn = stats_row.iloc[0]["mn"] if not stats_row.empty else None
+                        mx = stats_row.iloc[0]["mx"] if not stats_row.empty else None
+                        ml = stats_row.iloc[0]["ml"] if not stats_row.empty else 0
+
+                        freq_df = conn.execute_query(
+                            f"SELECT {cn}::text as value, COUNT(*) as count "
+                            f"FROM {table} WHERE {cn} IS NOT NULL "
+                            f"GROUP BY {cn} ORDER BY count DESC LIMIT 10"
+                        )
+                        freqs = [
+                            {"value": str(r["value"]), "count": int(r["count"])}
+                            for _, r in freq_df.iterrows()
+                        ] if not freq_df.empty else []
+
+                        col_stats[cn] = {
+                            "null_count": int(round(null_pct * row_count / 100)) if row_count else 0,
+                            "null_percent": round(null_pct, 2),
+                            "distinct_count": int(distinct) if distinct else 0,
+                            "unique_percent": round((int(distinct) / row_count * 100), 2) if row_count and distinct else 0,
+                            "max_length": int(ml) if ml else 0,
+                            "min_value": str(mn) if mn is not None else None,
+                            "max_value": str(mx) if mx is not None else None,
+                            "value_frequencies": freqs,
+                            "row_count": row_count,
+                        }
+                    except Exception:
+                        pass
 
             all_profiles[table] = {
                 "row_count": row_count,
