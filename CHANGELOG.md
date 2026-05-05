@@ -851,3 +851,90 @@ Contents:
 - Layout is determined before `set_page_config` by checking if a project exists
 - After setup completes, page auto-reruns and switches to wide layout with the latest PRE run selected
 - `.dm_show_latest_run` marker ensures the dashboard lands on the run view, not a lifecycle page
+
+---
+
+## Fixes 1-6: Pipeline Robustness (2026-05-05)
+
+### Fix 1: Smarter Copybook-to-Data Pairing
+
+**File:** `dm/repo_loader.py`
+
+When copybooks and data files have different names, the scanner now validates pairings by parsing the first data record against each candidate copybook layout. Scores each match based on whether extracted field values look reasonable (numeric fields contain digits, alpha fields are printable). Picks the highest-scoring match.
+
+**Impact:** `carddata.txt` now correctly pairs with `CVACT02Y.cpy` instead of `CCPAURQY.cpy`.
+
+### Fix 2: Flat File Offset Drift
+
+**File:** `dm/connectors/flatfile.py`
+
+Always uses line-based parsing for text files (with newlines). Only uses byte-based parsing for raw binary (EBCDIC without newlines). Previously, any file with a copybook went through byte-based parsing which misaligned on the newline character.
+
+**Impact:** `custdata.txt` rows 2+ no longer show shifted data (e.g., `2Enrico` → `Enrico`).
+
+### Fix 3: Discovery Without OpenMetadata
+
+**File:** `dm/cli.py`
+
+- `dm discover` (without `--enrich`) works with just the legacy connection — modern DB is optional
+- `dm discover --enrich` falls back to non-OM discovery if no `openmetadata` section in config
+- No more crashes when OM isn't configured
+
+### Fix 4: PRE Validation for Flat File Projects
+
+**File:** `dm/pipeline.py`, `dm/validators/pre/schema_diff.py`
+
+- Modern DB connection is optional for PRE validation (required for POST only)
+- Flat file connector uses DataFrame sampling instead of SQL `RANDOM()`
+- Schema diff validator handles `modern_conn=None` gracefully
+- `ensure_schemas_exist` skipped when no modern DB
+
+### Fix 5: `dm profile` for Flat File Connectors
+
+**File:** `dm/cli.py`
+
+Detects `FlatFileConnector` and uses DataFrame methods (`nunique()`, `value_counts()`) instead of SQL queries (`SELECT COUNT(DISTINCT...)`). Both database and flat file sources are now profiled correctly.
+
+### Fix 6: Governance Score Credits Handled PII
+
+**File:** `dm/validators/pre/governance.py`
+
+Loads `mappings.json` to check which PII fields are already handled (hashed, archived). Handled PII gets a reduced penalty (1 point instead of 5). Unhandled PII still gets the full 5-point penalty.
+
+**Impact:** Claimants governance score improved after SSN hash and bank account archive were recognized.
+
+---
+
+## Table Name Inference (2026-05-05)
+
+**File:** `dm/repo_loader.py`
+
+Replaced hardcoded `DATA_NAME_MAP` with a general-purpose abbreviation expansion system.
+
+### How It Works
+
+**Priority order:**
+1. **Copybook 01-level record name** — parses the first field's group name (e.g., `ACCOUNT-RECORD` → `accounts`, `CUSTOMER-RECORD` → `customers`)
+2. **Abbreviation expansion** — dictionary of common mainframe abbreviations expands data file names (e.g., `custdata` → `customers`, `dailytran` → `transactions`)
+3. **General cleanup** — strips COBOL prefixes, normalizes to snake_case, pluralizes
+
+**Abbreviation dictionary:**
+`CUST→customer`, `ACCT→account`, `TRAN→transaction`, `CARD→card`, `XREF→cross_reference`, `DISC→discount`, `GRP→group`, `BAL→balance`, `CATG→category`, `USR→user`, `SEC→security`, `TYPE→type`
+
+Works for any mainframe repo — no project-specific mappings needed.
+
+---
+
+## Dashboard Improvements (2026-05-05)
+
+### Start Over Clears All State
+
+**File:** `dashboard.py`
+
+The Start Over button now clears all `st.session_state` keys in addition to deleting the project directory and marker files. Prevents stale data from appearing when loading a new project.
+
+### Re-run Discovery Button
+
+**File:** `dashboard.py`
+
+Added a **Re-run Discovery & Schema Generation** button to the Discovery lifecycle page. Runs `dm discover` and auto-refreshes the page on completion. Users no longer need the CLI to re-run the pipeline after editing `project.yaml`.
