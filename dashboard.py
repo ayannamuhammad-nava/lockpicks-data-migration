@@ -591,7 +591,15 @@ def get_lifecycle_status() -> dict:
         current_phase = 1  # Modeling
     if (ARTIFACTS_DIR / "generated_schema").exists():
         current_phase = 2  # Governance
-    if (ARTIFACTS_DIR / "converted").exists():
+    # Transformation: complete if converted/ exists OR transform scripts exist in generated_schema
+    _has_transforms = (ARTIFACTS_DIR / "converted").exists()
+    if not _has_transforms and (ARTIFACTS_DIR / "generated_schema").exists():
+        _has_transforms = any(
+            f.name.endswith("_transforms.sql")
+            for f in (ARTIFACTS_DIR / "generated_schema").iterdir()
+            if f.is_file()
+        )
+    if _has_transforms:
         current_phase = 3  # Transformation
     if phase_map["pre"]:
         # PRE done — Compliance complete, Sign-Off is current
@@ -1536,17 +1544,27 @@ def render_governance_page():
 def render_transformation_page():
     """Render the Transformation detail page showing ETL transform scripts, converted SQL, and warnings."""
     st.markdown("## ⚙️ Transformation — ETL Logic & Converted SQL")
-    st.caption(f"Project: {PROJECT_NAME}")
+
+    _active_target = st.session_state.get("selected_target", "postgres")
+    from dm.targets.postgres import get_available_targets as _get_tgt_names
+    _tgt_display = _get_tgt_names().get(_active_target, _active_target.title())
+    st.caption(f"Project: {PROJECT_NAME}  ·  Target: **{_tgt_display}**")
 
     schema_dir = ARTIFACTS_DIR / "generated_schema"
     converted_dir = ARTIFACTS_DIR / "converted"
 
     if not schema_dir.exists():
-        st.warning("No transformation artifacts found. Run `dm generate-schema --all` and `dm convert` first.")
+        st.warning("No transformation artifacts found. Run `dm generate-schema --all` first.")
         return
 
-    # Collect transform scripts and converted files
-    transform_files = sorted([f for f in schema_dir.iterdir() if "_transforms" in f.name])
+    # Collect transform scripts — check target subfolder first, then root
+    target_schema_dir = schema_dir / _active_target
+    if target_schema_dir.exists():
+        transform_files = sorted([f for f in target_schema_dir.iterdir() if "_transforms" in f.name])
+    else:
+        transform_files = sorted([f for f in schema_dir.iterdir() if "_transforms" in f.name and f.is_file()])
+
+    # Collect converted files (from dm convert)
     converted_files = []
     if converted_dir.exists():
         for dialect_dir in sorted(converted_dir.iterdir()):
@@ -1558,8 +1576,7 @@ def render_transformation_page():
     mc1, mc2, mc3 = st.columns(3)
     mc1.metric("Transform Scripts", len(transform_files))
     mc2.metric("Converted Files", len(converted_files))
-    target_dialect = converted_files[0].parent.name if converted_files else "—"
-    mc3.metric("Target Platform", target_dialect.title())
+    mc3.metric("Target Platform", _tgt_display)
 
     st.divider()
 
