@@ -938,3 +938,38 @@ The Start Over button now clears all `st.session_state` keys in addition to dele
 **File:** `dashboard.py`
 
 Added a **Re-run Discovery & Schema Generation** button to the Discovery lifecycle page. Runs `dm discover` and auto-refreshes the page on completion. Users no longer need the CLI to re-run the pipeline after editing `project.yaml`.
+
+### Transformation Page Fixes
+
+**File:** `dashboard.py`
+
+- **Transform Scripts tab** reads from the selected target platform's subfolder
+- **Target DDL tab** (renamed from "Converted SQL") shows per-table CREATE TABLE statements with individual download buttons and full schema download — no more empty "Run dm convert" message
+- **Before/After tab** compares PostgreSQL DDL vs selected target platform side-by-side (previously required `dm convert` output)
+- **Warnings tab** checks transform scripts for review items and PII handling notes
+- Lifecycle bar marks Transformation complete when transform scripts exist (not just when `dm convert` has run)
+
+### Start Over Full Browser Reload
+
+**File:** `dashboard.py`
+
+Start Over now forces a full browser reload (via meta refresh) instead of `st.rerun()`. This ensures `set_page_config` re-evaluates the layout so the setup screen returns to centered layout with collapsed sidebar.
+
+### Table Name Inference Improvements
+
+**File:** `dm/repo_loader.py`
+
+- Generic copybook record names (master, detail, header) are rejected — falls through to filename-based inference
+- English words >= 5 characters used directly (CONTACTS → contacts, CLAIMANT → claimants)
+- Abbreviation expansion only used when all parts match (no leftover fragments like `claim_ants`)
+- COBOL table prefixes (CT_, CL_, etc.) stripped from record names
+- `CONTACT` added to abbreviation dictionary
+
+### Setup Screen Stability
+
+**File:** `dashboard.py`
+
+- Removed target platform dropdown from setup screen (caused Streamlit rerun issues)
+- Target platform selection happens in the dashboard sidebar after analysis completes
+- Added safety guard preventing main dashboard code from executing during setup screen reruns
+- Setup screen uses Streamlit's native centered layout without column workarounds
