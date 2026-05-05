@@ -84,20 +84,12 @@ if _show_setup:
         key="setup_repo_url",
     )
 
-    _col1, _col2 = st.columns(2)
-    with _col1:
-        project_name = st.text_input(
-            "Project Name",
-            value=repo_url.rstrip("/").split("/")[-1].replace(".git", "").lower() if repo_url else "",
-            key="setup_project_name",
-        )
-    with _col2:
-        target_platform = st.selectbox(
-            "Target Platform",
-            ["postgres", "snowflake", "oracle", "redshift"],
-            format_func=lambda x: {"postgres": "PostgreSQL", "snowflake": "Snowflake", "oracle": "Oracle", "redshift": "AWS (Redshift)"}.get(x, x),
-            key="setup_target",
-        )
+    project_name = st.text_input(
+        "Project Name",
+        value=repo_url.rstrip("/").split("/")[-1].replace(".git", "").lower() if repo_url else "",
+        key="setup_project_name",
+    )
+    target_platform = "postgres"
 
     st.divider()
 
