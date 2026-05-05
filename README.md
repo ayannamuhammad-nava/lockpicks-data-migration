@@ -22,21 +22,23 @@ The generated DDL, transform scripts, and mappings are **artifacts for your migr
 
 ---
 
-## Getting Started — 3 Steps
+## Getting Started — 2 Steps
 
 ### Step 1: Setup
 ```bash
 git clone https://github.com/ayannamuhammad-nava/data-migration-repo.git
 cd data-migration-repo
-./setup.sh
-```
-
-For flat file / copybook projects (no database needed):
-```bash
 ./setup.sh --no-docker
 ```
 
-### Step 2: Bootstrap your project (one command)
+### Step 2: Launch and go
+```bash
+streamlit run dashboard.py
+```
+
+Open **http://localhost:8501** — paste your mainframe repo URL, select a target platform, click **Run Migration Analysis**. The tool clones the repo, parses copybooks, profiles data, generates schemas for all 4 targets, validates, and loads the dashboard with results. No CLI needed.
+
+### Alternative: CLI bootstrap
 
 ```bash
 # From a git repo with mainframe artifacts

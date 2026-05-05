@@ -737,3 +737,90 @@ Computes per column: null %, distinct count, max length, min/max values, and top
 Runs automatically as step 2 in `dm bootstrap` (6-step pipeline: init → **profile** → discover → rationalize → generate-schema → validate).
 
 **Impact:** Profiling data is now always available before discovery and rationalization, eliminating the dependency on OM's profiler pipeline.
+
+---
+
+## Dashboard Setup Screen (2026-05-05)
+
+**File:** `dashboard.py`
+
+Added a setup screen that appears when no project is loaded. Users enter a git repo URL and click one button to run the entire pipeline.
+
+### How It Works
+
+1. User opens `http://localhost:8501` with no `--project` flag
+2. Setup screen shows: repo URL input, project name, target platform dropdown
+3. User clicks **Run Migration Analysis**
+4. Live progress shows each step:
+   - Cloning repository
+   - Scanning for copybooks and data files (paired by record length)
+   - Configuring project with only usable datasets
+   - Running discovery, profiling, schema generation for all 4 targets
+   - Running PRE validation on every dataset
+5. Page auto-reloads into the full dashboard with all results
+
+The `.dm_active_project` marker file tells the dashboard which project to load on subsequent visits.
+
+### Start Over Button
+
+Added to the sidebar bottom. Shows a confirmation dialog, then deletes the project directory and marker file, returning to the setup screen.
+
+---
+
+## Flat File Pipeline (2026-05-05)
+
+**File:** `dm/pipeline_flatfile.py`
+
+A single function (`run_flatfile_pipeline`) that generates all artifacts from copybook and flat file sources — identical output to the OM-backed pipeline but without requiring OpenMetadata or a database.
+
+### Artifacts Generated
+
+| Artifact | Description |
+|----------|-------------|
+| `metadata/profiling_stats.json` | Column-level statistics (null %, distinct count, max length, value frequencies) |
+| `metadata/glossary.json` | Column metadata with PII flags and descriptions |
+| `metadata/mappings.json` | Source-to-target column mappings with types (rename/transform/archived) |
+| `metadata/abbreviations.yaml` | Field name abbreviation mappings |
+| `metadata/normalization_plan.json` | Entity decomposition with address sub-entities |
+| `metadata/rationalization_report.json` + `.md` | Migration scope scoring |
+| `metadata/migration_scope.yaml` | Migrate/review/archive classification |
+| `artifacts/generated_schema/{target}/` | DDL + transform SQL for all 4 targets |
+| `artifacts/generated_schema/diff_report.json` | Column mapping summary |
+| `artifacts/generated_schema/updated_datasets.yaml` | Dataset config |
+
+### Auto-Detection
+
+`dm discover` now auto-detects flat file sources by checking connection types in `project.yaml`. If all sources are `copybook`, `flatfile`, or `csv`, it routes to the flat file pipeline instead of trying OpenMetadata.
+
+---
+
+## Record-Length Copybook Matching (2026-05-05)
+
+**File:** `dm/repo_loader.py`
+
+When copybooks and data files have different names (e.g., `CVCUS01Y.cpy` vs `custdata.txt`), the repo scanner now matches them by record length:
+
+1. Parses each unpaired copybook to get its record length
+2. Reads the first line of each unpaired data file to get its line length
+3. Matches when line length = record length (or within +/- 2 byte tolerance)
+
+Also improved `.txt` file detection: files in `data/` directories are automatically classified as data files.
+
+**Impact:** The AWS CardDemo repo (where copybooks and data files use completely different naming conventions) went from 0 usable datasets to 9 paired datasets.
+
+---
+
+## Customer Service Demo Repo (2026-05-05)
+
+Created standalone repo for customer service demo data:
+
+**https://github.com/ayannamuhammad-nava/customer-service-data**
+
+Contains:
+- `CONTACTS.cpy` — COBOL copybook (42 fields)
+- `CONTACTS.dat` — fixed-width data file
+- `create_contacts_legacy.sql` — legacy DDL
+- `create_contacts_modern.sql` — modern DDL
+- `load_contacts_legacy.sql` — sample data
+
+Can be used directly with the setup screen or `dm init --repo`.
