@@ -66,7 +66,9 @@ _has_runs = ARTIFACTS_DIR.exists() and any(
     d.name.startswith("run_") for d in ARTIFACTS_DIR.iterdir()
 ) if ARTIFACTS_DIR.exists() else False
 
-if not _has_project or (not _has_metadata and not _has_runs):
+_show_setup = not _has_project or (not _has_metadata and not _has_runs)
+
+if _show_setup:
     _run_clicked = False
 
     st.markdown("# Data Modernization Tool")
@@ -2588,6 +2590,10 @@ if lifecycle_view:
     else:
         st.markdown(f"## {lifecycle_view}")
         st.info(f"Detail page for **{lifecycle_view}** phase coming soon.")
+    st.stop()
+
+# Safety: if setup screen should be showing but we got here, stop
+if _show_setup:
     st.stop()
 
 if not selected_run:
