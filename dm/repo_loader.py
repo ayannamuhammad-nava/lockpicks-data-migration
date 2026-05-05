@@ -491,21 +491,38 @@ def _infer_table_name(filename: str, copybook_path: str = None) -> str:
 
     name = filename.upper()
 
-    # Common data file name mappings
-    DATA_NAME_MAP = {
-        "CUSTDATA": "customers",
-        "ACCTDATA": "accounts",
-        "CARDDATA": "cards",
-        "CARDXREF": "card_xrefs",
-        "DAILYTRAN": "transactions",
-        "TCATBAL": "transaction_category_balances",
-        "TRANCATG": "transaction_categories",
-        "TRANTYPE": "transaction_types",
-        "DISCGRP": "discount_groups",
-        "USRSEC": "user_security",
+    # Expand common abbreviations found in mainframe data file names
+    ABBREV_MAP = {
+        "CUST": "customer", "ACCT": "account", "TRAN": "transaction",
+        "CARD": "card", "XREF": "cross_reference", "DISC": "discount",
+        "GRP": "group", "BAL": "balance", "CATG": "category",
+        "USR": "user", "SEC": "security", "DAILY": "daily",
+        "TYPE": "type", "DATA": "", "INFO": "",
     }
-    if name in DATA_NAME_MAP:
-        return DATA_NAME_MAP[name]
+
+    # Try to expand the filename using abbreviation parts
+    name_lower = name.lower()
+    expanded_parts = []
+    remaining = name_lower
+    while remaining:
+        matched = False
+        for abbr, expansion in sorted(ABBREV_MAP.items(), key=lambda x: -len(x[0])):
+            if remaining.startswith(abbr.lower()):
+                if expansion:
+                    expanded_parts.append(expansion)
+                remaining = remaining[len(abbr):]
+                matched = True
+                break
+        if not matched:
+            expanded_parts.append(remaining)
+            break
+
+    if expanded_parts and any(p != name_lower for p in expanded_parts):
+        expanded = "_".join(p for p in expanded_parts if p)
+        if expanded and len(expanded) >= 3:
+            if not expanded.endswith("s"):
+                expanded += "s"
+            return expanded
 
     # Remove COBOL copybook prefixes (CV, CS, CO, CB + 3-4 chars + version suffix)
     if re.match(r'^(CV|CS|CO|CB|CC|CI)[A-Z]{2,5}\d{0,2}[A-Z]?$', name):
