@@ -1643,76 +1643,84 @@ def render_transformation_page():
 
     # ── Before / After Comparison
     with tab_compare:
-        st.markdown("#### Before / After SQL Comparison")
-        st.caption("Side-by-side view of the generated schema vs the platform-converted output.")
+        st.markdown("#### PostgreSQL vs Target Platform DDL")
+        st.caption(f"Side-by-side comparison showing how the DDL differs between PostgreSQL and **{_tgt_display}**.")
 
-        source_schema = schema_dir / "full_schema.sql"
-        if source_schema.exists() and converted_files:
-            source_sql = source_schema.read_text()
-            converted_sql = converted_files[0].read_text()
+        pg_schema = schema_dir / "postgres" / "full_schema.sql"
+        target_schema = schema_dir / _active_target / "full_schema.sql"
+
+        # Fallback to root if target subfolder doesn't exist
+        if not pg_schema.exists():
+            pg_schema = schema_dir / "full_schema.sql"
+
+        if pg_schema.exists() and target_schema.exists() and _active_target != "postgres":
+            pg_sql = pg_schema.read_text()
+            target_sql = target_schema.read_text()
 
             col_before, col_after = st.columns(2)
             with col_before:
-                st.markdown("##### Generated Schema (Before)")
-                st.code(source_sql, language="sql")
+                st.markdown("##### PostgreSQL")
+                st.code(pg_sql[:5000] + ("\n-- ... (truncated)" if len(pg_sql) > 5000 else ""), language="sql")
 
             with col_after:
-                st.markdown(f"##### Converted ({target_dialect.title()}) (After)")
-                st.code(converted_sql, language="sql")
+                st.markdown(f"##### {_tgt_display}")
+                st.code(target_sql[:5000] + ("\n-- ... (truncated)" if len(target_sql) > 5000 else ""), language="sql")
 
             # Diff summary
-            source_lines = set(source_sql.strip().splitlines())
-            converted_lines = set(converted_sql.strip().splitlines())
-            only_source = source_lines - converted_lines
-            only_converted = converted_lines - source_lines
+            pg_lines = set(pg_sql.strip().splitlines())
+            target_lines = set(target_sql.strip().splitlines())
+            only_pg = len(pg_lines - target_lines)
+            only_target = len(target_lines - pg_lines)
 
-            if only_source or only_converted:
-                st.markdown(f"**Diff:** {len(only_source)} lines removed, {len(only_converted)} lines added during conversion")
+            if only_pg or only_target:
+                st.markdown(f"**Differences:** {only_pg} PostgreSQL-specific lines, {only_target} {_tgt_display}-specific lines")
             else:
-                st.success("No differences — source and target dialects are identical.")
-        elif not source_schema.exists():
-            st.info("No generated schema found. Run `dm generate-schema --all` first.")
+                st.success("DDL is identical between PostgreSQL and the selected target.")
+        elif _active_target == "postgres":
+            st.info("Select a different target platform (Snowflake, Oracle, AWS) to see the comparison.")
+        elif not pg_schema.exists():
+            st.info("No generated schema found. Run discovery to generate.")
         else:
-            st.info("No converted SQL found. Run `dm convert` first.")
+            st.info(f"No {_tgt_display} schema found. Run discovery to generate.")
 
     # ── Warnings & TODOs
     with tab_warnings:
-        st.markdown("#### Conversion Warnings & Manual TODOs")
-        st.caption("Statements that could not be fully translated and require manual review.")
+        st.markdown("#### Warnings & Review Items")
+        st.caption("Transform scripts and converted SQL that may need manual review.")
 
+        import re as _re_warn
         has_warnings = False
-        if converted_files:
-            for cf in converted_files:
-                sql = cf.read_text()
-                # Find TODO comments
-                import re
-                todos = re.findall(r'-- TODO:.*', sql)
-                # Find commented-out CREATE TABLE blocks (failed conversions)
-                commented_creates = re.findall(r'-- CREATE TABLE \w+', sql)
 
-                if todos or commented_creates:
-                    has_warnings = True
-                    st.markdown(f"##### `{cf.name}`")
+        # Check transform scripts for review notes
+        all_check_files = list(transform_files) + list(converted_files)
+        for cf in all_check_files:
+            sql = cf.read_text()
+            todos = _re_warn.findall(r'-- (TODO|Review|REVIEW|WARNING|FIXME):?.*', sql)
+            review_lines = _re_warn.findall(r'-- Review and customize.*', sql)
 
-                    if todos:
-                        st.markdown(f"**{len(todos)} TODO(s) requiring manual review:**")
-                        for todo in todos:
-                            st.markdown(f"""
-                            <div style="background:#fff9c4;border-left:4px solid #f57f17;padding:8px 12px;margin:4px 0;border-radius:4px;color:#000">
-                                {todo.replace('-- ', '')}
-                            </div>
-                            """, unsafe_allow_html=True)
+            if todos or review_lines:
+                has_warnings = True
+                st.markdown(f"##### `{cf.name}`")
 
-                    if commented_creates:
-                        st.markdown(f"**{len(commented_creates)} CREATE TABLE statement(s) commented out** (sqlglot could not parse due to inline comments in column definitions):")
-                        for cc in commented_creates:
-                            table_name = cc.replace("-- CREATE TABLE ", "")
-                            st.markdown(f"- `{table_name}` — needs manual DDL review")
+                for item in todos + review_lines:
+                    st.markdown(f"- {item.replace('-- ', '')}")
 
-                    st.divider()
+                st.divider()
+
+        # Check for PII transforms that need verification
+        for tf in transform_files:
+            sql = tf.read_text()
+            if "sha256" in sql.lower() or "SHA2" in sql:
+                has_warnings = True
+                table_name = tf.stem.replace("_transforms", "")
+                st.markdown(f"##### `{table_name}` — PII Handling")
+                st.markdown("- Verify SHA-256 hashing produces consistent results across source and target")
+                if "DBMS_CRYPTO" in sql:
+                    st.markdown("- Oracle DBMS_CRYPTO requires EXECUTE privilege on the package")
+                st.divider()
 
         if not has_warnings:
-            st.success("No warnings or TODOs. All SQL was successfully converted.")
+            st.success("No warnings or review items. All transforms look clean.")
 
 
 def render_compliance_page():
