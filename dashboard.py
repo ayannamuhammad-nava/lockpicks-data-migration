@@ -35,6 +35,13 @@ for i, arg in enumerate(_argv):
 if _project_dir == Path(".") and os.environ.get("DM_PROJECT"):
     _project_dir = Path(os.environ["DM_PROJECT"])
 
+# Also check .dm_active_project marker file (written by setup screen)
+_marker_file = Path(".dm_active_project")
+if _project_dir == Path(".") and _marker_file.exists():
+    _marker_path = _marker_file.read_text().strip()
+    if _marker_path and Path(_marker_path).exists():
+        _project_dir = Path(_marker_path)
+
 PROJECT_DIR = _project_dir.resolve()
 
 # ── Constants ─────────────────────────────────────────────────────────────────
@@ -49,6 +56,197 @@ if _project_yaml.exists():
     PROJECT_NAME = _proj_config.get("project", {}).get("name", PROJECT_DIR.name)
 else:
     PROJECT_NAME = PROJECT_DIR.name
+
+
+# ── Setup Screen ──────────────────────────────────────────────────────────────
+# Show setup screen if no project exists or no metadata/artifacts generated yet
+_has_project = _project_yaml.exists()
+_has_metadata = (METADATA_DIR / "glossary.json").exists()
+_has_runs = ARTIFACTS_DIR.exists() and any(
+    d.name.startswith("run_") for d in ARTIFACTS_DIR.iterdir()
+) if ARTIFACTS_DIR.exists() else False
+
+if not _has_project or (not _has_metadata and not _has_runs):
+    st.markdown("# Data Modernization Tool")
+    st.markdown("**Plan and validate mainframe data migrations with confidence scoring.**")
+    st.divider()
+
+    st.markdown("### Get Started")
+    st.markdown("Provide a git repository containing mainframe artifacts (COBOL copybooks, data files, legacy SQL) and the tool will analyze everything automatically.")
+
+    repo_url = st.text_input(
+        "Git Repository URL",
+        placeholder="https://github.com/your-org/mainframe-data.git",
+        key="setup_repo_url",
+    )
+
+    col1, col2 = st.columns(2)
+    with col1:
+        project_name = st.text_input(
+            "Project Name",
+            value=repo_url.rstrip("/").split("/")[-1].replace(".git", "").lower() if repo_url else "",
+            key="setup_project_name",
+        )
+    with col2:
+        target_platform = st.selectbox(
+            "Target Platform",
+            ["postgres", "snowflake", "oracle", "redshift"],
+            format_func=lambda x: {"postgres": "PostgreSQL", "snowflake": "Snowflake", "oracle": "Oracle", "redshift": "AWS (Redshift)"}.get(x, x),
+            key="setup_target",
+        )
+
+    st.divider()
+
+    if st.button("Run Migration Analysis", type="primary", use_container_width=True, disabled=not repo_url or not project_name):
+        project_path = Path("projects") / project_name
+
+        with st.status("Running migration analysis...", expanded=True) as status:
+            # Step 1: Clone repo
+            st.write("Cloning repository...")
+            repo_dir = project_path / "_source_repo"
+            project_path.mkdir(parents=True, exist_ok=True)
+            clone_result = subprocess.run(
+                ["git", "clone", repo_url, str(repo_dir)],
+                capture_output=True, text=True, timeout=120,
+            )
+            if clone_result.returncode != 0 and not repo_dir.exists():
+                st.error(f"Clone failed: {clone_result.stderr[:300]}")
+                st.stop()
+            st.write("Repository cloned.")
+
+            # Step 2: Scan for copybooks with matching data files
+            st.write("Scanning for data copybooks and files...")
+            import yaml as _setup_yaml
+            from dm.repo_loader import scan_repo
+
+            artifacts = scan_repo(str(repo_dir))
+            # Only keep copybooks that have a paired data file
+            data_copybooks = [a for a in artifacts if a.artifact_type == "copybook" and a.paired_with]
+            # Also keep standalone data files (CSV, dat without copybook)
+            standalone_data = [a for a in artifacts if a.artifact_type in ("csv", "datafile") and not a.paired_with]
+
+            usable = data_copybooks + standalone_data
+            if not usable:
+                st.warning("No copybooks with matching data files found. Including all copybooks.")
+                usable = [a for a in artifacts if a.artifact_type == "copybook"]
+
+            st.write(f"Found {len(usable)} usable data sources.")
+
+            # Step 3: Generate project.yaml with only usable sources
+            st.write("Configuring project...")
+            connections = {}
+            datasets = []
+            seen_tables = set()
+
+            for art in usable:
+                if art.table_name in seen_tables:
+                    continue
+                seen_tables.add(art.table_name)
+                source_name = art.table_name
+
+                conn = {"type": "copybook" if art.artifact_type == "copybook" else "flatfile",
+                        "table_name": art.table_name}
+                if art.artifact_type == "copybook":
+                    conn["copybook"] = art.path
+                    conn["format"] = "fixed"
+                    conn["encoding"] = "utf-8"
+                if art.paired_with:
+                    conn["datafile"] = art.paired_with
+                elif art.artifact_type in ("csv", "datafile"):
+                    conn["datafile"] = art.path
+                    conn["format"] = "csv" if art.artifact_type == "csv" else "fixed"
+
+                connections[source_name] = conn
+                datasets.append({
+                    "name": art.table_name,
+                    "source": source_name,
+                    "target": "modern",
+                    "legacy_table": art.table_name,
+                })
+
+            connections["modern"] = {
+                "type": target_platform,
+                "host": "${DB_MODERN_HOST:localhost}",
+                "port": 5432,
+                "database": "${DB_MODERN_NAME:modern_db}",
+                "user": "${DB_MODERN_USER:app}",
+                "password": "${DB_MODERN_PASSWORD:secret123}",
+            }
+
+            config = {
+                "project": {"name": project_name, "description": f"Migration from {repo_url}", "version": "1.0",
+                            "source_repo": repo_url},
+                "connections": connections,
+                "datasets": datasets,
+                "validation": {
+                    "sample_size": 100,
+                    "governance": {
+                        "pii_keywords": ["ssn", "social_security", "dob", "date_of_birth", "phone", "addr",
+                                         "zip", "credit", "account", "card_num", "fico", "govt", "eft"],
+                        "naming_regex": "^[a-z0-9_]+$",
+                        "max_null_percent": 10,
+                    },
+                },
+                "scoring": {
+                    "weights": {"structure": 0.4, "integrity": 0.4, "governance": 0.2},
+                    "thresholds": {"green": 90, "yellow": 70},
+                },
+                "metadata": {"path": "./metadata"},
+                "artifacts": {"base_path": "./artifacts"},
+                "plugins": [],
+            }
+
+            (project_path / "metadata").mkdir(exist_ok=True)
+            (project_path / "artifacts").mkdir(exist_ok=True)
+            (project_path / "plugins").mkdir(exist_ok=True)
+            (project_path / "plugins" / "__init__.py").touch()
+            with open(project_path / "project.yaml", "w") as f:
+                _setup_yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+            st.write(f"Project configured: {len(datasets)} datasets, {len(connections)-1} sources.")
+
+            # Step 4: Run flat file pipeline (discover + profile + schema gen)
+            st.write("Running discovery, profiling, and schema generation...")
+            discover_cmd = [
+                sys.executable, "-m", "dm.cli", "discover",
+                "--project", str(project_path),
+            ]
+            result = subprocess.run(discover_cmd, capture_output=True, text=True, timeout=120)
+            if result.returncode != 0:
+                st.write(f"Discovery had issues (continuing): {result.stderr[:300]}")
+            else:
+                for line in result.stdout.splitlines():
+                    if "Tables:" in line or "Columns:" in line or "Mappings:" in line or "Scope:" in line:
+                        st.write(f"  {line.strip()}")
+
+            # Step 5: Validate all datasets
+            st.write("Running PRE validation...")
+            for ds in datasets:
+                ds_name = ds["name"]
+                val_cmd = [
+                    sys.executable, "-m", "dm.cli", "validate",
+                    "--phase", "pre", "--dataset", ds_name,
+                    "--project", str(project_path),
+                ]
+                val_result = subprocess.run(val_cmd, capture_output=True, text=True, timeout=60)
+                # Extract score
+                for line in val_result.stdout.splitlines():
+                    if "CONFIDENCE" in line:
+                        st.write(f"  {ds_name}: {line.strip()}")
+                        break
+
+            status.update(label="Analysis complete!", state="complete")
+
+        # Save active project so the dashboard picks it up on rerun
+        Path(".dm_active_project").write_text(str(project_path))
+        st.success(f"Project **{project_name}** is ready!")
+        st.rerun()
+
+    st.divider()
+    st.caption("Or run from the command line:")
+    st.code(f"dm init <project-name> --repo <url>\ndm discover --project projects/<project-name>\nstreamlit run dashboard.py -- --project projects/<project-name>", language="bash")
+
+    st.stop()  # Don't render the main dashboard
 
 # Detect repo name from git
 try:
@@ -94,7 +292,7 @@ RAG_SUGGESTIONS = [
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Data-Migration Tool",
+    page_title="Data Modernization Tool",
     page_icon="🔍",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -844,27 +1042,44 @@ def render_modeling_page():
         st.markdown("#### Legacy → Modern Column Mapping")
         st.caption("How each legacy column maps to the new table structure.")
 
-        columns_data = diff_data.get("columns", {})
-        if columns_data:
-            for category in ["renamed", "transformed", "archived", "removed"]:
-                items = columns_data.get(category, {})
-                if items:
-                    cat_icon = {"renamed": "→", "transformed": "⚙️", "archived": "🔒", "removed": "🗑️"}.get(category, "")
-                    st.markdown(f"##### {cat_icon} {category.title()} ({len(items)} columns)")
-                    rows = []
-                    for src_col, info in items.items():
-                        rows.append({
-                            "Legacy Column": src_col,
-                            "Target Table": info.get("target_table", ""),
-                            "Target Column": info.get("target_column", ""),
-                            "Transform": info.get("transform", "") or "",
-                            "PII Action": info.get("pii_action", "") or "",
-                        })
-                    df = pd.DataFrame(rows)
+        # Read from mappings.json (the authoritative source for column mappings)
+        mappings_path = METADATA_DIR / "mappings.json"
+        if mappings_path.exists():
+            mappings_data = json.loads(mappings_path.read_text())
+            all_mappings = mappings_data.get("mappings", [])
 
-                    st.dataframe(df, use_container_width=True, hide_index=True)
+            if all_mappings:
+                # Group by type
+                by_type = {}
+                for m in all_mappings:
+                    t = m.get("type", "rename")
+                    by_type.setdefault(t, []).append(m)
+
+                # Summary counts
+                type_icons = {"rename": "→", "transform": "⚙️", "archived": "🔒", "removed": "🗑️"}
+                cols_summary = st.columns(len(by_type))
+                for i, (t, items) in enumerate(sorted(by_type.items())):
+                    icon = type_icons.get(t, "")
+                    cols_summary[i].metric(f"{icon} {t.title()}", len(items))
+
+                st.divider()
+
+                # Show all mappings in a table
+                rows = []
+                for m in all_mappings:
+                    icon = type_icons.get(m.get("type", ""), "")
+                    rows.append({
+                        "Table": m.get("table", ""),
+                        "Legacy Column": m.get("source", ""),
+                        "Modern Column": m.get("target", ""),
+                        "Type": f"{icon} {m.get('type', '')}",
+                        "Confidence": f"{int(m.get('confidence', 0) * 100)}%",
+                    })
+                st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+            else:
+                st.info("No column mappings found.")
         else:
-            st.info("No diff report found. Run `dm generate-schema --all` to generate.")
+            st.info("No mappings.json found. Run `dm discover --enrich` to generate.")
 
     # ── Normalization Plan tab
     with tab_norm:
@@ -872,15 +1087,29 @@ def render_modeling_page():
         st.caption("How the legacy table was decomposed into normalized modern entities.")
 
         if norm_plan:
-            entities = norm_plan.get("entities", norm_plan.get("tables", []))
-            if isinstance(entities, list):
-                for entity in entities:
+            # Support both formats:
+            # Format 1: {"entities": [...]} (single table)
+            # Format 2: {"table_name": {"entities": [...]}, ...} (multi-table)
+            all_entities = []
+            if "entities" in norm_plan:
+                all_entities = norm_plan["entities"]
+            else:
+                for table_name, table_plan in norm_plan.items():
+                    if isinstance(table_plan, dict) and "entities" in table_plan:
+                        for entity in table_plan["entities"]:
+                            all_entities.append(entity)
+
+            if all_entities:
+                for entity in all_entities:
                     role = entity.get("role", "primary")
                     name = entity.get("name", entity.get("table", ""))
                     confidence = entity.get("confidence", 0)
                     columns = entity.get("columns", [])
+                    rationale = entity.get("rationale", "")
                     role_icon = {"primary": "🟢", "child": "🔵", "lookup": "🟡"}.get(role, "⚪")
                     st.markdown(f"**{role_icon} {name}** — {role} (confidence: {confidence:.0%})")
+                    if rationale:
+                        st.caption(rationale)
                     if columns:
                         st.markdown(f"  Columns: `{'`, `'.join(columns)}`")
                     rels = entity.get("relationships", [])
@@ -888,8 +1117,6 @@ def render_modeling_page():
                         for rel in rels:
                             st.markdown(f"  FK: `{rel.get('column', '')}` → `{rel.get('references', '')}`")
                     st.markdown("")
-            elif isinstance(entities, dict):
-                st.json(entities)
             else:
                 st.json(norm_plan)
         else:
@@ -2222,7 +2449,30 @@ with st.sidebar:
     st.caption(f"Project: `{PROJECT_NAME}`")
     if REPO_NAME:
         st.caption(f"Repo: `{REPO_NAME}`")
-    st.caption("CLI: `dm validate --help`")
+
+    st.divider()
+    if st.button("Start Over", use_container_width=True, key="btn_start_over"):
+        st.session_state["confirm_start_over"] = True
+
+    if st.session_state.get("confirm_start_over"):
+        st.warning("This will delete all project data and return to the setup screen.")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Confirm", type="primary", use_container_width=True, key="btn_confirm_reset"):
+                import shutil
+                # Remove project directory
+                if PROJECT_DIR.exists():
+                    shutil.rmtree(PROJECT_DIR, ignore_errors=True)
+                # Remove active project marker
+                _marker = Path(".dm_active_project")
+                if _marker.exists():
+                    _marker.unlink()
+                st.session_state.pop("confirm_start_over", None)
+                st.rerun()
+        with c2:
+            if st.button("Cancel", use_container_width=True, key="btn_cancel_reset"):
+                st.session_state.pop("confirm_start_over", None)
+                st.rerun()
 
 
 # ── Main area ──────────────────────────────────────────────────────────────────

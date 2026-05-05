@@ -362,12 +362,39 @@ def profile(project):
 @click.option("--no-interactive", is_flag=True, help="Skip interactive prompts")
 @click.option("--enrich", is_flag=True, help="Chain into OM enrichment after discovery")
 def discover(project, tables, no_interactive, enrich):
-    """Introspect databases and generate metadata (glossary + mappings)."""
-    from dm.config import get_metadata_path, get_openmetadata_config, get_plugin_specs, load_project_config
-    from dm.discovery.metadata_generator import generate_metadata, generate_metadata_from_om
+    """Introspect databases and generate metadata (glossary + mappings).
+
+    Auto-detects flat file / copybook sources and runs the appropriate pipeline.
+    """
+    from dm.config import get_metadata_path, get_plugin_specs, load_project_config
     from dm.plugin_manager import get_plugin_manager
 
     config = load_project_config(project)
+
+    # Auto-detect if this is a flat file project (no database connections)
+    connections = config.get("connections", {})
+    flatfile_types = {"copybook", "flatfile", "csv"}
+    source_types = set()
+    for conn_name, conn_cfg in connections.items():
+        if conn_name in ("modern",):
+            continue
+        source_types.add(conn_cfg.get("type", "").lower())
+
+    if source_types and source_types.issubset(flatfile_types):
+        # All sources are flat files — use the flat file pipeline
+        click.echo("Detected flat file / copybook sources — running flat file pipeline")
+        from dm.pipeline_flatfile import run_flatfile_pipeline
+        result = run_flatfile_pipeline(project)
+        click.echo("")
+        click.echo(f"Pipeline complete:")
+        click.echo(f"  Tables:   {result['tables']}")
+        click.echo(f"  Columns:  {result['columns']}")
+        click.echo(f"  Rows:     {result['rows']}")
+        click.echo(f"  Mappings: {result['mappings']}")
+        click.echo(f"  Scope:    {result['migrate']} migrate, {result['review']} review, {result['archive']} archive")
+        click.echo(f"  Targets:  {', '.join(result['targets'])}")
+        return
+
     pm = get_plugin_manager(get_plugin_specs(config), project_dir=project)
 
     # Resolve tables

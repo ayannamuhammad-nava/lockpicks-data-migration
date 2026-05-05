@@ -25,3 +25,5 @@ Thumbs.db
 artifacts/
 !**/artifacts/signoff.log
 metadata/.embeddings_cache.npz
+_source_repo/
+.dm_active_project

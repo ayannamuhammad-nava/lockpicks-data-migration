@@ -136,34 +136,85 @@ def scan_repo(repo_path: str) -> List[DiscoveredArtifact]:
             ))
 
         elif suffix == ".txt":
-            # Auto-detect: if file has fixed-width looking content, treat as data
-            try:
-                head = f.read_text(errors="replace")[:500]
-                lines = head.strip().splitlines()
-                if len(lines) > 1:
-                    lengths = [len(l) for l in lines[:10]]
-                    if len(set(lengths)) == 1 and lengths[0] > 20:
-                        # All lines same length — likely fixed-width
-                        artifacts.append(DiscoveredArtifact(
-                            path=str(f), artifact_type="datafile",
-                            table_name=table_name,
-                        ))
-                        datafiles[stem] = str(f)
-                    elif "," in lines[0] or "\t" in lines[0]:
-                        artifacts.append(DiscoveredArtifact(
-                            path=str(f), artifact_type="csv",
-                            table_name=table_name,
-                        ))
-            except Exception:
-                pass
+            # If file is in a data/ directory, treat as data file
+            in_data_dir = any(p.lower() == "data" for p in f.parts)
+            if in_data_dir:
+                artifacts.append(DiscoveredArtifact(
+                    path=str(f), artifact_type="datafile",
+                    table_name=table_name,
+                ))
+                datafiles[stem] = str(f)
+            else:
+                # Auto-detect: check for fixed-width or delimited content
+                try:
+                    head = f.read_text(errors="replace")[:2000]
+                    lines = head.strip().splitlines()
+                    if len(lines) > 1:
+                        lengths = [len(l) for l in lines[:10]]
+                        if len(set(lengths)) == 1 and lengths[0] > 20:
+                            artifacts.append(DiscoveredArtifact(
+                                path=str(f), artifact_type="datafile",
+                                table_name=table_name,
+                            ))
+                            datafiles[stem] = str(f)
+                        elif "," in lines[0] or "\t" in lines[0]:
+                            artifacts.append(DiscoveredArtifact(
+                                path=str(f), artifact_type="csv",
+                                table_name=table_name,
+                            ))
+                except Exception:
+                    pass
 
-    # Pair copybooks with data files by matching stems
+    # Pair copybooks with data files
+    # Strategy 1: Match by filename stem
     for a in artifacts:
         stem = Path(a.path).stem.upper()
         if a.artifact_type == "copybook" and stem in datafiles:
             a.paired_with = datafiles[stem]
         elif a.artifact_type == "datafile" and stem in copybooks:
             a.paired_with = copybooks[stem]
+
+    # Strategy 2: Match unpaired data files to copybooks by record length
+    unpaired_data = [a for a in artifacts if a.artifact_type in ("datafile", "csv") and not a.paired_with]
+    unpaired_cpys = [a for a in artifacts if a.artifact_type == "copybook" and not a.paired_with]
+
+    if unpaired_data and unpaired_cpys:
+        # Build record length map from copybooks
+        cpy_by_length = {}
+        for a in unpaired_cpys:
+            try:
+                from dm.connectors.copybook_parser import parse_copybook
+                layout = parse_copybook(a.path)
+                if layout.record_length > 0 and layout.data_fields():
+                    cpy_by_length.setdefault(layout.record_length, []).append(a)
+            except Exception:
+                pass
+
+        # Match data files by line length
+        for a in unpaired_data:
+            try:
+                with open(a.path, "r", errors="replace") as f:
+                    first_line = f.readline()
+                line_len = len(first_line.rstrip("\n\r"))
+                # Try exact match, then +/- 2 tolerance
+                for tolerance in (0, 1, 2, 14):
+                    for rl in range(line_len - tolerance, line_len + tolerance + 1):
+                        if rl in cpy_by_length and cpy_by_length[rl]:
+                            matched_cpy = cpy_by_length[rl][0]
+                            a.paired_with = matched_cpy.path
+                            matched_cpy.paired_with = a.path
+                            # Use copybook's table name for the data file
+                            a.table_name = matched_cpy.table_name
+                            logger.info(
+                                f"Paired by record length ({rl} bytes): "
+                                f"{Path(a.path).name} <-> {Path(matched_cpy.path).name}"
+                            )
+                            cpy_by_length[rl].remove(matched_cpy)
+                            break
+                    if a.paired_with:
+                        break
+            except Exception:
+                pass
 
     logger.info(
         f"Scanned {repo_path}: found {len(artifacts)} artifacts "
