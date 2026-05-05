@@ -2535,7 +2535,12 @@ with st.sidebar:
                 # Clear all session state to prevent stale data
                 for key in list(st.session_state.keys()):
                     del st.session_state[key]
-                st.rerun()
+                # Force a full browser reload so set_page_config re-evaluates layout
+                st.markdown(
+                    '<meta http-equiv="refresh" content="0;url=/">',
+                    unsafe_allow_html=True,
+                )
+                st.stop()
         with c2:
             if st.button("Cancel", use_container_width=True, key="btn_cancel_reset"):
                 st.session_state.pop("confirm_start_over", None)
