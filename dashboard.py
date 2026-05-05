@@ -237,8 +237,9 @@ if not _has_project or (not _has_metadata and not _has_runs):
 
             status.update(label="Analysis complete!", state="complete")
 
-        # Save active project so the dashboard picks it up on rerun
+        # Save active project and set flag to land on PRE validation view
         Path(".dm_active_project").write_text(str(project_path))
+        Path(".dm_show_latest_run").write_text("true")
         st.success(f"Project **{project_name}** is ready!")
         st.rerun()
 
@@ -291,11 +292,19 @@ RAG_SUGGESTIONS = [
 ]
 
 # ── Page config ────────────────────────────────────────────────────────────────
+# Detect if setup screen will show — use centered layout for it, wide for dashboard
+_setup_check_project = (PROJECT_DIR / "project.yaml").exists()
+_setup_check_metadata = (METADATA_DIR / "glossary.json").exists()
+_setup_check_runs = ARTIFACTS_DIR.exists() and any(
+    d.name.startswith("run_") for d in ARTIFACTS_DIR.iterdir()
+) if ARTIFACTS_DIR.exists() else False
+_is_setup_screen = not _setup_check_project or (not _setup_check_metadata and not _setup_check_runs)
+
 st.set_page_config(
     page_title="Data Modernization Tool",
     page_icon="🔍",
-    layout="wide",
-    initial_sidebar_state="expanded",
+    layout="centered" if _is_setup_screen else "wide",
+    initial_sidebar_state="collapsed" if _is_setup_screen else "expanded",
 )
 
 # ── Custom CSS ─────────────────────────────────────────────────────────────────
@@ -2479,6 +2488,12 @@ with st.sidebar:
 
 lifecycle = get_lifecycle_status()
 
+# If coming from setup screen, clear lifecycle view to show run results
+_show_run_marker = Path(".dm_show_latest_run")
+if _show_run_marker.exists():
+    _show_run_marker.unlink()
+    st.session_state.pop("lifecycle_view", None)
+
 # Check if a lifecycle phase was clicked
 lifecycle_view = st.session_state.get("lifecycle_view", None)
 
@@ -2615,11 +2630,11 @@ st.divider()
 
 # ── Tabs ───────────────────────────────────────────────────────────────────────
 if phase == "PRE":
-    tabs = st.tabs(["📋 Readiness Report", "🔍 Schema Diff & Mappings", "🔒 Governance", "💬 Ask the Agent"])
-    tab_readiness, tab_schema, tab_gov, tab_rag = tabs
+    tabs = st.tabs(["📋 Readiness Report", "🔍 Schema Diff & Mappings", "🔒 Governance", "📝 Score Notes", "💬 Ask the Agent"])
+    tab_readiness, tab_schema, tab_gov, tab_notes, tab_rag = tabs
 else:
-    tabs = st.tabs(["📋 Reconciliation Report", "💬 Ask the Agent"])
-    tab_recon, tab_rag = tabs
+    tabs = st.tabs(["📋 Reconciliation Report", "📝 Score Notes", "💬 Ask the Agent"])
+    tab_recon, tab_notes, tab_rag = tabs
 
 
 # ── PRE: Readiness Report ──────────────────────────────────────────────────────
@@ -2753,6 +2768,79 @@ if phase == "POST":
             st.markdown(recon_md)
         else:
             st.info("No reconciliation report found for this run.")
+
+
+# ── Score Notes — explain the score ───────────────────────────────────────────
+with tab_notes:
+    st.markdown("#### Score Breakdown")
+    st.markdown(f"**Dataset:** {dataset} &nbsp;&nbsp; **Phase:** {phase} &nbsp;&nbsp; **Target:** {_tgt_display}")
+
+    st.divider()
+
+    # Formula
+    st.markdown("**Scoring Formula:**")
+    st.markdown("`confidence = (0.4 x structure) + (0.4 x integrity) + (0.2 x governance)`")
+    st.markdown("")
+
+    # Component scores
+    st.markdown("**Component Scores:**")
+    _note_rows = []
+    if struct_score is not None:
+        _note_rows.append({"Component": "Structure (40%)", "Score": f"{struct_score}/100",
+                           "What it measures": "Schema compatibility — column mappings, type matches, renamed vs removed fields"})
+    if integ_score is not None:
+        _note_rows.append({"Component": "Integrity (40%)", "Score": f"{integ_score}/100",
+                           "What it measures": "Data survival — row counts, checksums, FK integrity, aggregate matches (POST only)"})
+    if gov_score is not None:
+        _note_rows.append({"Component": "Governance (20%)", "Score": f"{gov_score}/100",
+                           "What it measures": "Compliance — PII handling, naming conventions, null thresholds, required fields"})
+    if _note_rows:
+        st.dataframe(pd.DataFrame(_note_rows), use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    # Target platform impact
+    st.markdown(f"**Target Platform Impact ({_tgt_display}):**")
+    _tp_info = _target_result.get("target_penalties", {})
+    if any(_tp_info.get(k, 0) > 0 for k in ("structure", "integrity", "governance")):
+        _penalty_rows = []
+        for k in ("structure", "integrity", "governance"):
+            p = _tp_info.get(k, 0)
+            if p > 0:
+                _penalty_rows.append({"Component": k.title(), "Penalty": f"-{p} points"})
+        st.dataframe(pd.DataFrame(_penalty_rows), use_container_width=True, hide_index=True)
+
+        _notes = _target_result.get("target_notes", [])
+        if _notes:
+            st.markdown("**Why:**")
+            for n in _notes:
+                st.markdown(f"- {n}")
+    else:
+        st.success(f"{_tgt_display} has no platform penalties — full constraint support.")
+
+    st.divider()
+
+    # What to do to improve
+    st.markdown("**How to improve the score:**")
+    if phase == "PRE":
+        if struct_score is not None and struct_score < 90:
+            st.markdown("- **Structure**: Run `dm discover` and `dm generate-schema` to ensure all columns are mapped. Unmapped or removed columns add penalties.")
+        if gov_score is not None and gov_score < 90:
+            st.markdown("- **Governance**: Review PII fields in the Governance tab. Ensure SSN/financial data is hashed or archived in the schema generation config.")
+        if struct_score and struct_score >= 90 and gov_score and gov_score >= 90:
+            st.success("Score is GREEN — ready for sign-off.")
+    else:
+        if integ_score is not None and integ_score < 90:
+            st.markdown("- **Integrity**: Check row counts and checksums in the Reconciliation Report. Mismatches indicate data was lost or transformed incorrectly during migration.")
+        st.markdown("- Run POST validation after data migration is complete for accurate integrity scores.")
+
+    st.divider()
+
+    # Thresholds
+    st.markdown("**Score Thresholds:**")
+    st.markdown("- 🟢 **GREEN** (90-100): Safe to proceed")
+    st.markdown("- 🟡 **YELLOW** (70-89): Review recommended")
+    st.markdown("- 🔴 **RED** (0-69): Fix issues before proceeding")
 
 
 # ── RAG Chat — shared for both phases ─────────────────────────────────────────

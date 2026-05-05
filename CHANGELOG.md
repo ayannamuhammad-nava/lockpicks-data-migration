@@ -824,3 +824,30 @@ Contains:
 - `load_contacts_legacy.sql` — sample data
 
 Can be used directly with the setup screen or `dm init --repo`.
+
+---
+
+## Score Notes Tab (2026-05-05)
+
+**File:** `dashboard.py`
+
+Added a **Score Notes** tab to the PRE and POST validation run views, positioned before the Ask the Agent tab.
+
+Contents:
+- **Scoring formula** — `confidence = (0.4 x structure) + (0.4 x integrity) + (0.2 x governance)`
+- **Component scores** — table showing each component's score and what it measures
+- **Target platform impact** — shows penalties applied for the selected platform with explanations
+- **How to improve** — context-specific recommendations based on which components scored low
+- **Score thresholds** — GREEN/YELLOW/RED definitions
+
+---
+
+## Setup Screen Layout Fix (2026-05-05)
+
+**File:** `dashboard.py`
+
+- Setup screen now uses **centered layout** with collapsed sidebar (clean, focused input form)
+- Dashboard uses **wide layout** with expanded sidebar (full data view)
+- Layout is determined before `set_page_config` by checking if a project exists
+- After setup completes, page auto-reruns and switches to wide layout with the latest PRE run selected
+- `.dm_show_latest_run` marker ensures the dashboard lands on the run view, not a lifecycle page
