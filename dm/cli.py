@@ -409,10 +409,17 @@ def discover(project, tables, no_interactive, enrich):
 
     # Check if OM enrichment mode (no modern DB required)
     if enrich:
+        try:
+            from dm.config import get_openmetadata_config
+            om_config = get_openmetadata_config(config)
+        except KeyError:
+            click.echo("  No OpenMetadata configured — falling back to database-only discovery")
+            enrich = False
+
+    if enrich:
         from dm.discovery.openmetadata_enricher import OpenMetadataEnricher
         from dm.discovery.om_plugin import OpenMetadataPlugin
 
-        om_config = get_openmetadata_config(config)
         om = OpenMetadataEnricher(om_config)
         om.connect()
 
@@ -438,13 +445,20 @@ def discover(project, tables, no_interactive, enrich):
         from dm.connectors.postgres import get_connector
         from dm.config import get_connection_config, get_all_sources
 
-        # Connect to the first source and first target (for non-OM discovery)
+        # Connect to the first source (required) and target (optional)
         first_source = get_all_sources(config)[0]
         legacy_conn = get_connector(get_connection_config(config, first_source))
-        modern_conn = get_connector(get_connection_config(config, "modern"))
+
+        modern_conn = None
+        try:
+            modern_conn_cfg = get_connection_config(config, "modern")
+            modern_conn = get_connector(modern_conn_cfg)
+            modern_conn.connect()
+        except (KeyError, Exception) as e:
+            click.echo(f"  Modern DB not available ({e}) — using COBOL abbreviation expansion only")
+
         try:
             legacy_conn.connect()
-            modern_conn.connect()
             generate_metadata(
                 legacy_conn, modern_conn,
                 tables=list(tables),
@@ -455,7 +469,8 @@ def discover(project, tables, no_interactive, enrich):
             click.echo(f"Metadata generated: {metadata_path}")
         finally:
             legacy_conn.close()
-            modern_conn.close()
+            if modern_conn:
+                modern_conn.close()
 
 
 @cli.command()

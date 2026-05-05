@@ -190,29 +190,38 @@ def scan_repo(repo_path: str) -> List[DiscoveredArtifact]:
             except Exception:
                 pass
 
-        # Match data files by line length
+        # Match data files by line length, then validate the pairing
         for a in unpaired_data:
             try:
                 with open(a.path, "r", errors="replace") as f:
                     first_line = f.readline()
                 line_len = len(first_line.rstrip("\n\r"))
-                # Try exact match, then +/- 2 tolerance
-                for tolerance in (0, 1, 2, 14):
+
+                best_match = None
+                best_score = -1
+
+                # Find all copybooks with matching record length
+                for tolerance in (0, 1, 2):
                     for rl in range(line_len - tolerance, line_len + tolerance + 1):
-                        if rl in cpy_by_length and cpy_by_length[rl]:
-                            matched_cpy = cpy_by_length[rl][0]
-                            a.paired_with = matched_cpy.path
-                            matched_cpy.paired_with = a.path
-                            # Use copybook's table name for the data file
-                            a.table_name = matched_cpy.table_name
-                            logger.info(
-                                f"Paired by record length ({rl} bytes): "
-                                f"{Path(a.path).name} <-> {Path(matched_cpy.path).name}"
-                            )
-                            cpy_by_length[rl].remove(matched_cpy)
-                            break
-                    if a.paired_with:
-                        break
+                        for cpy_art in cpy_by_length.get(rl, []):
+                            # Score the match by parsing the first record
+                            score = _validate_pairing(first_line, cpy_art.path)
+                            if score > best_score:
+                                best_score = score
+                                best_match = cpy_art
+
+                if best_match and best_score > 0:
+                    a.paired_with = best_match.path
+                    best_match.paired_with = a.path
+                    a.table_name = best_match.table_name
+                    logger.info(
+                        f"Paired by record length + validation (score={best_score}): "
+                        f"{Path(a.path).name} <-> {Path(best_match.path).name}"
+                    )
+                    # Remove from candidates
+                    for rl_list in cpy_by_length.values():
+                        if best_match in rl_list:
+                            rl_list.remove(best_match)
             except Exception:
                 pass
 
@@ -388,6 +397,53 @@ def generate_project_from_repo(
     )
 
     return summary
+
+
+def _validate_pairing(first_line: str, copybook_path: str) -> int:
+    """Score how well a data line matches a copybook layout.
+
+    Parses the first record using the copybook's field offsets and checks
+    if the extracted values look reasonable (non-empty, printable, numeric
+    fields contain digits).
+
+    Returns:
+        Score 0-100. Higher = better match.
+    """
+    try:
+        from dm.connectors.copybook_parser import parse_copybook
+        layout = parse_copybook(copybook_path)
+        fields = layout.data_fields()
+        if not fields:
+            return 0
+
+        good = 0
+        total = 0
+        line = first_line.rstrip("\n\r")
+
+        for f in fields:
+            total += 1
+            val = line[f.offset:f.offset + f.length].strip()
+
+            if not val:
+                continue
+
+            # Check if the value is printable
+            if not all(c.isprintable() or c.isspace() for c in val):
+                continue
+
+            # For numeric PIC (9), check if value contains digits
+            if f.pic and "9" in f.pic.upper() and "X" not in f.pic.upper():
+                # Should be mostly digits (allow sign characters like { } for EBCDIC)
+                digit_chars = sum(1 for c in val if c.isdigit() or c in "{}+-.")
+                if digit_chars >= len(val) * 0.5:
+                    good += 1
+            else:
+                # Alpha/alphanumeric — just needs to be non-empty printable
+                good += 1
+
+        return int((good / total) * 100) if total > 0 else 0
+    except Exception:
+        return 0
 
 
 def _infer_table_name(filename: str) -> str:

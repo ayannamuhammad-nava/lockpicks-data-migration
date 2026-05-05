@@ -115,13 +115,15 @@ class FlatFileConnector(BaseConnector):
             text = data_path.read_text(encoding=encoding, errors="replace")
 
         # Parse fixed-width records
+        # Always use line-based parsing for text files (they have newlines).
+        # Only use byte-based for raw binary (EBCDIC) without newlines.
         record_len = self._layout.record_length
         rows = []
-        lines = text.splitlines() if record_len == 0 else None
 
-        if lines:
-            # Line-based: each line is a record
-            for line in lines:
+        has_newlines = "\n" in text
+        if has_newlines:
+            # Line-based: each line is one record
+            for line in text.splitlines():
                 if not line.strip():
                     continue
                 row = {}
@@ -129,8 +131,8 @@ class FlatFileConnector(BaseConnector):
                     val = line[f.offset:f.offset + f.length].strip()
                     row[f.name.lower().replace("-", "_")] = val
                 rows.append(row)
-        else:
-            # Byte-based: split by record length
+        elif record_len > 0:
+            # Byte-based: split by record length (raw binary / EBCDIC)
             pos = 0
             while pos + record_len <= len(text):
                 record = text[pos:pos + record_len]
