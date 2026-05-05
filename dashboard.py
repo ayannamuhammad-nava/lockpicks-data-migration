@@ -67,43 +67,39 @@ _has_runs = ARTIFACTS_DIR.exists() and any(
 ) if ARTIFACTS_DIR.exists() else False
 
 if not _has_project or (not _has_metadata and not _has_runs):
-    # Center the setup form using a container (works even if layout is wide from previous session)
     _run_clicked = False
-    _setup_container = st.container()
-    with _setup_container:
-        _pad_left, _center, _pad_right = st.columns([1, 2, 1])
-        with _center:
-            st.markdown("# Data Modernization Tool")
-            st.markdown("**Plan and validate mainframe data migrations with confidence scoring.**")
-            st.divider()
 
-            st.markdown("### Get Started")
-            st.markdown("Provide a git repository containing mainframe artifacts (COBOL copybooks, data files, legacy SQL) and the tool will analyze everything automatically.")
+    st.markdown("# Data Modernization Tool")
+    st.markdown("**Plan and validate mainframe data migrations with confidence scoring.**")
+    st.divider()
 
-            repo_url = st.text_input(
-                "Git Repository URL",
-                placeholder="https://github.com/your-org/mainframe-data.git",
-                key="setup_repo_url",
-            )
+    st.markdown("### Get Started")
+    st.markdown("Provide a git repository containing mainframe artifacts (COBOL copybooks, data files, legacy SQL) and the tool will analyze everything automatically.")
 
-            _col1, _col2 = st.columns(2)
-            with _col1:
-                project_name = st.text_input(
-                    "Project Name",
-                    value=repo_url.rstrip("/").split("/")[-1].replace(".git", "").lower() if repo_url else "",
-                    key="setup_project_name",
-                )
-            with _col2:
-                target_platform = st.selectbox(
-                    "Target Platform",
-                    ["postgres", "snowflake", "oracle", "redshift"],
-                    format_func=lambda x: {"postgres": "PostgreSQL", "snowflake": "Snowflake", "oracle": "Oracle", "redshift": "AWS (Redshift)"}.get(x, x),
-                    key="setup_target",
-                )
+    repo_url = st.text_input(
+        "Git Repository URL",
+        placeholder="https://github.com/your-org/mainframe-data.git",
+        key="setup_repo_url",
+    )
 
-            st.divider()
+    _col1, _col2 = st.columns(2)
+    with _col1:
+        project_name = st.text_input(
+            "Project Name",
+            value=repo_url.rstrip("/").split("/")[-1].replace(".git", "").lower() if repo_url else "",
+            key="setup_project_name",
+        )
+    with _col2:
+        target_platform = st.selectbox(
+            "Target Platform",
+            ["postgres", "snowflake", "oracle", "redshift"],
+            format_func=lambda x: {"postgres": "PostgreSQL", "snowflake": "Snowflake", "oracle": "Oracle", "redshift": "AWS (Redshift)"}.get(x, x),
+            key="setup_target",
+        )
 
-            _run_clicked = st.button("Run Migration Analysis", type="primary", use_container_width=True, disabled=not repo_url or not project_name)
+    st.divider()
+
+    _run_clicked = st.button("Run Migration Analysis", type="primary", use_container_width=True, disabled=not repo_url or not project_name)
 
     if _run_clicked:
         project_path = Path("projects") / project_name
@@ -251,10 +247,9 @@ if not _has_project or (not _has_metadata and not _has_runs):
         st.success(f"Project **{project_name}** is ready!")
         st.rerun()
 
-    with _center:
-        st.divider()
-        st.caption("Or run from the command line:")
-        st.code("dm init <project-name> --repo <url>\ndm discover --project projects/<project-name>\nstreamlit run dashboard.py -- --project projects/<project-name>", language="bash")
+    st.divider()
+    st.caption("Or run from the command line:")
+    st.code("dm init <project-name> --repo <url>\ndm discover --project projects/<project-name>\nstreamlit run dashboard.py -- --project projects/<project-name>", language="bash")
 
     st.stop()  # Don't render the main dashboard
 
