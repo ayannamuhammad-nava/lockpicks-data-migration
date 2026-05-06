@@ -221,18 +221,25 @@ if _show_setup:
             st.write(f"Project configured: {len(datasets)} datasets, {len(connections)-1} sources.")
 
             # Step 4: Run flat file pipeline (discover + profile + schema gen)
-            st.write("Running discovery, profiling, and schema generation...")
+            if api_key:
+                st.write("Running discovery, profiling, schema generation, and AI analysis...")
+            else:
+                st.write("Running discovery, profiling, and schema generation...")
             discover_cmd = [
                 sys.executable, "-m", "dm.cli", "discover",
                 "--project", str(project_path),
             ]
-            result = subprocess.run(discover_cmd, capture_output=True, text=True, timeout=120)
+            result = subprocess.run(discover_cmd, capture_output=True, text=True, timeout=180)
             if result.returncode != 0:
                 st.write(f"Discovery had issues (continuing): {result.stderr[:300]}")
             else:
                 for line in result.stdout.splitlines():
                     if "Tables:" in line or "Columns:" in line or "Mappings:" in line or "Scope:" in line:
                         st.write(f"  {line.strip()}")
+                # Show AI activity
+                for line in result.stderr.splitlines():
+                    if "AI:" in line:
+                        st.write(f"  {line.split('AI:')[1].strip()}")
 
             # Step 5: Validate all datasets
             st.write("Running PRE validation...")
@@ -755,6 +762,24 @@ def render_discovery_page():
     review_count = rat_summary.get("review_count", 0)
     archive_count = rat_summary.get("archive_count", 0)
 
+    # Check for AI enhancements
+    ai_enhanced = any(m.get("confidence", 0) > 0.9 for m in mappings)
+    ai_quality_path = METADATA_DIR / "ai_quality_findings.json"
+    ai_quality_count = 0
+    if ai_quality_path.exists():
+        try:
+            _aiq = json.loads(ai_quality_path.read_text())
+            ai_quality_count = sum(len(v) for v in _aiq.values())
+        except Exception:
+            pass
+    norm_plan_ai = False
+    if (METADATA_DIR / "normalization_plan.json").exists():
+        try:
+            _np = json.loads((METADATA_DIR / "normalization_plan.json").read_text())
+            norm_plan_ai = any(v.get("ai_review") for v in _np.values() if isinstance(v, dict))
+        except Exception:
+            pass
+
     st.markdown("### Discovery Summary")
     mc1, mc2, mc3, mc4, mc5 = st.columns(5)
     mc1.metric("Tables Discovered", len(tables))
@@ -762,6 +787,18 @@ def render_discovery_page():
     mc3.metric("Mapping Confidence", f"{avg_confidence}%")
     mc4.metric("PII Fields", len(pii_cols))
     mc5.metric("Migrate / Archive", f"{migrate_count}/{archive_count}")
+
+    # AI enhancement indicator
+    if ai_enhanced or ai_quality_count > 0 or norm_plan_ai:
+        _ai_parts = []
+        if ai_enhanced:
+            _ai_count = sum(1 for m in mappings if m.get("confidence", 0) > 0.9)
+            _ai_parts.append(f"{_ai_count} columns mapped by AI")
+        if norm_plan_ai:
+            _ai_parts.append("normalization reviewed by AI")
+        if ai_quality_count > 0:
+            _ai_parts.append(f"{ai_quality_count} data quality finding(s) from AI")
+        st.info(f"**AI Enhanced:** {' · '.join(_ai_parts)}")
 
     st.divider()
 
@@ -1296,14 +1333,29 @@ def render_governance_page():
 
     st.divider()
 
-    tabs = st.tabs([
+    # Check if AI quality findings exist
+    _ai_quality_path = METADATA_DIR / "ai_quality_findings.json"
+    _has_ai_quality = _ai_quality_path.exists()
+
+    _gov_tab_names = [
         "🔐 PII Inventory",
         "📝 Data Modification Controls",
         "✅ Naming Compliance",
         "📊 Null Threshold Report",
-        "📜 Audit Trail",
-    ])
-    tab_pii, tab_mods, tab_naming, tab_nulls, tab_audit = tabs
+    ]
+    if _has_ai_quality:
+        _gov_tab_names.append("🤖 AI Quality Findings")
+    _gov_tab_names.append("📜 Audit Trail")
+
+    _gov_tabs = st.tabs(_gov_tab_names)
+    _tab_idx = 0
+    tab_pii = _gov_tabs[_tab_idx]; _tab_idx += 1
+    tab_mods = _gov_tabs[_tab_idx]; _tab_idx += 1
+    tab_naming = _gov_tabs[_tab_idx]; _tab_idx += 1
+    tab_nulls = _gov_tabs[_tab_idx]; _tab_idx += 1
+    if _has_ai_quality:
+        tab_ai_quality = _gov_tabs[_tab_idx]; _tab_idx += 1
+    tab_audit = _gov_tabs[_tab_idx]
 
     # ── PII Inventory
     with tab_pii:
@@ -1520,6 +1572,34 @@ def render_governance_page():
                 st.error(f"Could not connect to legacy database: {e}")
         else:
             st.warning("No legacy connection configured in project.yaml.")
+
+    # ── AI Quality Findings (if available)
+    if _has_ai_quality:
+        with tab_ai_quality:
+            st.markdown("#### AI Data Quality Findings")
+            st.caption("Issues identified by AI analysis that automated rules cannot catch — placeholder values, suspicious duplicates, encoding issues, and business logic violations.")
+
+            try:
+                _aiq_data = json.loads(_ai_quality_path.read_text())
+                for _aiq_table, _aiq_findings in _aiq_data.items():
+                    if _aiq_findings:
+                        st.markdown(f"##### {_aiq_table}")
+                        _aiq_rows = []
+                        for f in _aiq_findings:
+                            _sev_icon = {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🟢"}.get(f.get("severity", ""), "⚪")
+                            _aiq_rows.append({
+                                "Column": f.get("column", ""),
+                                "Severity": f"{_sev_icon} {f.get('severity', '')}",
+                                "Finding": f.get("finding", ""),
+                                "Recommendation": f.get("recommendation", ""),
+                            })
+                        st.dataframe(pd.DataFrame(_aiq_rows), use_container_width=True, hide_index=True)
+                        st.divider()
+
+                if not any(_aiq_data.values()):
+                    st.success("AI found no data quality issues.")
+            except Exception as e:
+                st.error(f"Could not load AI findings: {e}")
 
     # ── Audit Trail
     with tab_audit:
