@@ -179,25 +179,86 @@ def run_flatfile_pipeline(project_dir: str) -> Dict:
         filler_cols = [c for c in columns if "filler" in c.lower()]
         data_cols = [c for c in columns if "filler" not in c.lower()]
 
+        # Detect sub-entities by column name patterns
+        ENTITY_PATTERNS = {
+            "addresses": {
+                "keywords": ["adr1", "adr2", "addr", "city", "st", "zip", "adtyp", "address"],
+                "exclude_prefixes": ["m", "mail"],  # mailing address is separate
+                "min_fields": 3,
+            },
+            "mailing_addresses": {
+                "keywords": ["madr1", "madr2", "maddr", "mcity", "mst", "mzip"],
+                "min_fields": 3,
+            },
+            "phones": {
+                "keywords": ["ptel", "mtel", "wtel", "phone", "phon"],
+                "min_fields": 2,
+            },
+            "emergency_contacts": {
+                "keywords": ["emrg", "etel", "erel", "emergency"],
+                "min_fields": 2,
+            },
+            "banking": {
+                "keywords": ["bact", "brtn", "bank", "routing", "eft"],
+                "min_fields": 2,
+            },
+        }
+
+        child_entities = []
+        child_cols_used = set()
+
+        for entity_name, pattern in ENTITY_PATTERNS.items():
+            matched = []
+            for c in data_cols:
+                c_lower = c.lower()
+                if any(kw in c_lower for kw in pattern["keywords"]):
+                    # Check exclude prefixes (for address vs mailing address)
+                    if "exclude_prefixes" in pattern:
+                        parts = c_lower.split("_")
+                        if len(parts) >= 2 and any(parts[-1].startswith(p) or parts[0].endswith(p) for p in pattern["exclude_prefixes"]):
+                            continue
+                    matched.append(c)
+
+            if len(matched) >= pattern.get("min_fields", 2):
+                child_entities.append({
+                    "name": f"{name}_{entity_name}",
+                    "role": "child",
+                    "columns": matched,
+                    "confidence": 0.85,
+                    "rationale": f"{entity_name.replace('_', ' ').title()} sub-entity ({len(matched)} fields)",
+                    "relationships": [{"column": f"{name}_id", "references": f"{name}({data_cols[0]})"}],
+                })
+                child_cols_used.update(matched)
+
+        # Primary entity gets all non-child, non-filler columns
+        primary_cols = [c for c in data_cols if c not in child_cols_used]
+
         entities = [{
             "name": name,
             "role": "primary",
-            "columns": data_cols,
+            "columns": primary_cols,
             "confidence": 0.9,
-            "rationale": f"Primary entity ({len(data_cols)} data fields, {len(filler_cols)} filler fields removed)",
+            "rationale": f"Primary entity ({len(primary_cols)} core fields, {len(child_cols_used)} normalized into {len(child_entities)} child tables, {len(filler_cols)} filler removed)",
         }]
+        entities.extend(child_entities)
 
-        # Detect address sub-entity
-        addr_cols = [c for c in data_cols if "addr" in c]
-        if len(addr_cols) >= 3:
-            entities.append({
-                "name": f"{name}_addresses",
-                "role": "child",
-                "columns": addr_cols,
-                "confidence": 0.85,
-                "rationale": f"Address sub-entity ({len(addr_cols)} fields)",
-                "relationships": [{"column": f"{name}_id", "references": f"{name}({data_cols[0]})"}],
-            })
+        # Detect lookup candidates (columns with very few distinct values)
+        profile = all_profiles.get(name, {})
+        for c in primary_cols:
+            col_stats = profile.get("columns", {}).get(
+                next((col["column_name"] for col in schema if col["column_name"].lower().replace("-", "_") == c), ""), {}
+            )
+            distinct = col_stats.get("distinct_count", 0)
+            row_count = profile.get("row_count", 0)
+            # Only flag as lookup if distinct values are small AND less than 50% of rows
+            if 2 < distinct <= 15 and row_count > 0 and (distinct / row_count) < 0.5:
+                entities.append({
+                    "name": f"{c}_lookup",
+                    "role": "lookup",
+                    "columns": [c],
+                    "confidence": 0.7,
+                    "rationale": f"Lookup candidate — {distinct} distinct values in {row_count} rows",
+                })
 
         norm_plan[name] = {"entities": entities, "relationships": []}
 
