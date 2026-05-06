@@ -33,8 +33,33 @@ from dm.config import (
 logger = logging.getLogger(__name__)
 
 
+def _get_ai_client(config: Dict):
+    """Initialize AI client if configured. Returns None if not available."""
+    ai_config = config.get("ai", {})
+    if not ai_config.get("api_key") and not ai_config.get("provider"):
+        return None
+    try:
+        from dm.ai.client import AIClient
+        client = AIClient(ai_config)
+        if client.is_available():
+            logger.info("AI client available — will enhance analysis")
+            return client
+        return None
+    except Exception:
+        return None
+
+
 def run_flatfile_pipeline(project_dir: str) -> Dict:
     """Run the full pre-migration pipeline for flat file / copybook sources.
+
+    When an AI configuration is present in project.yaml (ai.provider + ai.api_key),
+    the pipeline enhances its analysis with three AI-assisted operations:
+    1. Column name understanding — maps COBOL abbreviations to modern names
+    2. Normalization review — validates and refines the rule-based plan
+    3. Data quality assessment — finds issues rules can't catch
+
+    AI is always optional. The rule engine produces complete output first;
+    AI refines but never blocks.
 
     Args:
         project_dir: Path to the project directory.
@@ -116,6 +141,9 @@ def run_flatfile_pipeline(project_dir: str) -> Dict:
     with open(metadata_path / "profiling_stats.json", "w") as f:
         json.dump(all_profiles, f, indent=2, default=str)
 
+    # ── Initialize AI client (optional) ─────────────────────────
+    ai_client = _get_ai_client(config)
+
     # ── Step 2: Generate glossary + mappings ──────────────────────
     logger.info("Step 2: Generating glossary and mappings")
 
@@ -127,20 +155,48 @@ def run_flatfile_pipeline(project_dir: str) -> Dict:
     all_mappings = []
     abbreviations = {}
 
+    # AI-assisted column understanding (if available)
+    ai_column_map = {}  # {table: {source_col: {modern_name, description, data_type_suggestion}}}
+    if ai_client:
+        for name, schema in all_schemas.items():
+            fields = [{"name": col["column_name"], "pic": col.get("pic", ""), "sql_type": col["data_type"]} for col in schema]
+            logger.info(f"  AI: Understanding column names for {name}...")
+            ai_results = ai_client.understand_columns(
+                fields=fields,
+                context=name,
+                domain=config.get("project", {}).get("description", "government services"),
+            )
+            if ai_results:
+                ai_column_map[name] = {r["source"]: r for r in ai_results}
+                logger.info(f"  AI: Mapped {len(ai_results)} columns for {name}")
+
     for name, schema in all_schemas.items():
+        ai_cols = ai_column_map.get(name, {})
+
         for col in schema:
             cn = col["column_name"]
-            modern_name = cn.lower().replace("-", "_")
+
+            # Use AI mapping if available, otherwise fall back to rule-based
+            if cn in ai_cols:
+                ai_info = ai_cols[cn]
+                modern_name = ai_info.get("modern_name", cn.lower().replace("-", "_"))
+                description = ai_info.get("description", col.get("pic", col["data_type"]))
+                confidence = 0.95  # AI-assisted
+            else:
+                modern_name = cn.lower().replace("-", "_")
+                description = col.get("pic", col["data_type"])
+                confidence = 0.9  # Rule-based
+
             is_pii = any(kw in cn.lower() for kw in pii_keywords)
 
             glossary_entries.append({
                 "name": cn,
                 "table": name,
                 "system": "legacy",
-                "description": col.get("pic", col["data_type"]),
+                "description": description,
                 "data_type": col["data_type"],
                 "pii": is_pii,
-                "confidence": 0.9,
+                "confidence": confidence,
             })
 
             mapping_type = "rename"
@@ -150,13 +206,14 @@ def run_flatfile_pipeline(project_dir: str) -> Dict:
             elif is_pii and any(kw in cn.lower() for kw in ["eft", "bank"]):
                 mapping_type = "archived"
 
+            rationale = f"AI: {description}" if cn in ai_cols else f"From copybook: {col.get('pic', col['data_type'])}"
             all_mappings.append({
                 "source": cn,
                 "target": modern_name,
                 "table": name,
                 "type": mapping_type,
-                "confidence": 0.9,
-                "rationale": f"From copybook: {col.get('pic', col['data_type'])}",
+                "confidence": confidence,
+                "rationale": rationale,
             })
 
             # Track abbreviation if name differs
@@ -365,8 +422,47 @@ def run_flatfile_pipeline(project_dir: str) -> Dict:
 
         norm_plan[name] = {"entities": entities, "relationships": [], "type_inferences": type_inferences}
 
+    # AI normalization review (if available)
+    if ai_client:
+        for name, plan_data in norm_plan.items():
+            columns = [col["column_name"].lower().replace("-", "_") for col in all_schemas.get(name, [])]
+            logger.info(f"  AI: Reviewing normalization for {name}...")
+            review = ai_client.review_normalization(
+                table_name=name,
+                columns=columns,
+                proposed_plan=plan_data,
+                profiling=all_profiles.get(name, {}),
+            )
+            if review:
+                plan_data["ai_review"] = review
+                if review.get("approved"):
+                    logger.info(f"  AI: Normalization approved — {review.get('rationale', '')[:100]}")
+                else:
+                    logger.info(f"  AI: Suggestions — {len(review.get('changes', []))} changes proposed")
+
     with open(metadata_path / "normalization_plan.json", "w") as f:
         json.dump(norm_plan, f, indent=2)
+
+    # AI data quality assessment (if available)
+    ai_quality_findings = {}
+    if ai_client:
+        for name in all_schemas:
+            df = all_dataframes.get(name)
+            if df is not None and not df.empty:
+                logger.info(f"  AI: Assessing data quality for {name}...")
+                sample_str = df.head(5).to_string()
+                findings = ai_client.assess_data_quality(
+                    table_name=name,
+                    profiling_stats=all_profiles.get(name, {}),
+                    sample_data=sample_str,
+                )
+                if findings:
+                    ai_quality_findings[name] = findings
+                    logger.info(f"  AI: Found {len(findings)} quality issue(s) in {name}")
+
+        if ai_quality_findings:
+            with open(metadata_path / "ai_quality_findings.json", "w") as f:
+                json.dump(ai_quality_findings, f, indent=2)
 
     # ── Step 4: Rationalization ───────────────────────────────────
     logger.info("Step 4: Rationalization")

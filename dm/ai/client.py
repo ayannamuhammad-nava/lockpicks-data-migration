@@ -11,6 +11,9 @@ from typing import Optional
 
 from dm.ai.prompts import (
     CODE_CONVERSION_PROMPT,
+    COLUMN_UNDERSTANDING_PROMPT,
+    DATA_QUALITY_PROMPT,
+    NORMALIZATION_REVIEW_PROMPT,
     SCHEMA_REFINEMENT_PROMPT,
 )
 
@@ -174,3 +177,131 @@ class AIClient:
             ),
             model=self.model_refine,
         )
+
+    def understand_columns(
+        self, fields: list, context: str = "contact", domain: str = "government services",
+    ) -> list:
+        """Use AI to map COBOL field names to modern column names.
+
+        Args:
+            fields: List of dicts with 'name', 'pic', 'sql_type' keys.
+            context: What kind of record (e.g., "contact", "account", "claim").
+            domain: Business domain (e.g., "government services", "banking").
+
+        Returns:
+            List of dicts with 'source', 'modern_name', 'description', 'data_type_suggestion'.
+            Returns empty list if AI is not available.
+        """
+        import json
+
+        if not self.is_available():
+            return []
+
+        fields_text = "\n".join(
+            f"- {f['name']:30s} PIC {f.get('pic', '?'):15s} (current SQL type: {f.get('sql_type', '?')})"
+            for f in fields
+        )
+
+        prompt = COLUMN_UNDERSTANDING_PROMPT.format(
+            fields=fields_text,
+            context=context,
+            domain=domain,
+        )
+
+        try:
+            response = self.complete(
+                prompt=prompt,
+                system="You are a COBOL mainframe expert helping with data migration.",
+            )
+            # Parse JSON from response
+            response = response.strip()
+            if response.startswith("```"):
+                response = response.split("\n", 1)[1].rsplit("```", 1)[0]
+            return json.loads(response)
+        except Exception as e:
+            logger.warning(f"AI column understanding failed: {e}")
+            return []
+
+    def review_normalization(
+        self, table_name: str, columns: list, proposed_plan: dict, profiling: dict,
+    ) -> dict:
+        """Use AI to review and refine a rule-based normalization plan.
+
+        Args:
+            table_name: Name of the source table.
+            columns: List of column names.
+            proposed_plan: The rule engine's normalization output.
+            profiling: Profiling stats for the table.
+
+        Returns:
+            Dict with 'approved', 'changes', 'rationale' keys.
+            Returns None if AI is not available.
+        """
+        import json
+
+        if not self.is_available():
+            return None
+
+        prompt = NORMALIZATION_REVIEW_PROMPT.format(
+            table_name=table_name,
+            column_count=len(columns),
+            columns="\n".join(f"- {c}" for c in columns),
+            proposed_plan=json.dumps(proposed_plan, indent=2, default=str)[:3000],
+            profiling=json.dumps(profiling, indent=2, default=str)[:2000],
+        )
+
+        try:
+            response = self.complete(
+                prompt=prompt,
+                system="You are a database architect reviewing a normalization plan.",
+            )
+            response = response.strip()
+            if response.startswith("```"):
+                response = response.split("\n", 1)[1].rsplit("```", 1)[0]
+            return json.loads(response)
+        except Exception as e:
+            logger.warning(f"AI normalization review failed: {e}")
+            return None
+
+    def assess_data_quality(
+        self, table_name: str, profiling_stats: dict, sample_data: str,
+    ) -> list:
+        """Use AI to find data quality issues that rules can't catch.
+
+        Args:
+            table_name: Name of the table.
+            profiling_stats: Column-level profiling statistics.
+            sample_data: String representation of first few rows.
+
+        Returns:
+            List of finding dicts with 'column', 'severity', 'finding', 'recommendation'.
+            Returns empty list if AI is not available.
+        """
+        import json
+
+        if not self.is_available():
+            return []
+
+        row_count = profiling_stats.get("row_count", 0)
+        col_count = profiling_stats.get("column_count", 0)
+
+        prompt = DATA_QUALITY_PROMPT.format(
+            table_name=table_name,
+            row_count=row_count,
+            column_count=col_count,
+            profiling_stats=json.dumps(profiling_stats.get("columns", {}), indent=2, default=str)[:3000],
+            sample_data=sample_data[:2000],
+        )
+
+        try:
+            response = self.complete(
+                prompt=prompt,
+                system="You are a data quality analyst reviewing migration data.",
+            )
+            response = response.strip()
+            if response.startswith("```"):
+                response = response.split("\n", 1)[1].rsplit("```", 1)[0]
+            return json.loads(response)
+        except Exception as e:
+            logger.warning(f"AI data quality assessment failed: {e}")
+            return []
