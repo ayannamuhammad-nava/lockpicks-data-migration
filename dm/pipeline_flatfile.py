@@ -179,46 +179,81 @@ def run_flatfile_pipeline(project_dir: str) -> Dict:
         filler_cols = [c for c in columns if "filler" in c.lower()]
         data_cols = [c for c in columns if "filler" not in c.lower()]
 
-        # Detect sub-entities by column name patterns
-        ENTITY_PATTERNS = {
+        # ── Rule 1: Detect repeated column groups → normalize to rows ──
+        # When the same structure appears multiple times (physical + mailing
+        # address, personal + mobile + work phone), propose a single child
+        # table with a type discriminator instead of separate tables.
+
+        ROW_PATTERNS = {
             "addresses": {
-                "keywords": ["adr1", "adr2", "addr", "city", "st", "zip", "adtyp", "address"],
-                "exclude_prefixes": ["m", "mail"],  # mailing address is separate
-                "min_fields": 3,
-            },
-            "mailing_addresses": {
-                "keywords": ["madr1", "madr2", "maddr", "mcity", "mst", "mzip"],
+                "groups": [
+                    {"type_value": "physical", "keywords": ["adr1", "adr2", "city", "st", "zip", "adtyp"],
+                     "exclude": ["madr", "maddr", "mcity", "mst", "mzip"]},
+                    {"type_value": "mailing", "keywords": ["madr1", "madr2", "maddr", "mcity", "mst", "mzip"]},
+                ],
+                "type_column": "address_type",
+                "standard_columns": ["line_1", "line_2", "city", "state", "zip_code"],
                 "min_fields": 3,
             },
             "phones": {
-                "keywords": ["ptel", "mtel", "wtel", "phone", "phon"],
-                "min_fields": 2,
+                "groups": [
+                    {"type_value": "personal", "keywords": ["ptel", "phon"]},
+                    {"type_value": "mobile", "keywords": ["mtel"]},
+                    {"type_value": "work", "keywords": ["wtel"]},
+                ],
+                "type_column": "phone_type",
+                "standard_columns": ["phone_number"],
+                "min_fields": 1,
             },
+        }
+
+        # Non-row-based child entity patterns
+        CHILD_PATTERNS = {
             "emergency_contacts": {
                 "keywords": ["emrg", "etel", "erel", "emergency"],
-                "min_fields": 2,
-            },
-            "banking": {
-                "keywords": ["bact", "brtn", "bank", "routing", "eft"],
                 "min_fields": 2,
             },
         }
 
         child_entities = []
         child_cols_used = set()
+        profile = all_profiles.get(name, {})
 
-        for entity_name, pattern in ENTITY_PATTERNS.items():
-            matched = []
-            for c in data_cols:
-                c_lower = c.lower()
-                if any(kw in c_lower for kw in pattern["keywords"]):
-                    # Check exclude prefixes (for address vs mailing address)
-                    if "exclude_prefixes" in pattern:
-                        parts = c_lower.split("_")
-                        if len(parts) >= 2 and any(parts[-1].startswith(p) or parts[0].endswith(p) for p in pattern["exclude_prefixes"]):
+        # Process row-based patterns
+        for entity_name, rp in ROW_PATTERNS.items():
+            all_matched = []
+            group_count = 0
+            for group in rp["groups"]:
+                matched = []
+                for c in data_cols:
+                    c_lower = c.lower()
+                    if any(kw in c_lower for kw in group["keywords"]):
+                        if "exclude" in group and any(ex in c_lower for ex in group["exclude"]):
                             continue
-                    matched.append(c)
+                        matched.append(c)
+                if len(matched) >= rp.get("min_fields", 1):
+                    group_count += 1
+                    all_matched.extend(matched)
 
+            if group_count >= 1 and all_matched:
+                child_entities.append({
+                    "name": f"{name}_{entity_name}",
+                    "role": "child",
+                    "columns": rp["standard_columns"] + [rp["type_column"]],
+                    "source_columns": all_matched,
+                    "confidence": 0.9,
+                    "rationale": (
+                        f"{entity_name.replace('_', ' ').title()} — {group_count} groups normalized to rows "
+                        f"with {rp['type_column']} discriminator "
+                        f"({', '.join(g['type_value'] for g in rp['groups'] if any(any(kw in c.lower() for kw in g['keywords']) for c in all_matched))})"
+                    ),
+                    "relationships": [{"column": f"{name}_id", "references": f"{name}({data_cols[0]})"}],
+                })
+                child_cols_used.update(all_matched)
+
+        # Process non-row-based child patterns
+        for entity_name, pattern in CHILD_PATTERNS.items():
+            matched = [c for c in data_cols if any(kw in c.lower() for kw in pattern["keywords"])]
             if len(matched) >= pattern.get("min_fields", 2):
                 child_entities.append({
                     "name": f"{name}_{entity_name}",
@@ -230,37 +265,105 @@ def run_flatfile_pipeline(project_dir: str) -> Dict:
                 })
                 child_cols_used.update(matched)
 
-        # Primary entity gets all non-child, non-filler columns
+        # ── Rule 2: Compliance grouping — isolate PII/financial fields ──
+        pii_keywords = config.get("validation", {}).get("governance", {}).get(
+            "pii_keywords", ["ssn", "bank", "bact", "brtn", "dln", "eft", "credit"]
+        )
+        compliance_cols = []
+        for c in data_cols:
+            if c in child_cols_used:
+                continue
+            c_lower = c.lower()
+            if any(kw in c_lower for kw in ["ssn", "bact", "brtn", "dln", "dlst", "eft", "bank", "routing", "credit", "govt"]):
+                compliance_cols.append(c)
+
+        if len(compliance_cols) >= 2:
+            child_entities.append({
+                "name": f"{name}_identification",
+                "role": "child",
+                "columns": compliance_cols,
+                "confidence": 0.9,
+                "rationale": f"Compliance isolation — {len(compliance_cols)} PII/financial fields separated for restricted access (PCI-DSS, HIPAA)",
+                "relationships": [{"column": f"{name}_id", "references": f"{name}({data_cols[0]})"}],
+            })
+            child_cols_used.update(compliance_cols)
+
+        # Primary entity gets remaining non-child, non-filler columns
         primary_cols = [c for c in data_cols if c not in child_cols_used]
+
+        # ── Rule 3: Type inference from profiling ──
+        # Annotate columns with inferred types based on profiling data
+        type_inferences = {}
+        for c in data_cols:
+            orig_name = next((col["column_name"] for col in schema if col["column_name"].lower().replace("-", "_") == c), "")
+            col_stats = profile.get("columns", {}).get(orig_name, {})
+            orig_type = next((col["data_type"] for col in schema if col["column_name"].lower().replace("-", "_") == c), "VARCHAR")
+            distinct = col_stats.get("distinct_count", 0)
+            freqs = col_stats.get("value_frequencies", [])
+            max_len = col_stats.get("max_length", 0)
+
+            # Boolean detection: exactly 2 values that look like Y/N, T/F, etc.
+            if distinct == 2 and freqs:
+                vals = {str(f.get("value", f) if isinstance(f, dict) else f).upper() for f in freqs}
+                if vals in [{"Y", "N"}, {"YES", "NO"}, {"T", "F"}, {"TRUE", "FALSE"}, {"1", "0"}]:
+                    type_inferences[c] = {"inferred_type": "BOOLEAN", "reason": f"2 values: {vals}"}
+                    continue
+
+            # Date detection: column name contains date keywords AND values match date pattern
+            if any(kw in c.lower() for kw in ["_dt", "_dob", "date", "crtdt", "upddt"]):
+                if freqs:
+                    sample_val = str(freqs[0].get("value", freqs[0]) if isinstance(freqs[0], dict) else freqs[0])
+                    if len(sample_val) >= 8 and (sample_val[:4].isdigit() or sample_val[6:10].isdigit()):
+                        if max_len and max_len > 12:
+                            type_inferences[c] = {"inferred_type": "TIMESTAMPTZ", "reason": f"Date/time pattern in values"}
+                        else:
+                            type_inferences[c] = {"inferred_type": "DATE", "reason": f"Date pattern in values"}
+                        continue
+
+            # Integer detection: all values are numeric
+            if orig_type.startswith("VARCHAR") and freqs:
+                all_numeric = all(
+                    str(f.get("value", f) if isinstance(f, dict) else f).replace("-", "").replace(".", "").isdigit()
+                    for f in freqs if str(f.get("value", f) if isinstance(f, dict) else f).strip()
+                )
+                if all_numeric and distinct > 2:
+                    type_inferences[c] = {"inferred_type": "INTEGER", "reason": "All sampled values are numeric"}
 
         entities = [{
             "name": name,
             "role": "primary",
             "columns": primary_cols,
             "confidence": 0.9,
-            "rationale": f"Primary entity ({len(primary_cols)} core fields, {len(child_cols_used)} normalized into {len(child_entities)} child tables, {len(filler_cols)} filler removed)",
+            "type_inferences": {c: ti for c, ti in type_inferences.items() if c in primary_cols},
+            "rationale": (
+                f"Primary entity ({len(primary_cols)} core fields, "
+                f"{len(child_cols_used)} normalized into {len(child_entities)} child tables, "
+                f"{len(filler_cols)} filler removed, "
+                f"{len(type_inferences)} type inferences from profiling)"
+            ),
         }]
         entities.extend(child_entities)
 
-        # Detect lookup candidates (columns with very few distinct values)
-        profile = all_profiles.get(name, {})
+        # Detect lookup candidates from primary columns
         for c in primary_cols:
-            col_stats = profile.get("columns", {}).get(
-                next((col["column_name"] for col in schema if col["column_name"].lower().replace("-", "_") == c), ""), {}
-            )
+            orig_name = next((col["column_name"] for col in schema if col["column_name"].lower().replace("-", "_") == c), "")
+            col_stats = profile.get("columns", {}).get(orig_name, {})
             distinct = col_stats.get("distinct_count", 0)
             row_count = profile.get("row_count", 0)
-            # Only flag as lookup if distinct values are small AND less than 50% of rows
             if 2 < distinct <= 15 and row_count > 0 and (distinct / row_count) < 0.5:
+                # Name the lookup meaningfully
+                clean_name = c.lower()
+                import re as _re_norm
+                clean_name = _re_norm.sub(r'^[a-z]{2,3}_', '', clean_name)
                 entities.append({
-                    "name": f"{c}_lookup",
+                    "name": f"{clean_name}_lookup",
                     "role": "lookup",
                     "columns": [c],
                     "confidence": 0.7,
                     "rationale": f"Lookup candidate — {distinct} distinct values in {row_count} rows",
                 })
 
-        norm_plan[name] = {"entities": entities, "relationships": []}
+        norm_plan[name] = {"entities": entities, "relationships": [], "type_inferences": type_inferences}
 
     with open(metadata_path / "normalization_plan.json", "w") as f:
         json.dump(norm_plan, f, indent=2)
