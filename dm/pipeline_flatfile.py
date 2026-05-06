@@ -512,76 +512,183 @@ def run_flatfile_pipeline(project_dir: str) -> Dict:
 
     from dm.targets.postgres import get_available_targets, get_target_adapter
 
+    # Build a schema column lookup for type mapping
+    _col_lookup = {}  # {table: {col_name_lower: schema_col}}
+    for name, schema in all_schemas.items():
+        _col_lookup[name] = {
+            col["column_name"].lower().replace("-", "_"): col for col in schema
+        }
+
     for target_key, display_name in get_available_targets().items():
         adapter = get_target_adapter(target_key)
         target_dir = schema_dir / target_key
         target_dir.mkdir(exist_ok=True)
+
+        # Count total entities across all normalization plans
+        total_entities = sum(
+            len(plan_data.get("entities", [])) for plan_data in norm_plan.values()
+        )
 
         full_ddl_parts = [
             f"-- ============================================================",
             f"-- DM Generated Schema — {display_name}",
             f"-- Source: {config.get('project', {}).get('name', 'Mainframe')}",
             f"-- Target: {display_name}",
-            f"-- Tables: {len(all_schemas)}",
+            f"-- Tables: {total_entities}",
             f"-- Generated: {datetime.now(timezone.utc).isoformat()}",
             f"-- ============================================================\n",
         ]
 
-        for name, schema in all_schemas.items():
-            columns = []
-            pk = ""
-            for i, col in enumerate(schema):
-                cn = col["column_name"].lower().replace("-", "_")
-                dt = adapter.map_type(col["data_type"])
+        for source_name, plan_data in norm_plan.items():
+            schema = all_schemas.get(source_name, [])
+            col_map = _col_lookup.get(source_name, {})
+            profile = all_profiles.get(source_name, {})
+            type_infs = plan_data.get("type_inferences", {})
 
-                # Use profiling to optimize types
-                stats = all_profiles.get(name, {}).get("columns", {}).get(col["column_name"], {})
-                if stats:
-                    distinct = stats.get("distinct_count", 0)
-                    freqs = stats.get("value_frequencies", [])
-                    row_count = stats.get("row_count", 0)
-                    if distinct == 2 and freqs and row_count > 0:
-                        vals = {str(f["value"]).upper() for f in freqs}
-                        if vals in [{"Y", "N"}, {"YES", "NO"}, {"T", "F"}, {"TRUE", "FALSE"}, {"1", "0"}]:
-                            dt = adapter.map_type("boolean")
+            for entity in plan_data.get("entities", []):
+                entity_name = entity["name"]
+                role = entity["role"]
+                entity_cols = entity.get("columns", [])
 
-                constraints = []
-                if i == 0:
-                    constraints.append("PRIMARY KEY")
-                    pk = cn
-                nullable = col.get("is_nullable", "YES") == "YES"
-                if not nullable and "PRIMARY KEY" not in constraints:
-                    constraints.append("NOT NULL")
+                if role == "lookup":
+                    # Lookup table: code + description columns
+                    columns = [{
+                        "name": entity_cols[0] if entity_cols else "code",
+                        "data_type": adapter.map_type("varchar(50)"),
+                        "nullable": False,
+                        "constraints": ["PRIMARY KEY"],
+                        "comment": f"Lookup value",
+                    }]
+                    pk = columns[0]["name"]
 
-                columns.append({
-                    "name": cn, "data_type": dt, "nullable": nullable,
-                    "constraints": constraints,
-                    "comment": f"Source: {col['column_name']} {col.get('pic', '')}".strip(),
-                })
+                elif role == "child" and entity.get("source_columns"):
+                    # Row-based child (addresses, phones) — use standard columns
+                    columns = [{
+                        "name": f"{entity_name}_id",
+                        "data_type": adapter.map_type("serial"),
+                        "nullable": False,
+                        "constraints": ["PRIMARY KEY"],
+                        "comment": "Auto-generated ID",
+                    }, {
+                        "name": f"{source_name}_id",
+                        "data_type": adapter.map_type("integer"),
+                        "nullable": False,
+                        "constraints": [f"REFERENCES {source_name}({source_name}_id)"],
+                        "comment": f"FK to {source_name}",
+                    }]
+                    # Add type discriminator if present
+                    type_col = entity.get("type_column")  # from rationale parsing
+                    for std_col in entity_cols:
+                        if std_col == type_col:
+                            continue  # handled below
+                        columns.append({
+                            "name": std_col,
+                            "data_type": adapter.map_type("varchar(50)"),
+                            "nullable": True,
+                            "constraints": [],
+                            "comment": "",
+                        })
+                    # Add type column if row-based
+                    if "discriminator" in entity.get("rationale", ""):
+                        type_col_name = None
+                        for word in entity.get("rationale", "").split():
+                            if "_type" in word:
+                                type_col_name = word
+                                break
+                        if type_col_name:
+                            columns.insert(2, {
+                                "name": type_col_name,
+                                "data_type": adapter.map_type("varchar(20)"),
+                                "nullable": False,
+                                "constraints": [],
+                                "comment": "Type discriminator",
+                            })
+                    pk = f"{entity_name}_id"
 
-            # Render DDL
-            ddl = adapter.render_create_table(name, columns, pk)
-            (target_dir / f"{name}.sql").write_text(ddl)
-            full_ddl_parts.append(ddl)
+                elif role == "child":
+                    # Standard child entity (emergency contacts, identification)
+                    columns = [{
+                        "name": f"{entity_name}_id",
+                        "data_type": adapter.map_type("serial"),
+                        "nullable": False,
+                        "constraints": ["PRIMARY KEY"],
+                        "comment": "Auto-generated ID",
+                    }, {
+                        "name": f"{source_name}_id",
+                        "data_type": adapter.map_type("integer"),
+                        "nullable": False,
+                        "constraints": [f"REFERENCES {source_name}({source_name}_id)"],
+                        "comment": f"FK to {source_name}",
+                    }]
+                    for cn in entity_cols:
+                        orig_col = col_map.get(cn, {})
+                        dt = adapter.map_type(orig_col.get("data_type", "varchar(50)"))
+                        # Apply type inference
+                        if cn in type_infs:
+                            dt = adapter.map_type(type_infs[cn]["inferred_type"].lower())
+                        columns.append({
+                            "name": cn, "data_type": dt, "nullable": True,
+                            "constraints": [],
+                            "comment": f"Source: {orig_col.get('column_name', cn)} {orig_col.get('pic', '')}".strip(),
+                        })
+                    pk = f"{entity_name}_id"
 
-            # Render transform SQL
-            transform_lines = [
-                f"-- Transform script: {name}",
-                f"-- Target: {adapter.dialect_name()}",
-                f"-- Review and customize before execution\n",
-                f"INSERT INTO {name} (",
-            ]
-            col_names = [c["name"] for c in columns]
-            transform_lines.append("    " + ",\n    ".join(col_names))
-            transform_lines.append(")")
-            transform_lines.append("SELECT")
-            source_exprs = []
-            for col in columns:
-                src = col["comment"].replace("Source: ", "").split(" ")[0] if col.get("comment") else col["name"]
-                source_exprs.append(src.lower().replace("-", "_"))
-            transform_lines.append("    " + ",\n    ".join(source_exprs))
-            transform_lines.append(f"FROM {name}_legacy;\n")
-            (target_dir / f"{name}_transforms.sql").write_text("\n".join(transform_lines))
+                else:
+                    # Primary entity
+                    columns = [{
+                        "name": f"{source_name}_id",
+                        "data_type": adapter.map_type("serial"),
+                        "nullable": False,
+                        "constraints": ["PRIMARY KEY"],
+                        "comment": "Auto-generated ID",
+                    }]
+                    for cn in entity_cols:
+                        orig_col = col_map.get(cn, {})
+                        dt = adapter.map_type(orig_col.get("data_type", "varchar(50)"))
+                        # Apply type inference
+                        if cn in type_infs:
+                            dt = adapter.map_type(type_infs[cn]["inferred_type"].lower())
+                        # Apply profiling-based boolean detection
+                        stats = profile.get("columns", {}).get(orig_col.get("column_name", ""), {})
+                        if stats:
+                            distinct = stats.get("distinct_count", 0)
+                            freqs = stats.get("value_frequencies", [])
+                            if distinct == 2 and freqs:
+                                vals = {str(f["value"]).upper() for f in freqs}
+                                if vals in [{"Y", "N"}, {"YES", "NO"}, {"T", "F"}, {"TRUE", "FALSE"}, {"1", "0"}]:
+                                    dt = adapter.map_type("boolean")
+                        columns.append({
+                            "name": cn, "data_type": dt, "nullable": True,
+                            "constraints": [],
+                            "comment": f"Source: {orig_col.get('column_name', cn)} {orig_col.get('pic', '')}".strip(),
+                        })
+                    pk = f"{source_name}_id"
+
+                # Render DDL
+                ddl = adapter.render_create_table(entity_name, columns, pk)
+                (target_dir / f"{entity_name}.sql").write_text(ddl)
+                full_ddl_parts.append(ddl)
+
+                # Render transform SQL for primary and standard child entities
+                if role in ("primary", "child") and not entity.get("source_columns"):
+                    transform_lines = [
+                        f"-- Transform: {source_name} → {entity_name}",
+                        f"-- Target: {adapter.dialect_name()}",
+                        f"-- Review and customize before execution\n",
+                        f"INSERT INTO {entity_name} (",
+                    ]
+                    col_names = [c["name"] for c in columns if "PRIMARY KEY" not in c.get("constraints", [])]
+                    transform_lines.append("    " + ",\n    ".join(col_names))
+                    transform_lines.append(")\nSELECT")
+                    source_exprs = []
+                    for c in columns:
+                        if "PRIMARY KEY" in c.get("constraints", []):
+                            continue
+                        src = c["comment"].replace("Source: ", "").split(" ")[0] if c.get("comment") and "Source:" in c.get("comment", "") else c["name"]
+                        source_exprs.append(src.lower().replace("-", "_"))
+                    transform_lines.append("    " + ",\n    ".join(source_exprs))
+                    transform_lines.append(f"FROM {source_name}_legacy;\n")
+                    (target_dir / f"{entity_name}_transforms.sql").write_text("\n".join(transform_lines))
 
         (target_dir / "full_schema.sql").write_text("\n".join(full_ddl_parts))
 
