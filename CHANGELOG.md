@@ -1035,3 +1035,64 @@ cd data-migration-repo
 ```
 
 Dashboard opens, paste a repo URL, click Run. No Docker, no OpenMetadata, no CLI knowledge required.
+
+---
+
+## AI-Assisted Parsing (2026-05-06)
+
+**Files:** `dm/ai/client.py`, `dm/ai/prompts.py`, `dm/pipeline_flatfile.py`
+
+Three opt-in AI enhancements to the flat file pipeline. When an `ai` section is configured in `project.yaml` with an Anthropic API key, the pipeline enhances its rule-based analysis with Claude. Without AI config, the pipeline runs exactly as before.
+
+### Configuration
+
+```yaml
+ai:
+  provider: anthropic
+  api_key: ${ANTHROPIC_API_KEY}
+  model: claude-sonnet-4-20250514
+```
+
+### 1. Column Name Understanding
+
+**Prompt:** `COLUMN_UNDERSTANDING_PROMPT`
+
+After the rule engine maps column names using the abbreviation dictionary, unmapped or ambiguously mapped columns are sent to Claude with the copybook context. Claude returns modern names, descriptions, and data type suggestions.
+
+| Without AI | With AI |
+|---|---|
+| `CT-DPNDS` → `ct_dpnds` (no match in dictionary) | `CT-DPNDS` → `dependents` ("Number of dependents") |
+| `CT-VETF` → `ct_vetf` | `CT-VETF` → `is_veteran` (BOOLEAN suggested) |
+| `CT-MSTAT` → `ct_mstat` | `CT-MSTAT` → `marital_status` |
+
+AI-mapped columns get confidence 0.95 (vs 0.9 for rule-mapped). Rationale shows "AI: description" in the mappings.
+
+### 2. Normalization Review
+
+**Prompt:** `NORMALIZATION_REVIEW_PROMPT`
+
+After the rule-based normalization produces its plan (addresses, phones, emergency contacts, compliance isolation), the full plan is sent to Claude for architectural review. Claude can suggest:
+
+- Merging separate tables into one with a type discriminator
+- Splitting groups the rules missed
+- Moving fields between entities
+- Adding compliance isolation the rules didn't catch
+
+The review is stored in `normalization_plan.json` under `ai_review` with `approved`, `changes`, and `rationale` fields.
+
+### 3. Data Quality Assessment
+
+**Prompt:** `DATA_QUALITY_PROMPT`
+
+After profiling, column stats and a sample of actual data rows are sent to Claude for analysis. Claude finds issues that rules can't express:
+
+- Placeholder values (0000-00-00, 999-99-9999, test@test.com)
+- Suspicious duplicates (same SSN on different records)
+- Encoding issues (garbled characters, truncated values)
+- Business logic violations (deceased status + recent activity date)
+
+Findings are saved to `metadata/ai_quality_findings.json` with severity, finding description, and recommendation per column.
+
+### Design Principle
+
+**Deterministic-first, AI-second.** The rule engine always runs first and produces complete, working output. AI refines the results but never blocks the pipeline. If the AI call fails, the rule engine output stands unchanged.
