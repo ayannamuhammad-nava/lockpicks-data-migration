@@ -91,6 +91,15 @@ if _show_setup:
     )
     target_platform = "postgres"
 
+    with st.expander("AI Enhancement (optional)"):
+        st.caption("Provide an Anthropic API key to enable AI-assisted column mapping, normalization review, and data quality assessment.")
+        api_key = st.text_input(
+            "Anthropic API Key",
+            type="password",
+            placeholder="sk-ant-...",
+            key="setup_api_key",
+        )
+
     st.divider()
 
     _run_clicked = st.button("Run Migration Analysis", type="primary", use_container_width=True, disabled=not repo_url or not project_name)
@@ -193,6 +202,14 @@ if _show_setup:
                 "artifacts": {"base_path": "./artifacts"},
                 "plugins": [],
             }
+
+            # Add AI config if API key provided
+            if api_key:
+                config["ai"] = {
+                    "provider": "anthropic",
+                    "api_key": api_key,
+                    "model": "claude-sonnet-4-20250514",
+                }
 
             (project_path / "metadata").mkdir(exist_ok=True)
             (project_path / "artifacts").mkdir(exist_ok=True)
