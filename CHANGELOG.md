@@ -973,3 +973,65 @@ Start Over now forces a full browser reload (via meta refresh) instead of `st.re
 - Target platform selection happens in the dashboard sidebar after analysis completes
 - Added safety guard preventing main dashboard code from executing during setup screen reruns
 - Setup screen uses Streamlit's native centered layout without column workarounds
+
+---
+
+## Rich Normalization Detection (2026-05-06)
+
+**File:** `dm/pipeline_flatfile.py`
+
+Replaced the single address-detection pattern with a multi-pattern normalization engine that detects 6 sub-entity types from COBOL column naming conventions.
+
+### Detected Patterns
+
+| Sub-Entity | Keywords Matched | Example Columns |
+|---|---|---|
+| **Addresses** | adr1, adr2, addr, city, st, zip, adtyp | CT-ADR1, CT-CITY, CT-ST, CT-ZIP |
+| **Mailing Addresses** | madr1, madr2, maddr, mcity, mst, mzip | CT-MADR1, CT-MCITY, CT-MST |
+| **Phones** | ptel, mtel, wtel, phone, phon | CT-PTEL, CT-MTEL, CT-WTEL |
+| **Emergency Contacts** | emrg, etel, erel, emergency | CT-EMRG, CT-ETEL, CT-EREL |
+| **Banking** | bact, brtn, bank, routing, eft | CT-BACT, CT-BRTN |
+| **Lookup Tables** | Low distinct count (< 50% of rows, 2-15 values) | CT-GNDR (6 values), CT-SRCCD (3 values) |
+
+### How It Works
+
+- Scans all data columns against keyword patterns
+- Groups matched columns into child entities
+- Removes child columns from the primary entity (no duplication)
+- Detects lookup candidates from profiling stats (low cardinality columns)
+- Lookup threshold requires < 50% distinct/row ratio to avoid false positives on small datasets
+
+### Result
+
+Customer service contacts table (42 COBOL fields) normalizes to:
+- **Primary**: 20 core fields (name, SSN, DOB, status, etc.)
+- **Addresses**: 8 fields
+- **Mailing Addresses**: 6 fields
+- **Phones**: 3 fields
+- **Emergency Contacts**: 3 fields
+- **Banking**: 2 fields
+- **Lookup tables**: gender, source code, etc.
+
+---
+
+## Packaging for New Users (2026-05-06)
+
+**Files:** `pyproject.toml`, `requirements.txt`, `setup.sh`, `README.md`
+
+Prepared the `data-migration-repo` as a ready-to-run package:
+
+- Renamed package to `data-modernization-tool` v1.0.0
+- Lowered Python requirement from 3.11 to 3.9
+- Streamlit and plotly moved from optional to core dependencies
+- Added `requirements.txt` for simple `pip install`
+- Simplified `setup.sh`: installs dependencies + launches dashboard in one command
+- README reduced to single getting started section
+
+A new user runs:
+```bash
+git clone https://github.com/ayannamuhammad-nava/data-migration-repo.git
+cd data-migration-repo
+./setup.sh
+```
+
+Dashboard opens, paste a repo URL, click Run. No Docker, no OpenMetadata, no CLI knowledge required.

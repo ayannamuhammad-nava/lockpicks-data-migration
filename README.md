@@ -28,7 +28,7 @@ The generated DDL, transform scripts, and mappings are **artifacts for your migr
 ```bash
 git clone https://github.com/ayannamuhammad-nava/data-migration-repo.git
 cd data-migration-repo
-./setup.sh --no-docker
+./setup.sh
 ```
 
 ### Step 2: Launch and go
