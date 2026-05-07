@@ -1211,3 +1211,43 @@ The flat file connector now auto-detects delimited data files even when the conf
 ### Setup Screen Landing
 
 Setup screen and PRE validation both use full browser reload to land at the top of the page with the score gauge visible.
+
+---
+
+## COMP-3 Packed Decimal Support (2026-05-07)
+
+**File:** `dm/connectors/copybook_parser.py`, `dm/connectors/flatfile.py`
+
+Added support for COMP-3 (packed decimal) and COMP (binary) USAGE clauses in COBOL copybooks.
+
+| USAGE | Byte Calculation | Example |
+|---|---|---|
+| COMP-3 / PACKED-DECIMAL | ceil((digits + 1) / 2) | PIC S9(7)V99 COMP-3 = 5 bytes |
+| COMP / BINARY | 2 (≤4 digits), 4 (≤9), 8 (≤18) | PIC 9(9) COMP = 4 bytes |
+| DISPLAY (default) | 1 byte per digit/char | PIC 9(5) = 5 bytes |
+
+The copybook parser detects `USAGE IS COMP-3`, `USAGE COMP`, `PACKED-DECIMAL`, and `BINARY` clauses. The flat file connector includes a `_decode_comp3()` function for decoding packed decimal bytes from EBCDIC binary files.
+
+---
+
+## Dashboard Error Handling (2026-05-07)
+
+**File:** `dashboard.py`
+
+All lifecycle page renders (Discovery, Modeling, Governance, Transformation, Compliance, Sign-Off, Post-Migration) are wrapped in try/except. Errors show a friendly message with remediation instructions instead of Python tracebacks.
+
+---
+
+## POST Score Target Recalculation (2026-05-07)
+
+**File:** `dashboard.py`
+
+PRE runs now use `integrity_score=0` (not base_score) for accurate weighting — integrity is meaningless before data migration. POST runs use the actual integrity score with target platform penalties applied. Both phases consistently apply platform-specific penalties when switching targets.
+
+---
+
+## Combined full_schema.sql (2026-05-07)
+
+**File:** `dm/pipeline.py`
+
+The OM-backed pipeline now writes a combined `full_schema.sql` containing all tables after processing completes, instead of each table overwriting the file. Each target subfolder also gets a combined DDL file.
