@@ -2603,9 +2603,12 @@ with st.sidebar:
             with st.spinner(f"Running PRE check on '{dataset_sel}'…"):
                 result = subprocess.run(cmd, capture_output=True, text=True)
             if result.returncode in (0, 1):
-                st.success("Done!")
+                # Clear lifecycle view so dashboard shows the run score at top
+                st.session_state.pop("lifecycle_view", None)
                 st.cache_resource.clear()
-                st.rerun()
+                # Scroll to top via meta refresh
+                st.markdown('<meta http-equiv="refresh" content="0;url=/">', unsafe_allow_html=True)
+                st.stop()
             else:
                 st.error(result.stderr[:600] or "Unknown error")
 
