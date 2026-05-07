@@ -834,57 +834,71 @@ def render_discovery_page():
 
     # ── Sample Data tab
     with tab_sample:
-        st.markdown("#### Sample Data — Legacy Tables")
-        st.caption("Live data from the legacy database. Showing up to 25 rows per table.")
+        st.markdown("#### Sample Data — Source Tables")
+        st.caption("Showing up to 25 rows per table from the source data.")
 
-        # Load project config for DB connection
         import yaml as _yaml_sample
         _proj_yaml = PROJECT_DIR / "project.yaml"
         _sample_config = {}
         if _proj_yaml.exists():
             _sample_config = _yaml_sample.safe_load(_proj_yaml.read_text()) or {}
 
-        legacy_conn_cfg = _sample_config.get("connections", {}).get("legacy", {})
-        if legacy_conn_cfg:
-            try:
-                import psycopg2
+        _sample_shown = False
+        _connections = _sample_config.get("connections", {})
+        _datasets = _sample_config.get("datasets", [])
 
-                # Resolve env var syntax ${VAR:default}
-                def _resolve(val):
-                    if isinstance(val, str) and val.startswith("${"):
-                        import re
-                        m = re.match(r'\$\{([^:}]+):?(.*)\}', val)
-                        if m:
-                            return os.environ.get(m.group(1), m.group(2))
-                    return val
+        for _ds in _datasets:
+            _ds_name = _ds.get("name", _ds) if isinstance(_ds, dict) else _ds
+            _source = _ds.get("source", "legacy") if isinstance(_ds, dict) else "legacy"
+            _conn_cfg = _connections.get(_source, {})
+            _conn_type = _conn_cfg.get("type", "").lower()
 
-                conn = psycopg2.connect(
-                    host=_resolve(legacy_conn_cfg.get("host", "localhost")),
-                    port=int(_resolve(legacy_conn_cfg.get("port", 5432))),
-                    database=_resolve(legacy_conn_cfg.get("database", "legacy_db")),
-                    user=_resolve(legacy_conn_cfg.get("user", "postgres")),
-                    password=_resolve(legacy_conn_cfg.get("password", "postgres")),
-                )
+            if _conn_type in ("copybook", "flatfile", "csv"):
+                # Flat file source — use the flat file connector
+                try:
+                    from dm.connectors.flatfile import FlatFileConnector
+                    _fc = FlatFileConnector(_conn_cfg)
+                    _fc.connect()
+                    _df = _fc.execute_query(f"SELECT * FROM {_ds_name}")
+                    st.markdown(f"##### 📁 `{_ds_name}` ({len(_df)} rows)")
+                    st.dataframe(_df.head(25), use_container_width=True, hide_index=True)
+                    _fc.close()
+                    _sample_shown = True
+                except Exception as e:
+                    st.error(f"Could not load data for `{_ds_name}`: {e}")
 
-                for table in tables:
-                    st.markdown(f"##### 📁 `{table}`")
-                    try:
-                        query = f"SELECT * FROM {table} LIMIT 25"
-                        df_sample = pd.read_sql(query, conn)
-                        row_count_query = f"SELECT COUNT(*) FROM {table}"
-                        total_rows = pd.read_sql(row_count_query, conn).iloc[0, 0]
-                        st.caption(f"Showing {len(df_sample)} of {total_rows} total rows")
-                        st.dataframe(df_sample, use_container_width=True, hide_index=True)
-                    except Exception as e:
-                        st.error(f"Could not load data for `{table}`: {e}")
+            elif _conn_type in ("postgres", "postgresql"):
+                # Database source
+                try:
+                    import psycopg2
+                    def _resolve(val):
+                        if isinstance(val, str) and val.startswith("${"):
+                            import re
+                            m = re.match(r'\$\{([^:}]+):?(.*)\}', val)
+                            if m:
+                                return os.environ.get(m.group(1), m.group(2))
+                        return val
 
-                conn.close()
-            except ImportError:
-                st.error("psycopg2 is required for sample data. Install with: `uv pip install psycopg2-binary`")
-            except Exception as e:
-                st.error(f"Could not connect to legacy database: {e}")
-        else:
-            st.warning("No legacy connection configured in project.yaml.")
+                    conn = psycopg2.connect(
+                        host=_resolve(_conn_cfg.get("host", "localhost")),
+                        port=int(_resolve(_conn_cfg.get("port", 5432))),
+                        database=_resolve(_conn_cfg.get("database", "legacy_db")),
+                        user=_resolve(_conn_cfg.get("user", "app")),
+                        password=_resolve(_conn_cfg.get("password", "")),
+                    )
+                    _tbl = _ds.get("legacy_table", _ds_name) if isinstance(_ds, dict) else _ds_name
+                    st.markdown(f"##### 📁 `{_tbl}`")
+                    df_sample = pd.read_sql(f"SELECT * FROM {_tbl} LIMIT 25", conn)
+                    total_rows = pd.read_sql(f"SELECT COUNT(*) FROM {_tbl}", conn).iloc[0, 0]
+                    st.caption(f"Showing {len(df_sample)} of {total_rows} total rows")
+                    st.dataframe(df_sample, use_container_width=True, hide_index=True)
+                    conn.close()
+                    _sample_shown = True
+                except Exception as e:
+                    st.error(f"Could not load data for `{_ds_name}`: {e}")
+
+        if not _sample_shown:
+            st.info("No sample data available. Source data files may not be accessible from the dashboard.")
 
     # ── Glossary tab
     with tab_glossary:
@@ -1061,8 +1075,8 @@ def render_modeling_page():
 
     st.divider()
 
-    tabs = st.tabs(["📐 Table Schemas", "🔀 Column Mapping", "📐 Normalization Plan", "📄 Full DDL"])
-    tab_schemas, tab_col_map, tab_norm, tab_ddl = tabs
+    tabs = st.tabs(["📐 Table Schemas", "🔀 Column Mapping", "📐 Normalization Plan", "📄 Full DDL", "📝 Notes"])
+    tab_schemas, tab_col_map, tab_norm, tab_ddl, tab_model_notes = tabs
 
     # ── Table Schemas tab
     with tab_schemas:
@@ -1248,6 +1262,54 @@ def render_modeling_page():
                     )
         else:
             st.caption("Run `dm generate-schema --all` to generate DDL for all target platforms.")
+
+    # ── Notes tab
+    with tab_model_notes:
+        st.markdown("#### Modeling Notes")
+
+        # Detect AI vs rules
+        _ai_used = any(m.get("confidence", 0) > 0.9 for m in load_mappings())
+        if _ai_used:
+            st.markdown("**Analysis method:** AI-enhanced (Claude reviewed column mappings and normalization)")
+        else:
+            st.markdown("**Analysis method:** Rule-based (COBOL abbreviation dictionary, pattern matching, profiling stats)")
+
+        st.divider()
+
+        st.markdown("**How tables were generated:**")
+        st.markdown(
+            "- **Primary table**: Core entity fields — the main record with an auto-generated ID\n"
+            "- **Child tables (row-based)**: Repeated column groups (e.g., 2 addresses, 3 phones) normalized into rows with a type discriminator column. "
+            "This means one row per address/phone instead of separate column groups.\n"
+            "- **Child tables (standard)**: Related field groups (emergency contacts, identification) split into separate tables with FK back to primary\n"
+            "- **Compliance tables**: PII and financial fields (SSN, bank account, driver's license) isolated for restricted access per PCI-DSS/HIPAA\n"
+            "- **Lookup tables**: Columns with few distinct values (< 50% of rows) extracted as reference tables\n"
+            "- **Filler fields**: COBOL FILLER columns dropped (no business value)"
+        )
+
+        st.divider()
+
+        st.markdown("**Transform count explanation:**")
+        st.markdown(
+            "The number shown on each transform script counts SQL function calls that modify data during migration:\n"
+            "- `SHA-256` / `SHA2` — PII field being hashed\n"
+            "- `CASE WHEN` — Boolean conversion (Y/N → TRUE/FALSE)\n"
+            "- `CAST` / `TO_DATE` / `TO_TIMESTAMP` — Type conversion\n"
+            "- `NOW()` — Auto-generated timestamp columns\n\n"
+            "A transform count of 1 means one field is being modified (e.g., SSN hashed). "
+            "Higher counts mean more data transformations during migration."
+        )
+
+        st.divider()
+
+        st.markdown("**Type inferences from profiling:**")
+        st.markdown(
+            "The toolkit analyzes actual data values to optimize column types beyond what the copybook PIC clause says:\n"
+            "- PIC X(1) with only Y/N values → **BOOLEAN** instead of CHAR(1)\n"
+            "- PIC X(10) with date-formatted values → **DATE** instead of VARCHAR(10)\n"
+            "- PIC X(26) with timestamp values → **TIMESTAMPTZ** instead of VARCHAR(26)\n"
+            "- VARCHAR columns with only numeric values → **INTEGER**"
+        )
 
     # Legend
     st.divider()
@@ -1496,59 +1558,28 @@ def render_governance_page():
         st.markdown("#### Null Threshold Report")
         st.caption(f"Fields exceeding the configured maximum null percentage: **{max_null_pct}%**")
 
-        # Try to get null data from legacy DB
-        import yaml as _yaml_null
-        _proj_yaml_null = PROJECT_DIR / "project.yaml"
-        _null_config = _yaml_null.safe_load(_proj_yaml_null.read_text()) or {} if _proj_yaml_null.exists() else {}
-        legacy_conn_cfg = _null_config.get("connections", {}).get("legacy", {})
-
-        if legacy_conn_cfg:
+        # Use profiling stats if available (works for all source types)
+        _profiling_path = METADATA_DIR / "profiling_stats.json"
+        if _profiling_path.exists():
             try:
-                import psycopg2
-
-                def _resolve_null(val):
-                    if isinstance(val, str) and val.startswith("${"):
-                        import re as _re_null
-                        m = _re_null.match(r'\$\{([^:}]+):?(.*)\}', val)
-                        if m:
-                            return os.environ.get(m.group(1), m.group(2))
-                    return val
-
-                conn = psycopg2.connect(
-                    host=_resolve_null(legacy_conn_cfg.get("host", "localhost")),
-                    port=int(_resolve_null(legacy_conn_cfg.get("port", 5432))),
-                    database=_resolve_null(legacy_conn_cfg.get("database", "legacy_db")),
-                    user=_resolve_null(legacy_conn_cfg.get("user", "postgres")),
-                    password=_resolve_null(legacy_conn_cfg.get("password", "postgres")),
-                )
-
-                tables = sorted(set(c.get("table", "") for c in legacy_cols))
+                _prof_data = json.loads(_profiling_path.read_text())
                 all_null_rows = []
-                for table in tables:
-                    total_query = f"SELECT COUNT(*) FROM {table}"
-                    total = pd.read_sql(total_query, conn).iloc[0, 0]
+                for _ptable, _pstats in _prof_data.items():
+                    total = _pstats.get("row_count", 0)
                     if total == 0:
                         continue
-
-                    table_cols_list = [c["name"] for c in legacy_cols if c.get("table") == table]
-                    for col_name in table_cols_list:
-                        null_query = f"SELECT COUNT(*) FROM {table} WHERE {col_name} IS NULL OR TRIM({col_name}::text) = ''"
-                        try:
-                            null_count = pd.read_sql(null_query, conn).iloc[0, 0]
-                            null_pct = round((null_count / total) * 100, 1)
-                            status = "VIOLATION" if null_pct > max_null_pct else "PASS"
-                            all_null_rows.append({
-                                "Table": table,
-                                "Column": col_name,
-                                "Null/Empty": null_count,
-                                "Total Rows": total,
-                                "Null %": null_pct,
-                                "Status": status,
-                            })
-                        except Exception:
-                            pass
-
-                conn.close()
+                    for _pcol, _cstats in _pstats.get("columns", {}).items():
+                        null_pct = _cstats.get("null_percent", 0)
+                        null_count = _cstats.get("null_count", 0)
+                        status = "VIOLATION" if null_pct > max_null_pct else "PASS"
+                        all_null_rows.append({
+                            "Table": _ptable,
+                            "Column": _pcol,
+                            "Null/Empty": null_count,
+                            "Total Rows": total,
+                            "Null %": null_pct,
+                            "Status": status,
+                        })
 
                 if all_null_rows:
                     df_null = pd.DataFrame(all_null_rows)
@@ -1566,12 +1597,11 @@ def render_governance_page():
                     with st.expander("Show all columns"):
                         st.dataframe(df_null, use_container_width=True, hide_index=True)
                 else:
-                    st.success("No null data found.")
-
+                    st.success("No null threshold violations found.")
             except Exception as e:
-                st.error(f"Could not connect to legacy database: {e}")
+                st.error(f"Could not load profiling data: {e}")
         else:
-            st.warning("No legacy connection configured in project.yaml.")
+            st.info("No profiling data available. Run the pipeline to generate null statistics.")
 
     # ── AI Quality Findings (if available)
     if _has_ai_quality:
