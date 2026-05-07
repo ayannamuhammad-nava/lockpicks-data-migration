@@ -1096,3 +1096,69 @@ Findings are saved to `metadata/ai_quality_findings.json` with severity, finding
 ### Design Principle
 
 **Deterministic-first, AI-second.** The rule engine always runs first and produces complete, working output. AI refines the results but never blocks the pipeline. If the AI call fails, the rule engine output stands unchanged.
+
+---
+
+## Schema Generation from Normalization Plan (2026-05-06)
+
+**File:** `dm/pipeline_flatfile.py`
+
+Schema generation now produces DDL per entity from the normalization plan, not per source table.
+
+**Before:** 1 source table (42 columns) → 1 DDL file with all columns in one flat table.
+
+**After:** 1 source table → 7 DDL files following the normalization plan:
+- **Primary entity**: auto-generated ID + core columns with type inference
+- **Child entities (row-based)**: ID + FK + type discriminator + standard columns (addresses, phones)
+- **Child entities (standard)**: ID + FK + source columns (emergency contacts, identification)
+- **Compliance entities**: isolated PII/financial fields with FK
+- **Lookup tables**: single code column as PK
+
+Each entity gets its own `.sql` DDL file and `_transforms.sql` migration script for all 4 target platforms.
+
+---
+
+## Dashboard Fixes (2026-05-07)
+
+### Sample Data for Flat File Projects
+
+**File:** `dashboard.py`
+
+The Sample Data tab on the Discovery page now works for flat file / copybook sources. Previously it only looked for a `legacy` database connection and showed "No legacy connection configured" for flat file projects. Now it:
+
+- Detects the source type from `project.yaml` connections
+- Uses `FlatFileConnector` for copybook/flatfile/CSV sources
+- Uses `psycopg2` for database sources
+- Shows "No sample data available" instead of confusing error messages
+
+### Null Threshold Report from Profiling Stats
+
+**File:** `dashboard.py`
+
+The Null Threshold Report on the Governance page now reads from `profiling_stats.json` instead of requiring a live database connection. Works for all source types — flat files, copybooks, and databases.
+
+### Modeling Notes Tab
+
+**File:** `dashboard.py`
+
+Added a **Notes** tab to the Modeling lifecycle page explaining:
+
+- **Analysis method**: Whether AI or rule-based analysis was used
+- **Table generation**: How primary, child (row-based), child (standard), compliance, and lookup tables were created
+- **Transform count**: What the number means (SHA-256 hashes, boolean conversions, type casts, auto-timestamps)
+- **Type inferences**: How profiling data optimizes types (Y/N → BOOLEAN, date values → DATE, numeric strings → INTEGER)
+
+### AI Results Visibility
+
+**File:** `dashboard.py`
+
+- Setup screen shows AI activity during pipeline run ("Enhanced 42 columns", "Reviewing normalization")
+- Discovery page shows blue banner when AI was used ("AI Enhanced: X columns mapped by AI · normalization reviewed · N quality findings")
+- Governance page shows **AI Quality Findings** tab with severity, column, finding, and recommendation
+- All AI indicators only appear when AI was actually used — no visual change for rule-only runs
+
+### AI API Key on Setup Screen
+
+**File:** `dashboard.py`
+
+Optional "AI Enhancement" expander on the setup screen with a password-masked Anthropic API key field. When provided, the key is included in `project.yaml` and the pipeline uses Claude for column mapping, normalization review, and data quality assessment.
