@@ -861,7 +861,20 @@ def render_discovery_page():
                     _fc = FlatFileConnector(_conn_cfg)
                     _fc.connect()
                     _df = _fc.execute_query(f"SELECT * FROM {_ds_name}")
+
+                    # Clean delimiters from values
+                    _delimiters_found = set()
+                    _delimiter_chars = {"|": "pipe (|)", ",": "comma (,)", "\t": "tab", ";": "semicolon (;)"}
+                    for _col in _df.columns:
+                        if _df[_col].dtype == object:
+                            for _delim, _delim_name in _delimiter_chars.items():
+                                if _df[_col].astype(str).str.contains(re.escape(_delim), regex=True).any():
+                                    _delimiters_found.add(_delim_name)
+                                    _df[_col] = _df[_col].astype(str).str.replace(_delim, "", regex=False)
+
                     st.markdown(f"##### 📁 `{_ds_name}` ({len(_df)} rows)")
+                    if _delimiters_found:
+                        st.caption(f"Delimiters removed from display: {', '.join(sorted(_delimiters_found))}")
                     st.dataframe(_df.head(25), use_container_width=True, hide_index=True)
                     _fc.close()
                     _sample_shown = True
