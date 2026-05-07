@@ -1173,3 +1173,41 @@ After running PRE validation (from sidebar or setup screen), the dashboard now:
 - Automatically selects the latest PRE validation run
 
 Previously, running PRE validation from within a lifecycle page (e.g., Discovery) would reload back to that page instead of showing the score.
+
+---
+
+## Auto-Detect Delimited Data Files (2026-05-07)
+
+**File:** `dm/connectors/flatfile.py`
+
+The flat file connector now auto-detects delimited data files even when the config says `format: fixed`. Checks the first line of every file for delimiter characters (pipe `|`, tab, semicolon `;`). If 3+ occurrences are found, overrides to delimited reading mode.
+
+### Supported Formats
+
+| Format | Detection | Example |
+|---|---|---|
+| Pipe-delimited | 3+ `\|` in first line | `value\|value\|value` |
+| Tab-delimited | 3+ tabs in first line | TSV files |
+| Semicolon-delimited | 3+ `;` in first line | European CSV |
+| Comma-delimited | `.csv` extension or fallback | Standard CSV |
+| Fixed-width | Copybook + no delimiters | Mainframe VSAM extracts |
+| EBCDIC | `encoding: ebcdic` in config | Raw mainframe binary |
+
+### Delimiter Handling
+
+- Uses regex separator (`\s*\|\s*`) to handle whitespace around delimiters
+- Strips whitespace from all string values after reading
+- Normalizes column names (lowercase, hyphens to underscores)
+- Sample Data tab shows "Delimiters removed from display: pipe (|)" when delimiters were cleaned
+
+**Impact:** Customer service CONTACTS.dat (pipe-delimited with header row) now reads correctly: 15 data rows, 42 clean columns, proper values. Previously showed garbled data from trying to parse delimiters as fixed-width.
+
+### Sample Data and Null Threshold Fixes
+
+- Sample Data tab uses flat file connector for copybook/CSV sources (not just database)
+- Null Threshold Report reads from `profiling_stats.json` (works for all source types)
+- Error messages say "No sample data available" instead of "No legacy connection configured"
+
+### Setup Screen Landing
+
+Setup screen and PRE validation both use full browser reload to land at the top of the page with the score gauge visible.
