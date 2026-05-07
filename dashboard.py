@@ -259,11 +259,12 @@ if _show_setup:
 
             status.update(label="Analysis complete!", state="complete")
 
-        # Save active project and set flag to land on PRE validation view
+        # Save active project and land on PRE validation score page
         Path(".dm_active_project").write_text(str(project_path))
         Path(".dm_show_latest_run").write_text("true")
-        st.success(f"Project **{project_name}** is ready!")
-        st.rerun()
+        st.success(f"Project **{project_name}** is ready! Loading dashboard...")
+        st.markdown('<meta http-equiv="refresh" content="1;url=/">', unsafe_allow_html=True)
+        st.stop()
 
     st.divider()
     st.caption("Or run from the command line:")
