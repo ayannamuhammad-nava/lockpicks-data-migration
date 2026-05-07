@@ -1162,3 +1162,14 @@ Added a **Notes** tab to the Modeling lifecycle page explaining:
 **File:** `dashboard.py`
 
 Optional "AI Enhancement" expander on the setup screen with a password-masked Anthropic API key field. When provided, the key is included in `project.yaml` and the pipeline uses Claude for column mapping, normalization review, and data quality assessment.
+
+### PRE Validation Lands on Score Page (2026-05-07)
+
+**File:** `dashboard.py`
+
+After running PRE validation (from sidebar or setup screen), the dashboard now:
+- Clears any active lifecycle phase view
+- Reloads the page at the top showing the score gauge
+- Automatically selects the latest PRE validation run
+
+Previously, running PRE validation from within a lifecycle page (e.g., Discovery) would reload back to that page instead of showing the score.
