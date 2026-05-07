@@ -28,6 +28,7 @@ Config in project.yaml:
 import csv
 import hashlib
 import logging
+import re
 from collections import Counter
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -68,7 +69,7 @@ class FlatFileConnector(BaseConnector):
         if not data_path.exists():
             raise FileNotFoundError(f"Data file not found: {datafile}")
 
-        # Auto-detect format
+        # Auto-detect format — check first line for delimiters even if format says fixed
         if not file_format:
             if copybook_path:
                 file_format = "fixed"
@@ -76,6 +77,21 @@ class FlatFileConnector(BaseConnector):
                 file_format = "csv"
             else:
                 file_format = "fixed" if copybook_path else "csv"
+
+        # Override: if file has delimiters in the first line, treat as delimited
+        _detected_delimiter = None
+        try:
+            with open(data_path, "r", errors="replace") as _f:
+                _first_line = _f.readline()
+                for _d, _dname in [("|", "|"), ("\t", "\\t"), (";", ";")]:
+                    if _first_line.count(_d) >= 3:
+                        _detected_delimiter = _d
+                        file_format = "csv"
+                        self.config["delimiter"] = _d
+                        logger.info(f"Auto-detected delimiter '{_dname}' in {data_path.name} — switching to delimited mode")
+                        break
+        except Exception:
+            pass
 
         if file_format == "fixed":
             self._df = self._read_fixed_width(data_path, copybook_path, encoding)
@@ -146,15 +162,39 @@ class FlatFileConnector(BaseConnector):
         return pd.DataFrame(rows)
 
     def _read_csv(self, data_path: Path, encoding: str) -> pd.DataFrame:
-        """Read a CSV/TSV file."""
+        """Read a CSV/TSV/pipe-delimited file."""
         delimiter = self.config.get("delimiter", ",")
+        copybook_path = self.config.get("copybook", "")
+
+        # If a copybook is available, parse it for schema info
+        if copybook_path and Path(copybook_path).exists():
+            self._layout = parse_copybook(copybook_path)
+
         if encoding in ("ebcdic", "cp037", "cp500"):
             raw = data_path.read_bytes()
             text = raw.decode(_EBCDIC_CODEC or "cp037", errors="replace")
             from io import StringIO
-            return pd.read_csv(StringIO(text), delimiter=delimiter)
+            return self._clean_delimited_df(pd.read_csv(StringIO(text), delimiter=delimiter))
         else:
-            return pd.read_csv(data_path, delimiter=delimiter, encoding=encoding)
+            # Use regex separator if delimiter has surrounding whitespace in the file
+            if delimiter in ("|", ";"):
+                sep = r'\s*' + re.escape(delimiter) + r'\s*'
+                df = pd.read_csv(data_path, sep=sep, encoding=encoding, engine="python")
+            else:
+                df = pd.read_csv(data_path, delimiter=delimiter, encoding=encoding)
+            return self._clean_delimited_df(df)
+
+    def _clean_delimited_df(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Clean a delimited DataFrame: normalize column names, strip whitespace."""
+        # Normalize column names: strip, lowercase, replace hyphens with underscores
+        df.columns = [c.strip().lower().replace("-", "_") for c in df.columns]
+
+        # Strip whitespace from all string values
+        for col in df.columns:
+            if df[col].dtype == object:
+                df[col] = df[col].astype(str).str.strip()
+
+        return df
 
     def close(self) -> None:
         self._df = None
