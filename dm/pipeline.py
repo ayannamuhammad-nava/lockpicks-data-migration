@@ -596,6 +596,19 @@ def run_schema_generation(
         )
         full_ddl = "\n\n".join(r.full_ddl for r in all_results)
 
+        # Write combined full_schema.sql (all tables, not just the last one)
+        if not dry_run and full_ddl:
+            (output_path / "full_schema.sql").write_text(full_ddl)
+            # Also write combined to each target subfolder
+            for target_subdir in output_path.iterdir():
+                if target_subdir.is_dir():
+                    target_ddls = []
+                    for f in sorted(target_subdir.iterdir()):
+                        if f.suffix == ".sql" and f.name != "full_schema.sql" and "_transforms" not in f.name:
+                            target_ddls.append(f.read_text())
+                    if target_ddls:
+                        (target_subdir / "full_schema.sql").write_text("\n\n".join(target_ddls))
+
         return {
             "table_count": total_tables,
             "confidence": round(avg_confidence, 2),

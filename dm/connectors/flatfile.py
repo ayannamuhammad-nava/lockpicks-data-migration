@@ -40,6 +40,55 @@ from dm.connectors.copybook_parser import CopybookLayout, parse_copybook
 
 logger = logging.getLogger(__name__)
 
+
+def _decode_comp3(raw_bytes: bytes, decimals: int = 0) -> str:
+    """Decode a COMP-3 (packed decimal) field from raw bytes.
+
+    Packed decimal stores 2 digits per byte, with the last nibble as sign
+    (C=positive, D=negative, F=unsigned positive).
+
+    Args:
+        raw_bytes: The raw bytes of the packed field.
+        decimals: Number of implied decimal places.
+
+    Returns:
+        String representation of the decoded value.
+    """
+    if not raw_bytes:
+        return "0"
+
+    digits = ""
+    for byte in raw_bytes:
+        high = (byte >> 4) & 0x0F
+        low = byte & 0x0F
+        digits += str(high)
+        if low >= 0x0A:  # Sign nibble
+            break
+        digits += str(low)
+
+    # Last nibble is the sign
+    last_nibble = raw_bytes[-1] & 0x0F
+    is_negative = last_nibble == 0x0D
+
+    # Remove trailing sign digit
+    digits = digits.rstrip("0123456789ABCDEF")
+    if not digits:
+        # Try different extraction — all nibbles except last
+        digits = ""
+        for byte in raw_bytes[:-1]:
+            digits += f"{byte:02X}"
+        digits += str((raw_bytes[-1] >> 4) & 0x0F)
+
+    # Insert decimal point
+    if decimals > 0 and len(digits) > decimals:
+        digits = digits[:-decimals] + "." + digits[-decimals:]
+
+    result = digits.lstrip("0") or "0"
+    if is_negative:
+        result = "-" + result
+
+    return result
+
 # EBCDIC to ASCII translation table (CP037 — US/Canada mainframes)
 try:
     _EBCDIC_CODEC = "cp037"

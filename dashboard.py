@@ -2709,23 +2709,27 @@ if lifecycle_view:
         del st.session_state["lifecycle_view"]
         st.rerun()
 
-    if lifecycle_view == "Discovery":
-        render_discovery_page()
-    elif lifecycle_view == "Modeling":
-        render_modeling_page()
-    elif lifecycle_view == "Governance":
-        render_governance_page()
-    elif lifecycle_view == "Transformation":
-        render_transformation_page()
-    elif lifecycle_view == "Compliance":
-        render_compliance_page()
-    elif lifecycle_view == "Sign-Off":
-        render_signoff_page()
-    elif lifecycle_view == "Post-Migration":
-        render_post_migration_page()
-    else:
-        st.markdown(f"## {lifecycle_view}")
-        st.info(f"Detail page for **{lifecycle_view}** phase coming soon.")
+    try:
+        if lifecycle_view == "Discovery":
+            render_discovery_page()
+        elif lifecycle_view == "Modeling":
+            render_modeling_page()
+        elif lifecycle_view == "Governance":
+            render_governance_page()
+        elif lifecycle_view == "Transformation":
+            render_transformation_page()
+        elif lifecycle_view == "Compliance":
+            render_compliance_page()
+        elif lifecycle_view == "Sign-Off":
+            render_signoff_page()
+        elif lifecycle_view == "Post-Migration":
+            render_post_migration_page()
+        else:
+            st.markdown(f"## {lifecycle_view}")
+            st.info(f"Detail page for **{lifecycle_view}** phase coming soon.")
+    except Exception as _page_err:
+        st.error(f"Error loading {lifecycle_view} page: {_page_err}")
+        st.caption("Try clicking **Re-run Discovery & Schema Generation** on the Discovery page, or click **Start Over** in the sidebar.")
     st.stop()
 
 # Safety: if setup screen should be showing but we got here, stop
@@ -2755,9 +2759,11 @@ generated_at = meta.get("generated_at", "")[:16].replace("T", " ")
 # Recalculate score for the selected target platform
 _active_target = st.session_state.get("selected_target", "postgres")
 from dm.scoring import calculate_confidence as _calc_conf
+# For PRE runs, integrity is 0 (no data migrated yet). For POST, use actual score.
+_is_post = meta.get("phase", "").lower() == "post"
 _target_result = _calc_conf(
     structure_score=float(struct_score or _base_score),
-    integrity_score=float(integ_score or _base_score),
+    integrity_score=float(integ_score or 0) if not _is_post else float(integ_score or _base_score),
     governance_score=float(gov_score or _base_score),
     config=_yaml.safe_load(_project_yaml.read_text()) if _project_yaml.exists() else {},
     target=_active_target,

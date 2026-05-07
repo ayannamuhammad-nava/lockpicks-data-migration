@@ -73,12 +73,31 @@ def _expand_pic(pic: str) -> str:
     return re.sub(r'([X9AZ])\((\d+)\)', _expand_group, pic.upper())
 
 
-def _pic_length(pic: str) -> int:
-    """Calculate byte length from a PIC clause."""
+def _pic_length(pic: str, usage: str = "") -> int:
+    """Calculate byte length from a PIC clause and USAGE.
+
+    COMP-3 (packed decimal): ceil((digits + 1) / 2) bytes
+    COMP (binary): 2 bytes (<=4 digits), 4 bytes (<=9), 8 bytes (<=18)
+    DISPLAY (default): 1 byte per digit/char
+    """
     expanded = _expand_pic(pic)
-    # Remove sign (S), assumed decimal (V), and usage indicators
     clean = expanded.replace("S", "").replace("V", "").replace(".", "")
-    return len(clean)
+    digits = len(clean)
+
+    usage_upper = usage.upper().strip()
+    if "COMP-3" in usage_upper or "PACKED" in usage_upper:
+        # Packed decimal: 2 digits per byte, plus 1 for sign
+        return (digits + 2) // 2
+    elif "COMP" in usage_upper and "COMP-3" not in usage_upper:
+        # Binary: fixed sizes
+        if digits <= 4:
+            return 2
+        elif digits <= 9:
+            return 4
+        else:
+            return 8
+
+    return digits
 
 
 def _pic_decimals(pic: str) -> int:
@@ -223,11 +242,20 @@ def parse_copybook(source: str, name: Optional[str] = None) -> CopybookLayout:
         if occurs_match:
             occurs = int(occurs_match.group(1))
 
+        # Parse USAGE clause (COMP, COMP-3, PACKED-DECIMAL, BINARY)
+        usage = ""
+        usage_match = re.search(
+            r'(?:USAGE\s+IS\s+|USAGE\s+)?(COMP-3|COMP|PACKED-DECIMAL|BINARY|DISPLAY)',
+            rest, re.IGNORECASE
+        )
+        if usage_match:
+            usage = usage_match.group(1).upper()
+
         # Parse PIC clause
         pic_match = re.search(r'PIC(?:TURE)?\s+([^\s.]+)', rest, re.IGNORECASE)
         if pic_match:
             pic = pic_match.group(1)
-            length = _pic_length(pic) * occurs
+            length = _pic_length(pic, usage=usage) * occurs
             decimals = _pic_decimals(pic)
             sql_type = _pic_to_sql_type(pic)
 
