@@ -1042,9 +1042,9 @@ def render_discovery_page():
 
                     if _has_ai:
                         st.info(f"**AI Summary:** {_ai_prog.get('summary', 'No summary available')}")
-                        _rule_tab_parsed, _rule_tab_ai = st.tabs(["Parsed Rules (Rule Engine)", "AI-Enhanced Rules"])
+                        _rule_tab_parsed, _rule_tab_ai, _rule_tab_io = st.tabs(["Parsed Rules (Rule Engine)", "AI-Enhanced Rules", "Input / Output"])
                     else:
-                        _rule_tab_parsed = st.container()
+                        _rule_tab_parsed, _rule_tab_io = st.tabs(["Parsed Rules (Rule Engine)", "Input / Output"])
                         _rule_tab_ai = None
 
                     with _rule_tab_parsed:
@@ -1096,6 +1096,46 @@ def render_discovery_page():
 
                             if not _enhanced and not _missed:
                                 st.info("AI found no additional insights beyond the parsed rules.")
+
+                    # ── Input / Output tab
+                    with _rule_tab_io:
+                        _contract = prog.get("data_contract", {})
+                        _inputs = _contract.get("inputs", [])
+                        _outputs = _contract.get("outputs", [])
+                        _working = _contract.get("working", [])
+                        _linkage = _contract.get("linkage_fields", [])
+                        _file_fields = _contract.get("file_fields", [])
+
+                        st.markdown(f"**Data Contract for `{prog_name}`**")
+                        st.caption("What data this program needs to run (inputs) and what it produces (outputs).")
+
+                        _io1, _io2, _io3 = st.columns(3)
+                        _io1.metric("Required Inputs", _contract.get("input_count", 0))
+                        _io2.metric("Produced Outputs", _contract.get("output_count", 0))
+                        _io3.metric("Working Fields", _contract.get("working_count", 0))
+
+                        st.divider()
+
+                        if _inputs:
+                            st.markdown("**Required Inputs** — fields the program reads but never sets")
+                            _in_rows = [{"Field": i["field"], "Section": i.get("section", ""), "PIC": i.get("pic", "")} for i in _inputs]
+                            st.dataframe(pd.DataFrame(_in_rows), use_container_width=True, hide_index=True)
+
+                        if _outputs:
+                            st.markdown("**Produced Outputs** — fields the program sets but never reads")
+                            _out_rows = [{"Field": o["field"], "Section": o.get("section", ""), "PIC": o.get("pic", "")} for o in _outputs]
+                            st.dataframe(pd.DataFrame(_out_rows), use_container_width=True, hide_index=True)
+
+                        if _linkage:
+                            st.markdown(f"**LINKAGE SECTION fields** ({len(_linkage)}) — passed in from calling program")
+                            st.markdown(", ".join(f"`{f}`" for f in _linkage))
+
+                        if _file_fields:
+                            st.markdown(f"**FILE SECTION fields** ({len(_file_fields)}) — tied to data files")
+                            st.markdown(", ".join(f"`{f}`" for f in _file_fields))
+
+                        if not _inputs and not _outputs:
+                            st.info("No input/output data available. The program may use only COPY-included fields.")
 
                     st.divider()
 

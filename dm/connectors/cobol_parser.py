@@ -36,19 +36,88 @@ class BusinessRule:
 
 
 @dataclass
+class FieldInfo:
+    """A field declared in the DATA DIVISION."""
+    name: str
+    section: str  # WORKING-STORAGE, FILE, LINKAGE, LOCAL-STORAGE
+    level: int
+    pic: str = ""
+    is_read: bool = False  # used as source in PROCEDURE DIVISION
+    is_written: bool = False  # used as target in PROCEDURE DIVISION
+
+
+@dataclass
 class ProgramAnalysis:
     """Complete analysis of a COBOL program."""
     program_name: str
     source_file: str
     total_lines: int
-    division_lines: Dict[str, int] = field(default_factory=dict)  # {division: line_count}
+    division_lines: Dict[str, int] = field(default_factory=dict)
     paragraphs: List[str] = field(default_factory=list)
     rules: List[BusinessRule] = field(default_factory=list)
     copybooks_used: List[str] = field(default_factory=list)
     programs_called: List[str] = field(default_factory=list)
     fields_referenced: List[str] = field(default_factory=list)
+    data_fields: Dict[str, FieldInfo] = field(default_factory=dict)  # {name: FieldInfo}
+    fields_read: List[str] = field(default_factory=list)  # fields used as source
+    fields_written: List[str] = field(default_factory=list)  # fields used as target
+
+    def get_inputs(self) -> List[str]:
+        """Fields that are read but never written — required inputs."""
+        read_set = set(self.fields_read)
+        write_set = set(self.fields_written)
+        return sorted(read_set - write_set)
+
+    def get_outputs(self) -> List[str]:
+        """Fields that are written but never read — produced outputs."""
+        read_set = set(self.fields_read)
+        write_set = set(self.fields_written)
+        return sorted(write_set - read_set)
+
+    def get_working(self) -> List[str]:
+        """Fields that are both read and written — working/intermediate."""
+        read_set = set(self.fields_read)
+        write_set = set(self.fields_written)
+        return sorted(read_set & write_set)
+
+    def get_data_contract(self) -> Dict:
+        """Return the program's data contract: what goes in, what comes out."""
+        inputs = self.get_inputs()
+        outputs = self.get_outputs()
+        working = self.get_working()
+
+        # Classify by DATA DIVISION section
+        input_details = []
+        for f in inputs:
+            info = self.data_fields.get(f, None)
+            input_details.append({
+                "field": f,
+                "section": info.section if info else "unknown",
+                "pic": info.pic if info else "",
+            })
+
+        output_details = []
+        for f in outputs:
+            info = self.data_fields.get(f, None)
+            output_details.append({
+                "field": f,
+                "section": info.section if info else "unknown",
+                "pic": info.pic if info else "",
+            })
+
+        return {
+            "inputs": input_details,
+            "outputs": output_details,
+            "working": working,
+            "input_count": len(inputs),
+            "output_count": len(outputs),
+            "working_count": len(working),
+            "linkage_fields": [f for f, info in self.data_fields.items() if info.section == "LINKAGE"],
+            "file_fields": [f for f, info in self.data_fields.items() if info.section == "FILE"],
+        }
 
     def to_dict(self) -> dict:
+        data_contract = self.get_data_contract()
         return {
             "program_name": self.program_name,
             "source_file": self.source_file,
@@ -72,6 +141,7 @@ class ProgramAnalysis:
             "copybooks_used": self.copybooks_used,
             "programs_called": self.programs_called,
             "fields_referenced": sorted(set(self.fields_referenced)),
+            "data_contract": data_contract,
             "summary": {
                 "total_rules": len(self.rules),
                 "validations": sum(1 for r in self.rules if r.rule_type == "validation"),
@@ -80,6 +150,9 @@ class ProgramAnalysis:
                 "process_flows": sum(1 for r in self.rules if r.rule_type == "process_flow"),
                 "external_calls": sum(1 for r in self.rules if r.rule_type == "external_call"),
                 "defaults": sum(1 for r in self.rules if r.rule_type == "default"),
+                "input_fields": data_contract["input_count"],
+                "output_fields": data_contract["output_count"],
+                "working_fields": data_contract["working_count"],
             },
         }
 
@@ -151,12 +224,18 @@ def parse_cobol_program(source: str, name: Optional[str] = None) -> ProgramAnaly
         if current_division:
             division_line_counts[current_division] = division_line_counts.get(current_division, 0) + 1
 
+        # Check for COPY statements anywhere
+        copy_match = re.search(r'COPY\s+([\w-]+)', upper)
+        if copy_match:
+            analysis.copybooks_used.append(copy_match.group(1))
+
+        # ── DATA DIVISION: extract field declarations ──
+        if current_division == "DATA":
+            _parse_data_field(content, upper, line_num, analysis)
+            continue
+
         # Only extract rules from PROCEDURE DIVISION
         if current_division != "PROCEDURE":
-            # But check for COPY statements anywhere
-            copy_match = re.search(r'COPY\s+([\w-]+)', upper)
-            if copy_match:
-                analysis.copybooks_used.append(copy_match.group(1))
             continue
 
         # Detect paragraph names (start at column 8, end with period)
@@ -165,8 +244,11 @@ def parse_cobol_program(source: str, name: Optional[str] = None) -> ProgramAnaly
             analysis.paragraphs.append(current_paragraph)
             continue
 
-        # Extract rules
+        # Extract rules and track field read/write
         _extract_rules(content, upper, line_num, current_paragraph, analysis)
+
+    # Classify fields as read/written based on rule analysis
+    _classify_field_io(analysis)
 
     analysis.division_lines = division_line_counts
 
@@ -176,6 +258,96 @@ def parse_cobol_program(source: str, name: Optional[str] = None) -> ProgramAnaly
     )
 
     return analysis
+
+
+_current_data_section = ""  # Track WORKING-STORAGE, FILE, LINKAGE, LOCAL-STORAGE
+
+
+def _parse_data_field(content: str, upper: str, line_num: int, analysis: ProgramAnalysis):
+    """Parse a DATA DIVISION line to extract field declarations."""
+    global _current_data_section
+
+    # Detect section changes
+    for section in ["WORKING-STORAGE", "FILE", "LINKAGE", "LOCAL-STORAGE"]:
+        if section in upper and "SECTION" in upper:
+            _current_data_section = section
+            return
+
+    # Parse field declaration: level-number field-name PIC ...
+    field_match = re.match(r'\s*(\d{1,2})\s+([\w-]+)', upper)
+    if not field_match:
+        return
+
+    level = int(field_match.group(1))
+    field_name = field_match.group(2)
+
+    if level == 88 or field_name in ("FILLER", "FILLER-X"):
+        return
+
+    # Extract PIC clause
+    pic = ""
+    pic_match = re.search(r'PIC(?:TURE)?\s+([^\s.]+)', upper, re.IGNORECASE)
+    if pic_match:
+        pic = pic_match.group(1)
+
+    analysis.data_fields[field_name] = FieldInfo(
+        name=field_name,
+        section=_current_data_section or "WORKING-STORAGE",
+        level=level,
+        pic=pic,
+    )
+
+
+def _classify_field_io(analysis: ProgramAnalysis):
+    """Classify fields as read/written based on extracted rules."""
+    for rule in analysis.rules:
+        if rule.rule_type == "validation":
+            # IF conditions READ the fields
+            for f in rule.fields:
+                analysis.fields_read.append(f)
+                if f in analysis.data_fields:
+                    analysis.data_fields[f].is_read = True
+
+        elif rule.rule_type == "calculation":
+            # COMPUTE: target is written, sources are read
+            if rule.action and "=" in rule.action:
+                parts = rule.action.split("=", 1)
+                target = parts[0].strip()
+                source_fields = _extract_fields(parts[1]) if len(parts) > 1 else []
+                analysis.fields_written.append(target)
+                if target in analysis.data_fields:
+                    analysis.data_fields[target].is_written = True
+                for f in source_fields:
+                    analysis.fields_read.append(f)
+                    if f in analysis.data_fields:
+                        analysis.data_fields[f].is_read = True
+            else:
+                # ADD/SUBTRACT etc — all fields are both read and written
+                for f in rule.fields:
+                    analysis.fields_read.append(f)
+                    analysis.fields_written.append(f)
+                    if f in analysis.data_fields:
+                        analysis.data_fields[f].is_read = True
+                        analysis.data_fields[f].is_written = True
+
+        elif rule.rule_type in ("data_movement", "default"):
+            # MOVE source TO target: source is read, target is written
+            if rule.action and " TO " in rule.action.upper():
+                parts = rule.action.upper().replace("MOVE ", "").split(" TO ", 1)
+                source_fields = _extract_fields(parts[0]) if parts else []
+                target_fields = _extract_fields(parts[1]) if len(parts) > 1 else []
+                for f in source_fields:
+                    analysis.fields_read.append(f)
+                    if f in analysis.data_fields:
+                        analysis.data_fields[f].is_read = True
+                for f in target_fields:
+                    analysis.fields_written.append(f)
+                    if f in analysis.data_fields:
+                        analysis.data_fields[f].is_written = True
+
+    # Deduplicate
+    analysis.fields_read = sorted(set(analysis.fields_read))
+    analysis.fields_written = sorted(set(analysis.fields_written))
 
 
 def _extract_rules(content: str, upper: str, line_num: int, paragraph: str, analysis: ProgramAnalysis):
