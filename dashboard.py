@@ -229,15 +229,37 @@ if _show_setup:
                 sys.executable, "-m", "dm.cli", "discover",
                 "--project", str(project_path),
             ]
-            result = subprocess.run(discover_cmd, capture_output=True, text=True, timeout=600)
-            if result.returncode != 0:
-                st.write(f"Discovery had issues (continuing): {result.stderr[:300]}")
+            _discover_proc = subprocess.Popen(
+                discover_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            )
+            _cancel_placeholder = st.empty()
+            _cancelled = False
+            import time as _time
+            _start = _time.time()
+            while _discover_proc.poll() is None:
+                _elapsed = int(_time.time() - _start)
+                _cancel_placeholder.caption(f"Running... ({_elapsed}s)")
+                _time.sleep(1)
+                if _elapsed > 300:  # Auto-cancel after 5 minutes
+                    _discover_proc.kill()
+                    _cancelled = True
+                    st.warning("Pipeline took too long (>5 min) — cancelled automatically. Try a smaller repo or skip AI.")
+                    break
+
+            _cancel_placeholder.empty()
+
+            if _cancelled:
+                st.write("Continuing with whatever was completed...")
+            elif _discover_proc.returncode != 0:
+                _stderr = _discover_proc.stderr.read() if _discover_proc.stderr else ""
+                st.write(f"Discovery had issues (continuing): {_stderr[:300]}")
             else:
-                for line in result.stdout.splitlines():
+                _stdout = _discover_proc.stdout.read() if _discover_proc.stdout else ""
+                _stderr = _discover_proc.stderr.read() if _discover_proc.stderr else ""
+                for line in _stdout.splitlines():
                     if "Tables:" in line or "Columns:" in line or "Mappings:" in line or "Scope:" in line:
                         st.write(f"  {line.strip()}")
-                # Show AI activity
-                for line in result.stderr.splitlines():
+                for line in _stderr.splitlines():
                     if "AI:" in line:
                         st.write(f"  {line.split('AI:')[1].strip()}")
 
