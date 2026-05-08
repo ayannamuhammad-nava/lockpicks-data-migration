@@ -1251,3 +1251,59 @@ PRE runs now use `integrity_score=0` (not base_score) for accurate weighting —
 **File:** `dm/pipeline.py`
 
 The OM-backed pipeline now writes a combined `full_schema.sql` containing all tables after processing completes, instead of each table overwriting the file. Each target subfolder also gets a combined DDL file.
+
+---
+
+## COBOL Business Rule Extraction (2026-05-08)
+
+**Files:** `dm/connectors/cobol_parser.py`, `dm/ai/client.py`, `dm/ai/prompts.py`, `dm/pipeline_flatfile.py`, `dashboard.py`
+
+The toolkit now reads COBOL programs (`.cbl`, `.cob` files) from the source repository and extracts business rules — the logic that determines how the mainframe system actually works.
+
+### Rule-Based Parser (`dm/connectors/cobol_parser.py`)
+
+Parses the PROCEDURE DIVISION of COBOL programs and extracts 6 types of business rules:
+
+| Rule Type | COBOL Pattern | Example |
+|---|---|---|
+| **Validation** | IF conditions, EVALUATE (switch/case) | `IF TRAN-AMT < 0 MOVE 'INVALID' TO STATUS` |
+| **Calculation** | COMPUTE, ADD, SUBTRACT, MULTIPLY, DIVIDE | `COMPUTE INTEREST = BALANCE * RATE / 365` |
+| **Data Movement** | MOVE (field-to-field transforms) | `MOVE CUST-SSN TO MASKED-SSN` |
+| **Process Flow** | PERFORM (paragraph execution) | `PERFORM VALIDATE-INPUT` |
+| **External Call** | CALL (inter-program dependencies) | `CALL 'ELIGCHK' USING CUST-REC` |
+| **Default** | MOVE literal TO field (initializations) | `MOVE SPACES TO ERROR-MSG` |
+
+For each rule: source line number, raw COBOL text, fields involved, paragraph context, and severity (INFO/MEDIUM/HIGH).
+
+Also tracks: paragraphs, copybooks used (COPY statements), programs called, and all fields referenced.
+
+### AI Enhancement (`dm/ai/client.py`, `dm/ai/prompts.py`)
+
+When AI is configured, sends parsed rules + source code excerpts to Claude for:
+
+- **Business descriptions** — plain English explanation of what each rule means in business terms
+- **Domain classification** — validation, eligibility, calculation, workflow, security
+- **Migration criticality** — critical (must preserve exactly) vs advisory (can modernize)
+- **Missed rules** — business rules the parser couldn't detect (implicit logic, cross-paragraph patterns)
+
+### Pipeline Integration
+
+Step 5 in the flat file pipeline scans the source repo's `_source_repo/` directory for `.cbl` and `.cob` files. Produces:
+
+- `metadata/business_rules.json` — all parsed rules from all programs
+- `metadata/ai_business_rules.json` — AI-enhanced rules (if AI configured)
+
+### Dashboard — Business Rules Tab
+
+New **Business Rules** tab on the Discovery page (only appears when COBOL programs are found):
+
+- **Summary metrics** — validations, calculations, data movements, external calls per program
+- **Parsed Rules** table — line number, type, severity, description, fields, paragraph
+- **AI-Enhanced Rules** table (side-by-side) — business description, domain, migration criticality
+- **Missed Rules** — rules AI found that the parser missed
+
+When AI is not configured, only the Parsed Rules table is shown. When AI is configured, both tabs appear for comparison.
+
+### Test Results
+
+AWS CardDemo repository: **31 COBOL programs** parsed, **hundreds of business rules** extracted across account management, transaction processing, card operations, and user security programs.

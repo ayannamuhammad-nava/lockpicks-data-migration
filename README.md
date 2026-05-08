@@ -12,7 +12,8 @@
 |---------|-------------|
 | Read and profile legacy data (DB2, Oracle, copybooks, flat files) | Create databases or tables in a target system |
 | Map COBOL abbreviated fields to modern names (90+ patterns) | Move or copy data between systems |
-| Detect PII and flag compliance requirements | Execute DDL against production databases |
+| Extract business rules from COBOL programs (validations, calculations, workflows) | Execute DDL against production databases |
+| Detect PII and flag compliance requirements | Rewrite COBOL programs |
 | Generate target DDL for 4 platforms (PostgreSQL, Snowflake, Oracle, AWS) | Deploy anything to production |
 | Score migration readiness with honest confidence numbers | Replace your ETL tooling (Airbyte, dbt, Informatica) |
 | Let stakeholders review, compare targets, and sign off | Make migration decisions for you |
@@ -859,6 +860,7 @@ lockpicks-data-migration/
       oracle.py                     # Oracle Database connector
       flatfile.py                   # Flat file / CSV connector
       copybook_parser.py            # COBOL copybook (.cpy) parser
+      cobol_parser.py               # COBOL program (.cbl) business rule extraction
     discovery/                      # L-Cataloger + L-Modeler
       openmetadata_enricher.py      # OM REST API wrapper
       metadata_generator.py         # Glossary + mappings + COBOL abbreviations
