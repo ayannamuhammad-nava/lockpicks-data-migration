@@ -213,13 +213,20 @@ def parse_cobol_program(source: str, name: Optional[str] = None) -> ProgramAnaly
     for content, line_num in clean_lines:
         upper = content.upper().strip()
 
-        # Track divisions
-        if "DIVISION" in upper and upper.endswith("."):
-            for div in ["IDENTIFICATION", "ENVIRONMENT", "DATA", "PROCEDURE"]:
-                if div in upper:
-                    current_division = div
-                    division_line_counts[div] = 0
-                    break
+        # Track divisions — match "XXX DIVISION" at the start of the line
+        # Handles: "PROCEDURE DIVISION.", "PROCEDURE DIVISION USING X."
+        if "DIVISION" in upper:
+            _div_match = re.match(r'^(IDENTIFICATION|ENVIRONMENT|DATA|PROCEDURE)\s+DIVISION', upper)
+            if _div_match:
+                current_division = _div_match.group(1)
+                division_line_counts[current_division] = 0
+        # Also detect SECTION headers as paragraph markers in PROCEDURE DIVISION
+        if current_division == "PROCEDURE" and "SECTION" in upper and upper.rstrip(".").strip().endswith("SECTION"):
+            section_name = upper.rstrip(".").strip().replace("SECTION", "").strip()
+            if section_name and section_name not in ("PROCEDURE", ""):
+                current_paragraph = section_name
+                analysis.paragraphs.append(current_paragraph)
+                continue
 
         if current_division:
             division_line_counts[current_division] = division_line_counts.get(current_division, 0) + 1
