@@ -507,8 +507,76 @@ def run_flatfile_pipeline(project_dir: str) -> Dict:
     with open(metadata_path / "migration_scope.yaml", "w") as f:
         yaml.dump(scope, f)
 
-    # ── Step 5: Schema generation for all targets ─────────────────
-    logger.info("Step 5: Generating schemas for all target platforms")
+    # ── Step 5: Business rule extraction from COBOL programs ─────
+    logger.info("Step 5: Extracting business rules from COBOL programs")
+
+    from dm.connectors.cobol_parser import scan_programs
+
+    # Scan the source repo for COBOL programs
+    source_repo = config.get("project", {}).get("source_repo", "")
+    _repo_dirs = []
+    project_dir_path = Path(config.get("_project_dir", "."))
+    _source_repo_dir = project_dir_path / "_source_repo"
+    if _source_repo_dir.exists():
+        _repo_dirs.append(str(_source_repo_dir))
+    elif source_repo and Path(source_repo).exists():
+        _repo_dirs.append(source_repo)
+
+    all_program_analyses = []
+    for _rd in _repo_dirs:
+        programs = scan_programs(_rd)
+        all_program_analyses.extend(programs)
+
+    if all_program_analyses:
+        # Save parsed rules
+        rules_output = [p.to_dict() for p in all_program_analyses]
+        with open(metadata_path / "business_rules.json", "w") as f:
+            json.dump(rules_output, f, indent=2, default=str)
+
+        total_rules = sum(len(p.rules) for p in all_program_analyses)
+        logger.info(f"  Extracted {total_rules} business rules from {len(all_program_analyses)} programs")
+
+        # AI enhancement of business rules (if available)
+        if ai_client:
+            ai_enhanced_rules = {}
+            for prog in all_program_analyses:
+                if prog.rules:
+                    logger.info(f"  AI: Enhancing business rules for {prog.program_name}...")
+                    # Get source excerpts around key rules
+                    source_lines = prog.source_file and Path(prog.source_file).exists()
+                    excerpts = ""
+                    if source_lines:
+                        full_text = Path(prog.source_file).read_text(errors="replace")
+                        # Extract lines around rules
+                        all_lines = full_text.splitlines()
+                        for rule in prog.rules[:20]:
+                            start = max(0, rule.source_line - 3)
+                            end = min(len(all_lines), rule.source_line + 3)
+                            excerpts += f"\n--- Line {rule.source_line} ---\n"
+                            excerpts += "\n".join(all_lines[start:end])
+
+                    result = ai_client.enhance_business_rules(
+                        program_name=prog.program_name,
+                        parsed_rules=[r.__dict__ for r in prog.rules[:30]],
+                        source_excerpts=excerpts[:4000],
+                        total_lines=prog.total_lines,
+                        paragraph_count=len(prog.paragraphs),
+                    )
+                    if result:
+                        ai_enhanced_rules[prog.program_name] = result
+                        logger.info(
+                            f"  AI: {len(result.get('enhanced_rules', []))} enhanced, "
+                            f"{len(result.get('missed_rules', []))} missed rules found"
+                        )
+
+            if ai_enhanced_rules:
+                with open(metadata_path / "ai_business_rules.json", "w") as f:
+                    json.dump(ai_enhanced_rules, f, indent=2, default=str)
+    else:
+        logger.info("  No COBOL programs found in source repo")
+
+    # ── Step 6: Schema generation for all targets ─────────────────
+    logger.info("Step 6: Generating schemas for all target platforms")
 
     from dm.targets.postgres import get_available_targets, get_target_adapter
 

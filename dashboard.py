@@ -804,14 +804,32 @@ def render_discovery_page():
     st.divider()
 
     # Tabs for different views
-    tab_tables, tab_sample, tab_glossary, tab_mappings, tab_pii, tab_scope = st.tabs([
+    # Check for business rules
+    _rules_path = METADATA_DIR / "business_rules.json"
+    _ai_rules_path = METADATA_DIR / "ai_business_rules.json"
+    _has_rules = _rules_path.exists()
+
+    _disc_tab_names = [
         "📋 Tables & Columns",
         "🗂️ Sample Data",
         "📖 Glossary",
         "🔄 Field Mappings",
         "🔒 PII Detection",
-        "📊 Rationalization",
-    ])
+    ]
+    if _has_rules:
+        _disc_tab_names.append("📜 Business Rules")
+    _disc_tab_names.append("📊 Rationalization")
+
+    _disc_tabs = st.tabs(_disc_tab_names)
+    _dt_idx = 0
+    tab_tables = _disc_tabs[_dt_idx]; _dt_idx += 1
+    tab_sample = _disc_tabs[_dt_idx]; _dt_idx += 1
+    tab_glossary = _disc_tabs[_dt_idx]; _dt_idx += 1
+    tab_mappings = _disc_tabs[_dt_idx]; _dt_idx += 1
+    tab_pii = _disc_tabs[_dt_idx]; _dt_idx += 1
+    if _has_rules:
+        tab_rules = _disc_tabs[_dt_idx]; _dt_idx += 1
+    tab_scope = _disc_tabs[_dt_idx]
 
     # ── Tables & Columns tab
     with tab_tables:
@@ -994,6 +1012,96 @@ def render_discovery_page():
             st.success("No PII fields detected.")
 
     # ── Rationalization tab
+    # ── Business Rules tab
+    if _has_rules:
+        with tab_rules:
+            st.markdown("#### Business Rules — COBOL Program Analysis")
+            st.caption("Rules extracted from COBOL source programs (.cbl files) found in the repository.")
+
+            try:
+                _rules_data = json.loads(_rules_path.read_text())
+                _ai_rules_data = json.loads(_ai_rules_path.read_text()) if _ai_rules_path.exists() else {}
+
+                for prog in _rules_data:
+                    prog_name = prog.get("program_name", "?")
+                    rules = prog.get("rules", [])
+                    summary = prog.get("summary", {})
+
+                    st.markdown(f"##### `{prog_name}` — {summary.get('total_rules', 0)} rules")
+
+                    # Summary metrics
+                    _rc1, _rc2, _rc3, _rc4 = st.columns(4)
+                    _rc1.metric("Validations", summary.get("validations", 0))
+                    _rc2.metric("Calculations", summary.get("calculations", 0))
+                    _rc3.metric("Data Movements", summary.get("data_movements", 0))
+                    _rc4.metric("External Calls", summary.get("external_calls", 0))
+
+                    # Show parsed rules vs AI rules side by side
+                    _ai_prog = _ai_rules_data.get(prog_name, {})
+                    _has_ai = bool(_ai_prog)
+
+                    if _has_ai:
+                        st.info(f"**AI Summary:** {_ai_prog.get('summary', 'No summary available')}")
+                        _rule_tab_parsed, _rule_tab_ai = st.tabs(["Parsed Rules (Rule Engine)", "AI-Enhanced Rules"])
+                    else:
+                        _rule_tab_parsed = st.container()
+                        _rule_tab_ai = None
+
+                    with _rule_tab_parsed:
+                        if rules:
+                            _rule_rows = []
+                            for r in rules:
+                                _sev_icon = {"HIGH": "🔴", "MEDIUM": "🟡", "INFO": "🟢"}.get(r.get("severity", ""), "⚪")
+                                _rule_rows.append({
+                                    "Line": r.get("source_line", ""),
+                                    "Type": r.get("type", ""),
+                                    "Severity": f"{_sev_icon} {r.get('severity', '')}",
+                                    "Description": r.get("description", ""),
+                                    "Fields": ", ".join(r.get("fields", [])),
+                                    "Paragraph": r.get("paragraph", ""),
+                                })
+                            st.dataframe(pd.DataFrame(_rule_rows), use_container_width=True, hide_index=True)
+                        else:
+                            st.info("No rules extracted from this program.")
+
+                    if _has_ai and _rule_tab_ai is not None:
+                        with _rule_tab_ai:
+                            _enhanced = _ai_prog.get("enhanced_rules", [])
+                            _missed = _ai_prog.get("missed_rules", [])
+
+                            if _enhanced:
+                                st.markdown("**Enhanced Rules** (AI added business context)")
+                                _ai_rows = []
+                                for r in _enhanced:
+                                    _ai_rows.append({
+                                        "Line": r.get("source_line", ""),
+                                        "Business Description": r.get("business_description", ""),
+                                        "Domain": r.get("domain", ""),
+                                        "Criticality": r.get("migration_criticality", ""),
+                                        "Original": r.get("original_description", ""),
+                                    })
+                                st.dataframe(pd.DataFrame(_ai_rows), use_container_width=True, hide_index=True)
+
+                            if _missed:
+                                st.markdown("**Missed Rules** (AI found rules the parser missed)")
+                                _missed_rows = []
+                                for r in _missed:
+                                    _missed_rows.append({
+                                        "Line": r.get("source_line", ""),
+                                        "Business Description": r.get("business_description", ""),
+                                        "Domain": r.get("domain", ""),
+                                        "Criticality": r.get("migration_criticality", ""),
+                                    })
+                                st.dataframe(pd.DataFrame(_missed_rows), use_container_width=True, hide_index=True)
+
+                            if not _enhanced and not _missed:
+                                st.info("AI found no additional insights beyond the parsed rules.")
+
+                    st.divider()
+
+            except Exception as e:
+                st.error(f"Could not load business rules: {e}")
+
     with tab_scope:
         st.markdown("#### Migration Scope Rationalization")
 

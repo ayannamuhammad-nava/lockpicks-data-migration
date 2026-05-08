@@ -259,3 +259,60 @@ Respond with a JSON array of findings:
 
 If no issues are found, return an empty array [].
 Return ONLY the JSON array, no other text."""
+
+# ── Business Rule Extraction ─────────────────────────────────────────
+
+BUSINESS_RULES_PROMPT = """\
+You are analyzing a COBOL program to extract business rules for a \
+modernization initiative. The rule-based parser has already extracted \
+structured rules. Your job is to enhance them with business context.
+
+## Program: {program_name}
+
+{total_lines} lines, {paragraph_count} paragraphs.
+
+## Parsed Rules (from rule engine)
+
+{parsed_rules}
+
+## Source Code Excerpts
+
+{source_excerpts}
+
+## Instructions
+
+For each parsed rule, provide:
+1. A plain English business rule description (what it means in business terms, not COBOL terms)
+2. The business domain this rule belongs to (validation, eligibility, calculation, workflow, security)
+3. Whether this rule is critical for migration (must be preserved exactly) or advisory (can be modernized)
+4. Any related rules that should be considered together
+
+Also identify any business rules the parser MISSED that you can see in the source code excerpts.
+
+Respond with a JSON object:
+```json
+{{
+  "enhanced_rules": [
+    {{
+      "source_line": 245,
+      "original_description": "Condition check: TRAN-AMT < 0",
+      "business_description": "Reject transactions with negative amounts — fraud prevention rule",
+      "domain": "validation",
+      "migration_criticality": "critical",
+      "related_rules": [250, 255]
+    }}
+  ],
+  "missed_rules": [
+    {{
+      "source_line": 300,
+      "business_description": "Interest calculation uses 360-day year convention (banker's rule)",
+      "domain": "calculation",
+      "migration_criticality": "critical",
+      "source_text": "COMPUTE INTEREST = BALANCE * RATE / 360"
+    }}
+  ],
+  "summary": "2-3 sentence overview of the program's business purpose"
+}}
+```
+
+Return ONLY the JSON object, no other text."""

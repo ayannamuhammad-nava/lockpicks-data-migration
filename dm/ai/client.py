@@ -10,6 +10,7 @@ import logging
 from typing import Optional
 
 from dm.ai.prompts import (
+    BUSINESS_RULES_PROMPT,
     CODE_CONVERSION_PROMPT,
     COLUMN_UNDERSTANDING_PROMPT,
     DATA_QUALITY_PROMPT,
@@ -305,3 +306,49 @@ class AIClient:
         except Exception as e:
             logger.warning(f"AI data quality assessment failed: {e}")
             return []
+
+    def enhance_business_rules(
+        self, program_name: str, parsed_rules: list, source_excerpts: str,
+        total_lines: int = 0, paragraph_count: int = 0,
+    ) -> dict:
+        """Use AI to enhance rule-engine extracted business rules with business context.
+
+        Args:
+            program_name: Name of the COBOL program.
+            parsed_rules: List of rule dicts from the rule-based parser.
+            source_excerpts: Key source code sections for context.
+            total_lines: Total lines in the program.
+            paragraph_count: Number of paragraphs.
+
+        Returns:
+            Dict with 'enhanced_rules', 'missed_rules', 'summary'.
+            Returns None if AI is not available.
+        """
+        import json
+
+        if not self.is_available():
+            return None
+
+        # Limit parsed rules to avoid token overflow
+        rules_text = json.dumps(parsed_rules[:50], indent=2, default=str)
+
+        prompt = BUSINESS_RULES_PROMPT.format(
+            program_name=program_name,
+            total_lines=total_lines,
+            paragraph_count=paragraph_count,
+            parsed_rules=rules_text[:4000],
+            source_excerpts=source_excerpts[:4000],
+        )
+
+        try:
+            response = self.complete(
+                prompt=prompt,
+                system="You are a COBOL business analyst extracting business rules for modernization.",
+            )
+            response = response.strip()
+            if response.startswith("```"):
+                response = response.split("\n", 1)[1].rsplit("```", 1)[0]
+            return json.loads(response)
+        except Exception as e:
+            logger.warning(f"AI business rule enhancement failed: {e}")
+            return None
