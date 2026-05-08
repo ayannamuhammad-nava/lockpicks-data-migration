@@ -1043,215 +1043,167 @@ def render_discovery_page():
             try:
                 _rules_data = json.loads(_rules_path.read_text())
                 _ai_rules_data = json.loads(_ai_rules_path.read_text()) if _ai_rules_path.exists() else {}
+                _has_any_ai = bool(_ai_rules_data)
 
-                for prog in _rules_data:
-                    prog_name = prog.get("program_name", "?")
-                    rules = prog.get("rules", [])
-                    summary = prog.get("summary", {})
+                # Program selector
+                _prog_names = [p.get("program_name", "?") for p in _rules_data]
+                _prog_labels = [f"{p.get('program_name','?')} ({p.get('summary',{}).get('total_rules',0)} rules)" for p in _rules_data]
+                _selected_prog_idx = st.selectbox("Program", range(len(_prog_names)), format_func=lambda i: _prog_labels[i], key="br_prog_sel")
 
-                    st.markdown(f"##### `{prog_name}` — {summary.get('total_rules', 0)} rules")
+                prog = _rules_data[_selected_prog_idx]
+                prog_name = prog.get("program_name", "?")
+                rules = prog.get("rules", [])
+                summary = prog.get("summary", {})
+                _ai_prog = _ai_rules_data.get(prog_name, {})
+                _has_ai = bool(_ai_prog)
 
-                    # Summary metrics
-                    _rc1, _rc2, _rc3, _rc4 = st.columns(4)
-                    _rc1.metric("Validations", summary.get("validations", 0))
-                    _rc2.metric("Calculations", summary.get("calculations", 0))
-                    _rc3.metric("Data Movements", summary.get("data_movements", 0))
-                    _rc4.metric("External Calls", summary.get("external_calls", 0))
+                # Summary metrics
+                _rc1, _rc2, _rc3, _rc4, _rc5 = st.columns(5)
+                _rc1.metric("Validations", summary.get("validations", 0))
+                _rc2.metric("Calculations", summary.get("calculations", 0))
+                _rc3.metric("Data Movements", summary.get("data_movements", 0))
+                _rc4.metric("External Calls", summary.get("external_calls", 0))
+                _rc5.metric("Total Rules", summary.get("total_rules", 0))
 
-                    # Show tabs per program
-                    _ai_prog = _ai_rules_data.get(prog_name, {})
-                    _has_ai = bool(_ai_prog)
+                st.divider()
 
-                    _prog_tab_names = ["Plain English", "Flow Chart", "Parsed Rules"]
-                    if _has_ai:
-                        _prog_tab_names.append("AI-Enhanced Rules")
-                    _prog_tab_names.append("Input / Output")
+                # Tabs — one set for the selected program
+                _prog_tab_names = ["Plain English", "Flow Chart", "Parsed Rules"]
+                if _has_ai:
+                    _prog_tab_names.append("AI-Enhanced Rules")
+                _prog_tab_names.append("Input / Output")
 
-                    _prog_tabs = st.tabs(_prog_tab_names)
-                    _pti = 0
-                    _rule_tab_english = _prog_tabs[_pti]; _pti += 1
-                    _rule_tab_flow = _prog_tabs[_pti]; _pti += 1
-                    _rule_tab_parsed = _prog_tabs[_pti]; _pti += 1
-                    if _has_ai:
-                        _rule_tab_ai = _prog_tabs[_pti]; _pti += 1
-                    else:
-                        _rule_tab_ai = None
-                    _rule_tab_io = _prog_tabs[_pti]
+                _prog_tabs = st.tabs(_prog_tab_names)
+                _pti = 0
+                _rule_tab_english = _prog_tabs[_pti]; _pti += 1
+                _rule_tab_flow = _prog_tabs[_pti]; _pti += 1
+                _rule_tab_parsed = _prog_tabs[_pti]; _pti += 1
+                if _has_ai:
+                    _rule_tab_ai = _prog_tabs[_pti]; _pti += 1
+                else:
+                    _rule_tab_ai = None
+                _rule_tab_io = _prog_tabs[_pti]
 
-                    if _has_ai:
-                        st.info(f"**AI Summary:** {_ai_prog.get('summary', 'No summary available')}")
+                # Precompute rule groups
+                _validations = [r for r in rules if r.get("type") == "validation"]
+                _calculations = [r for r in rules if r.get("type") == "calculation"]
+                _movements = [r for r in rules if r.get("type") == "data_movement"]
+                _calls = [r for r in rules if r.get("type") == "external_call"]
+                _defaults = [r for r in rules if r.get("type") == "default"]
+                _flows = [r for r in rules if r.get("type") == "process_flow"]
+                _paragraphs = prog.get("paragraphs", [])
+                _contract = prog.get("data_contract", {})
 
-                    # ── Plain English tab
-                    with _rule_tab_english:
-                        st.markdown(f"#### What `{prog_name}` Does")
+                # ── Plain English
+                with _rule_tab_english:
+                    if _calculations:
+                        _calc_fields = set()
+                        for r in _calculations:
+                            _calc_fields.update(r.get("fields", []))
+                        st.markdown(f"This program performs **{len(_calculations)} calculations** involving fields like {', '.join(list(_calc_fields)[:5])}.")
+                    if _validations:
+                        st.markdown(f"It checks **{len(_validations)} conditions** to validate data before processing.")
+                    if _calls:
+                        _called = [r.get("action", "").replace("CALL ", "") for r in _calls]
+                        st.markdown(f"It calls **{len(_calls)} external program(s)**: {', '.join(_called)}.")
+                    if not _calculations and not _validations and _movements:
+                        st.markdown(f"This program primarily moves and transforms data ({len(_movements)} data movements).")
 
-                        # Generate plain English from the extracted rules
-                        _validations = [r for r in rules if r.get("type") == "validation"]
-                        _calculations = [r for r in rules if r.get("type") == "calculation"]
-                        _movements = [r for r in rules if r.get("type") == "data_movement"]
-                        _calls = [r for r in rules if r.get("type") == "external_call"]
-                        _defaults = [r for r in rules if r.get("type") == "default"]
-                        _flows = [r for r in rules if r.get("type") == "process_flow"]
-                        _paragraphs = prog.get("paragraphs", [])
-                        _contract = prog.get("data_contract", {})
-
-                        # High-level purpose
-                        st.markdown("**Purpose:**")
-                        if _calculations:
-                            _calc_fields = set()
-                            for r in _calculations:
-                                _calc_fields.update(r.get("fields", []))
-                            st.markdown(f"This program performs **{len(_calculations)} calculations** involving fields like {', '.join(list(_calc_fields)[:5])}.")
-                        if _validations:
-                            st.markdown(f"It checks **{len(_validations)} conditions** to validate data before processing.")
-                        if _calls:
-                            _called = [r.get("action", "").replace("CALL ", "") for r in _calls]
-                            st.markdown(f"It calls **{len(_calls)} external program(s)**: {', '.join(_called)}.")
-                        if not _calculations and not _validations and _movements:
-                            st.markdown(f"This program primarily moves and transforms data ({len(_movements)} data movements).")
-
+                    if _has_ai and _ai_prog.get("summary"):
                         st.divider()
-
-                        # What it needs and produces
-                        st.markdown("**Data Requirements:**")
-                        _inputs = _contract.get("inputs", [])
-                        _outputs = _contract.get("outputs", [])
-                        if _inputs:
-                            st.markdown(f"- **Needs {len(_inputs)} input fields** to run: {', '.join(i['field'] for i in _inputs[:8])}" + ("..." if len(_inputs) > 8 else ""))
-                        if _outputs:
-                            st.markdown(f"- **Produces {len(_outputs)} output fields**: {', '.join(o['field'] for o in _outputs[:8])}" + ("..." if len(_outputs) > 8 else ""))
-
-                        st.divider()
-
-                        # Key business rules in plain English
-                        st.markdown("**Key Business Rules:**")
-                        _shown = 0
-                        for r in _validations + _calculations:
-                            if _shown >= 10:
-                                st.caption(f"... and {len(_validations) + len(_calculations) - 10} more rules")
-                                break
-                            _icon = "🔍" if r.get("type") == "validation" else "🧮"
-                            st.markdown(f"{_icon} {r.get('description', '')}")
-                            _shown += 1
-
-                        if _defaults:
-                            st.divider()
-                            st.markdown(f"**Initializations:** {len(_defaults)} fields are set to default values at the start of processing.")
-
-                    # ── Flow Chart tab
-                    with _rule_tab_flow:
-                        st.markdown(f"#### Flow Chart — `{prog_name}`")
-
-                        if _paragraphs:
-                            for i, p in enumerate(_paragraphs):
-                                _para_rules = [r for r in rules if r.get("paragraph") == p]
-                                _types = set(r.get("type") for r in _para_rules)
-                                _type_str = ", ".join(sorted(_types)) if _types else "no rules"
-                                _icon = "🟢" if "calculation" in _types else "🟡" if "validation" in _types else "🔴" if "external_call" in _types else "⚪"
-                                st.markdown(f"{i+1}. {_icon} **{p}** — {_type_str} ({len(_para_rules)} rules)")
-
-                            st.divider()
-                            st.markdown(
-                                "**Legend:** &nbsp;&nbsp; "
-                                "🟢 Calculation (COMPUTE, ADD, etc.) &nbsp;&nbsp; "
-                                "🟡 Validation (IF, EVALUATE) &nbsp;&nbsp; "
-                                "🔴 External Call (CALL) &nbsp;&nbsp; "
-                                "⚪ Data movement / process flow only"
-                            )
-                        else:
-                            st.info("No paragraphs detected in this program.")
-
-                    with _rule_tab_parsed:
-                        if rules:
-                            _rule_rows = []
-                            for r in rules:
-                                _sev_icon = {"HIGH": "🔴", "MEDIUM": "🟡", "INFO": "🟢"}.get(r.get("severity", ""), "⚪")
-                                _rule_rows.append({
-                                    "Line": r.get("source_line", ""),
-                                    "Type": r.get("type", ""),
-                                    "Severity": f"{_sev_icon} {r.get('severity', '')}",
-                                    "Description": r.get("description", ""),
-                                    "Fields": ", ".join(r.get("fields", [])),
-                                    "Paragraph": r.get("paragraph", ""),
-                                })
-                            st.dataframe(pd.DataFrame(_rule_rows), use_container_width=True, hide_index=True)
-                        else:
-                            st.info("No rules extracted from this program.")
-
-                    if _has_ai and _rule_tab_ai is not None:
-                        with _rule_tab_ai:
-                            _enhanced = _ai_prog.get("enhanced_rules", [])
-                            _missed = _ai_prog.get("missed_rules", [])
-
-                            if _enhanced:
-                                st.markdown("**Enhanced Rules** (AI added business context)")
-                                _ai_rows = []
-                                for r in _enhanced:
-                                    _ai_rows.append({
-                                        "Line": r.get("source_line", ""),
-                                        "Business Description": r.get("business_description", ""),
-                                        "Domain": r.get("domain", ""),
-                                        "Criticality": r.get("migration_criticality", ""),
-                                        "Original": r.get("original_description", ""),
-                                    })
-                                st.dataframe(pd.DataFrame(_ai_rows), use_container_width=True, hide_index=True)
-
-                            if _missed:
-                                st.markdown("**Missed Rules** (AI found rules the parser missed)")
-                                _missed_rows = []
-                                for r in _missed:
-                                    _missed_rows.append({
-                                        "Line": r.get("source_line", ""),
-                                        "Business Description": r.get("business_description", ""),
-                                        "Domain": r.get("domain", ""),
-                                        "Criticality": r.get("migration_criticality", ""),
-                                    })
-                                st.dataframe(pd.DataFrame(_missed_rows), use_container_width=True, hide_index=True)
-
-                            if not _enhanced and not _missed:
-                                st.info("AI found no additional insights beyond the parsed rules.")
-
-                    # ── Input / Output tab
-                    with _rule_tab_io:
-                        _contract = prog.get("data_contract", {})
-                        _inputs = _contract.get("inputs", [])
-                        _outputs = _contract.get("outputs", [])
-                        _working = _contract.get("working", [])
-                        _linkage = _contract.get("linkage_fields", [])
-                        _file_fields = _contract.get("file_fields", [])
-
-                        st.markdown(f"**Data Contract for `{prog_name}`**")
-                        st.caption("What data this program needs to run (inputs) and what it produces (outputs).")
-
-                        _io1, _io2, _io3 = st.columns(3)
-                        _io1.metric("Required Inputs", _contract.get("input_count", 0))
-                        _io2.metric("Produced Outputs", _contract.get("output_count", 0))
-                        _io3.metric("Working Fields", _contract.get("working_count", 0))
-
-                        st.divider()
-
-                        if _inputs:
-                            st.markdown("**Required Inputs** — fields the program reads but never sets")
-                            _in_rows = [{"Field": i["field"], "Section": i.get("section", ""), "PIC": i.get("pic", "")} for i in _inputs]
-                            st.dataframe(pd.DataFrame(_in_rows), use_container_width=True, hide_index=True)
-
-                        if _outputs:
-                            st.markdown("**Produced Outputs** — fields the program sets but never reads")
-                            _out_rows = [{"Field": o["field"], "Section": o.get("section", ""), "PIC": o.get("pic", "")} for o in _outputs]
-                            st.dataframe(pd.DataFrame(_out_rows), use_container_width=True, hide_index=True)
-
-                        if _linkage:
-                            st.markdown(f"**LINKAGE SECTION fields** ({len(_linkage)}) — passed in from calling program")
-                            st.markdown(", ".join(f"`{f}`" for f in _linkage))
-
-                        if _file_fields:
-                            st.markdown(f"**FILE SECTION fields** ({len(_file_fields)}) — tied to data files")
-                            st.markdown(", ".join(f"`{f}`" for f in _file_fields))
-
-                        if not _inputs and not _outputs:
-                            st.info("No input/output data available. The program may use only COPY-included fields.")
+                        st.markdown(f"**AI Summary:** {_ai_prog['summary']}")
 
                     st.divider()
+                    _shown = 0
+                    for r in _validations + _calculations:
+                        if _shown >= 10:
+                            st.caption(f"... and {len(_validations) + len(_calculations) - 10} more rules")
+                            break
+                        _icon = "🔍" if r.get("type") == "validation" else "🧮"
+                        st.markdown(f"{_icon} {r.get('description', '')}")
+                        _shown += 1
+
+                # ── Flow Chart
+                with _rule_tab_flow:
+                    if _paragraphs:
+                        for i, p in enumerate(_paragraphs):
+                            _para_rules = [r for r in rules if r.get("paragraph") == p]
+                            _types = set(r.get("type") for r in _para_rules)
+                            _type_str = ", ".join(sorted(_types)) if _types else "no rules"
+                            _icon = "🟢" if "calculation" in _types else "🟡" if "validation" in _types else "🔴" if "external_call" in _types else "⚪"
+                            st.markdown(f"{i+1}. {_icon} **{p}** — {_type_str} ({len(_para_rules)} rules)")
+                    else:
+                        st.info("No paragraphs detected in this program.")
+
+                # ── Parsed Rules
+                with _rule_tab_parsed:
+                    if rules:
+                        _rule_rows = []
+                        for r in rules:
+                            _sev_icon = {"HIGH": "🔴", "MEDIUM": "🟡", "INFO": "🟢"}.get(r.get("severity", ""), "⚪")
+                            _rule_rows.append({
+                                "Line": r.get("source_line", ""),
+                                "Type": r.get("type", ""),
+                                "Severity": f"{_sev_icon} {r.get('severity', '')}",
+                                "Description": r.get("description", ""),
+                                "Fields": ", ".join(r.get("fields", [])),
+                                "Paragraph": r.get("paragraph", ""),
+                            })
+                        st.dataframe(pd.DataFrame(_rule_rows), use_container_width=True, hide_index=True)
+                    else:
+                        st.info("No rules extracted from this program.")
+
+                # ── AI-Enhanced Rules
+                if _has_ai and _rule_tab_ai is not None:
+                    with _rule_tab_ai:
+                        _enhanced = _ai_prog.get("enhanced_rules", [])
+                        _missed = _ai_prog.get("missed_rules", [])
+                        if _enhanced:
+                            _ai_rows = [{"Line": r.get("source_line",""), "Business Description": r.get("business_description",""), "Domain": r.get("domain",""), "Criticality": r.get("migration_criticality","") } for r in _enhanced]
+                            st.dataframe(pd.DataFrame(_ai_rows), use_container_width=True, hide_index=True)
+                        if _missed:
+                            st.markdown("**Rules the parser missed:**")
+                            _missed_rows = [{"Line": r.get("source_line",""), "Business Description": r.get("business_description",""), "Domain": r.get("domain",""), "Criticality": r.get("migration_criticality","")} for r in _missed]
+                            st.dataframe(pd.DataFrame(_missed_rows), use_container_width=True, hide_index=True)
+                        if not _enhanced and not _missed:
+                            st.info("AI found no additional insights beyond the parsed rules.")
+
+                # ── Input / Output
+                with _rule_tab_io:
+                    _inputs = _contract.get("inputs", [])
+                    _outputs = _contract.get("outputs", [])
+                    _linkage = _contract.get("linkage_fields", [])
+                    _file_fields = _contract.get("file_fields", [])
+
+                    _io1, _io2, _io3 = st.columns(3)
+                    _io1.metric("Required Inputs", _contract.get("input_count", 0))
+                    _io2.metric("Produced Outputs", _contract.get("output_count", 0))
+                    _io3.metric("Working Fields", _contract.get("working_count", 0))
+
+                    if _inputs:
+                        st.markdown("**Required Inputs**")
+                        st.dataframe(pd.DataFrame([{"Field": i["field"], "Section": i.get("section",""), "PIC": i.get("pic","")} for i in _inputs]), use_container_width=True, hide_index=True)
+                    if _outputs:
+                        st.markdown("**Produced Outputs**")
+                        st.dataframe(pd.DataFrame([{"Field": o["field"], "Section": o.get("section",""), "PIC": o.get("pic","")} for o in _outputs]), use_container_width=True, hide_index=True)
+                    if _linkage:
+                        st.markdown(f"**LINKAGE SECTION** ({len(_linkage)}) — {', '.join(f'`{f}`' for f in _linkage)}")
+                    if _file_fields:
+                        st.markdown(f"**FILE SECTION** ({len(_file_fields)}) — {', '.join(f'`{f}`' for f in _file_fields)}")
+                    if not _inputs and not _outputs:
+                        st.info("No input/output data available.")
+
+                # Legend at the bottom
+                st.divider()
+                st.markdown(
+                    "**Legend:** &nbsp;&nbsp; "
+                    "🟢 Calculation &nbsp;&nbsp; "
+                    "🟡 Validation &nbsp;&nbsp; "
+                    "🔴 External Call &nbsp;&nbsp; "
+                    "⚪ Data movement / process flow &nbsp;&nbsp; "
+                    "🔍 Condition check &nbsp;&nbsp; "
+                    "🧮 Computation"
+                )
 
             except Exception as e:
                 st.error(f"Could not load business rules: {e}")
