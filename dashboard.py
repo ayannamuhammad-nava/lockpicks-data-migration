@@ -1143,56 +1143,12 @@ def render_discovery_page():
                         st.markdown(f"#### Flow Chart — `{prog_name}`")
 
                         if _paragraphs:
-                            # Build mermaid flowchart from paragraphs and PERFORM calls
-                            _mermaid_lines = ["graph TD"]
-
-                            # Create nodes for each paragraph
-                            _para_ids = {}
                             for i, p in enumerate(_paragraphs):
-                                _pid = f"P{i}"
-                                _para_ids[p] = _pid
-                                _label = p.replace("-", " ").title()
-                                _mermaid_lines.append(f'    {_pid}["{_label}"]')
-
-                            # Create edges from PERFORM calls
-                            _current_para = ""
-                            for r in _flows:
-                                _from_para = r.get("paragraph", "")
-                                _to_para = r.get("action", "").replace("PERFORM ", "")
-                                if _from_para in _para_ids and _to_para in _para_ids:
-                                    _mermaid_lines.append(f"    {_para_ids[_from_para]} --> {_para_ids[_to_para]}")
-
-                            # Sequential flow between paragraphs (as fallback if no PERFORM edges)
-                            _has_edges = any("-->" in line for line in _mermaid_lines)
-                            if not _has_edges and len(_paragraphs) > 1:
-                                for i in range(len(_paragraphs) - 1):
-                                    _mermaid_lines.append(f"    P{i} --> P{i+1}")
-
-                            # Style nodes by type
-                            for r in rules:
-                                _para = r.get("paragraph", "")
-                                if _para in _para_ids:
-                                    if r.get("type") == "validation":
-                                        _mermaid_lines.append(f"    style {_para_ids[_para]} fill:#fff9c4")
-                                    elif r.get("type") == "calculation":
-                                        _mermaid_lines.append(f"    style {_para_ids[_para]} fill:#e8f5e9")
-                                    elif r.get("type") == "external_call":
-                                        _mermaid_lines.append(f"    style {_para_ids[_para]} fill:#ffebee")
-
-                            _mermaid = "\n".join(_mermaid_lines)
-
-                            # Render as Streamlit markdown with mermaid
-                            st.markdown(f"```mermaid\n{_mermaid}\n```")
-
-                            # Also show as text list for non-mermaid renderers
-                            with st.expander("Text view"):
-                                for i, p in enumerate(_paragraphs):
-                                    # Find what this paragraph does
-                                    _para_rules = [r for r in rules if r.get("paragraph") == p]
-                                    _types = set(r.get("type") for r in _para_rules)
-                                    _type_str = ", ".join(sorted(_types)) if _types else "no rules"
-                                    _icon = "🟢" if "calculation" in _types else "🟡" if "validation" in _types else "🔴" if "external_call" in _types else "⚪"
-                                    st.markdown(f"{i+1}. {_icon} **{p}** — {_type_str} ({len(_para_rules)} rules)")
+                                _para_rules = [r for r in rules if r.get("paragraph") == p]
+                                _types = set(r.get("type") for r in _para_rules)
+                                _type_str = ", ".join(sorted(_types)) if _types else "no rules"
+                                _icon = "🟢" if "calculation" in _types else "🟡" if "validation" in _types else "🔴" if "external_call" in _types else "⚪"
+                                st.markdown(f"{i+1}. {_icon} **{p}** — {_type_str} ({len(_para_rules)} rules)")
                         else:
                             st.info("No paragraphs detected in this program.")
 
