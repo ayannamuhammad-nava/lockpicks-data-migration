@@ -1149,6 +1149,15 @@ def render_discovery_page():
                                 _type_str = ", ".join(sorted(_types)) if _types else "no rules"
                                 _icon = "🟢" if "calculation" in _types else "🟡" if "validation" in _types else "🔴" if "external_call" in _types else "⚪"
                                 st.markdown(f"{i+1}. {_icon} **{p}** — {_type_str} ({len(_para_rules)} rules)")
+
+                            st.divider()
+                            st.markdown(
+                                "**Legend:** &nbsp;&nbsp; "
+                                "🟢 Calculation (COMPUTE, ADD, etc.) &nbsp;&nbsp; "
+                                "🟡 Validation (IF, EVALUATE) &nbsp;&nbsp; "
+                                "🔴 External Call (CALL) &nbsp;&nbsp; "
+                                "⚪ Data movement / process flow only"
+                            )
                         else:
                             st.info("No paragraphs detected in this program.")
 
