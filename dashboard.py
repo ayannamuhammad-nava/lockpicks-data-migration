@@ -229,7 +229,7 @@ if _show_setup:
                 sys.executable, "-m", "dm.cli", "discover",
                 "--project", str(project_path),
             ]
-            result = subprocess.run(discover_cmd, capture_output=True, text=True, timeout=180)
+            result = subprocess.run(discover_cmd, capture_output=True, text=True, timeout=600)
             if result.returncode != 0:
                 st.write(f"Discovery had issues (continuing): {result.stderr[:300]}")
             else:
