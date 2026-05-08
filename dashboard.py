@@ -2906,21 +2906,48 @@ generated_at = meta.get("generated_at", "")[:16].replace("T", " ")
 
 # Recalculate score for the selected target platform
 _active_target = st.session_state.get("selected_target", "postgres")
-from dm.scoring import calculate_confidence as _calc_conf
-# For PRE runs, integrity is 0 (no data migrated yet). For POST, use actual score.
+from dm.scoring import calculate_confidence as _calc_conf, get_target_penalties as _get_tp
 _is_post = meta.get("phase", "").lower() == "post"
-_target_result = _calc_conf(
-    structure_score=float(struct_score or _base_score),
-    integrity_score=float(integ_score or 0) if not _is_post else float(integ_score or _base_score),
-    governance_score=float(gov_score or _base_score),
-    config=_yaml.safe_load(_project_yaml.read_text()) if _project_yaml.exists() else {},
-    target=_active_target,
-)
-score  = _target_result["score"]
-status = _target_result["status"]
-struct_score = _target_result["structure_score"]
-gov_score    = _target_result["governance_score"]
-integ_score  = _target_result["integrity_score"]
+
+if _is_post:
+    # POST: use full formula with actual integrity score
+    _target_result = _calc_conf(
+        structure_score=float(struct_score or _base_score),
+        integrity_score=float(integ_score or _base_score),
+        governance_score=float(gov_score or _base_score),
+        config=_yaml.safe_load(_project_yaml.read_text()) if _project_yaml.exists() else {},
+        target=_active_target,
+    )
+    score = _target_result["score"]
+    status = _target_result["status"]
+    struct_score = _target_result["structure_score"]
+    gov_score = _target_result["governance_score"]
+    integ_score = _target_result["integrity_score"]
+else:
+    # PRE: reweight to structure (67%) + governance (33%) — integrity not available yet
+    _tp = _get_tp(_active_target)
+    _adj_struct = max(0, float(struct_score or _base_score) - _tp["structure"])
+    _adj_gov = max(0, float(gov_score or _base_score) - _tp["governance"])
+    score = round(0.67 * _adj_struct + 0.33 * _adj_gov, 2)
+    struct_score = _adj_struct
+    gov_score = _adj_gov
+    integ_score = None  # not available for PRE
+
+    _proj_cfg = _yaml.safe_load(_project_yaml.read_text()) if _project_yaml.exists() else {}
+    _thresholds = _proj_cfg.get("scoring", {}).get("thresholds", {"green": 90, "yellow": 70})
+    if score >= _thresholds.get("green", 90):
+        status = "GREEN"
+    elif score >= _thresholds.get("yellow", 70):
+        status = "YELLOW"
+    else:
+        status = "RED"
+
+    _target_result = {
+        "score": score, "status": status, "target": _active_target,
+        "structure_score": struct_score, "governance_score": gov_score,
+        "integrity_score": integ_score, "target_penalties": _tp,
+        "target_notes": _tp.get("notes", []),
+    }
 
 emoji = STATUS_EMOJI.get(status, "⚪")
 color = STATUS_COLOR.get(status, "#999")
