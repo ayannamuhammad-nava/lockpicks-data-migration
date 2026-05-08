@@ -110,6 +110,7 @@ class AIClient:
             "max_tokens": self.max_tokens,
             "temperature": self.temperature,
             "messages": [{"role": "user", "content": prompt}],
+            "timeout": 30.0,  # 30 second timeout per API call
         }
         if system:
             kwargs["system"] = system

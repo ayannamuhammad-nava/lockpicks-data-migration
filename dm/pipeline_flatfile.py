@@ -42,8 +42,15 @@ def _get_ai_client(config: Dict):
         from dm.ai.client import AIClient
         client = AIClient(ai_config)
         if client.is_available():
-            logger.info("AI client available — will enhance analysis")
-            return client
+            # Test with a quick call to verify the key works
+            try:
+                client.complete("Reply with just the word OK", model=ai_config.get("model", "claude-sonnet-4-20250514"))
+                logger.info("AI client available and verified — will enhance analysis")
+                return client
+            except Exception as e:
+                logger.warning(f"AI key configured but API call failed: {e}")
+                logger.warning("Continuing without AI — rule engine only")
+                return None
         return None
     except Exception:
         return None
