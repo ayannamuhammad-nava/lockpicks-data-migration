@@ -1307,3 +1307,69 @@ When AI is not configured, only the Parsed Rules table is shown. When AI is conf
 ### Test Results
 
 AWS CardDemo repository: **31 COBOL programs** parsed, **hundreds of business rules** extracted across account management, transaction processing, card operations, and user security programs.
+
+---
+
+## Business Rules Enhancements (2026-05-08)
+
+### Field I/O Tracking
+
+**File:** `dm/connectors/cobol_parser.py`
+
+The COBOL parser now tracks read/write operations per field to determine a program's data contract:
+
+- **Required Inputs** — fields the program reads but never writes (must be provided)
+- **Produced Outputs** — fields the program writes but never reads (results)
+- **Working Fields** — fields both read and written (intermediate values)
+- DATA DIVISION parsing extracts field declarations per section (WORKING-STORAGE, FILE, LINKAGE, LOCAL-STORAGE)
+- LINKAGE SECTION fields identified as parameters passed from calling programs
+
+### Plain English Tab
+
+Generates a high-level summary of each program's purpose:
+- Number and type of calculations, validations, external calls
+- Data requirements (inputs needed, outputs produced)
+- Key business rules listed with icons
+
+### Flow Chart Tab
+
+Shows program execution flow as a numbered paragraph list with color-coded icons indicating primary rule type per paragraph.
+
+### COBOL Parser Fixes
+
+- **DIVISION detection**: Uses regex `^(IDENTIFICATION|ENVIRONMENT|DATA|PROCEDURE)\s+DIVISION` instead of substring matching. Fixes false match where `WAGE-INDEX-DATA` was matching as `DATA DIVISION`.
+- **SECTION headers**: Detected as paragraph markers in PROCEDURE DIVISION (`0000-MAINLINE SECTION`).
+- **PROCEDURE DIVISION USING**: Multi-line USING clause no longer prevents PROCEDURE DIVISION detection.
+
+### Dashboard Restructure
+
+Business Rules tab restructured: one set of tabs at the top (Plain English, Flow Chart, Parsed Rules, AI-Enhanced Rules, Input/Output) with all programs listed under each tab. Legend at the bottom once. No repeated headings.
+
+### AI Timeout Fix
+
+**File:** `dm/ai/client.py`, `dm/pipeline_flatfile.py`
+
+- 30-second timeout per Anthropic API call
+- Pipeline tests API key with a quick call before starting
+- If key fails (no credits, invalid), disables AI for the entire run
+- Prevents the 10-minute hang from dozens of failing API calls
+
+### Auto-Cancel Long Runs
+
+**File:** `dashboard.py`
+
+Discovery pipeline auto-cancels after 5 minutes. Shows live elapsed time counter. Continues with whatever artifacts were completed.
+
+### PRE Score Reweighting
+
+**File:** `dashboard.py`
+
+PRE runs now use `0.67 × structure + 0.33 × governance` instead of the full formula that zeros out 40% for missing integrity. Maximum possible PRE score is now 100 (not 60).
+
+### CMS HH Pricer Demo Repo
+
+Created standalone repo for CMS Home Health PPS Pricer CY2020:
+
+**https://github.com/ayannamuhammad-nava/hh-cy2020-pricer**
+
+Contains 4 COBOL programs (HHDRV200, HHCAL200, HHMGR200, HHOPN200) and 4 reference data tables (CBSA, HRG, revenue codes, add-on table). 356 total business rules extracted across all 4 programs.

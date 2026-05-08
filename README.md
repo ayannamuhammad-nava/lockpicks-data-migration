@@ -37,7 +37,12 @@ cd data-migration-repo
 streamlit run dashboard.py
 ```
 
-Open **http://localhost:8501** — paste your mainframe repo URL, select a target platform, click **Run Migration Analysis**. The tool clones the repo, parses copybooks, profiles data, generates schemas for all 4 targets, validates, and loads the dashboard with results. No CLI needed.
+Open **http://localhost:8501** — paste your mainframe repo URL, click **Run Migration Analysis**. The tool clones the repo, parses copybooks, extracts business rules from COBOL programs, profiles data, generates schemas for all 4 targets, validates, and loads the dashboard with results.
+
+**Example repos to try:**
+- `https://github.com/ayannamuhammad-nava/customer-service-data.git` — contact management (copybook + data)
+- `https://github.com/ayannamuhammad-nava/hh-cy2020-pricer.git` — CMS Medicare Home Health Pricer (4 COBOL programs)
+- `https://github.com/aws-samples/aws-mainframe-modernization-carddemo.git` — credit card system (31 COBOL programs + data)
 
 ### Alternative: CLI bootstrap
 
@@ -90,6 +95,7 @@ The dashboard workflow guides you through:
 |--------|------------|-------|
 | Git repo | `--repo <url>` | Auto-detects and pairs artifacts |
 | COBOL copybook + flat file | `copybook` | Parses PIC clauses, reads fixed-width data, EBCDIC decode |
+| COBOL programs (.cbl) | auto-detected | Extracts business rules, I/O contracts, process flow |
 | CSV / TSV | `flatfile` | Standard delimited files |
 | IBM DB2 | `db2` | Via `ibm_db` (optional dependency) |
 | Oracle | `oracle` | Via `oracledb` thin mode (no client install) |
