@@ -1058,16 +1058,144 @@ def render_discovery_page():
                     _rc3.metric("Data Movements", summary.get("data_movements", 0))
                     _rc4.metric("External Calls", summary.get("external_calls", 0))
 
-                    # Show parsed rules vs AI rules side by side
+                    # Show tabs per program
                     _ai_prog = _ai_rules_data.get(prog_name, {})
                     _has_ai = bool(_ai_prog)
 
+                    _prog_tab_names = ["Plain English", "Flow Chart", "Parsed Rules"]
+                    if _has_ai:
+                        _prog_tab_names.append("AI-Enhanced Rules")
+                    _prog_tab_names.append("Input / Output")
+
+                    _prog_tabs = st.tabs(_prog_tab_names)
+                    _pti = 0
+                    _rule_tab_english = _prog_tabs[_pti]; _pti += 1
+                    _rule_tab_flow = _prog_tabs[_pti]; _pti += 1
+                    _rule_tab_parsed = _prog_tabs[_pti]; _pti += 1
+                    if _has_ai:
+                        _rule_tab_ai = _prog_tabs[_pti]; _pti += 1
+                    else:
+                        _rule_tab_ai = None
+                    _rule_tab_io = _prog_tabs[_pti]
+
                     if _has_ai:
                         st.info(f"**AI Summary:** {_ai_prog.get('summary', 'No summary available')}")
-                        _rule_tab_parsed, _rule_tab_ai, _rule_tab_io = st.tabs(["Parsed Rules (Rule Engine)", "AI-Enhanced Rules", "Input / Output"])
-                    else:
-                        _rule_tab_parsed, _rule_tab_io = st.tabs(["Parsed Rules (Rule Engine)", "Input / Output"])
-                        _rule_tab_ai = None
+
+                    # ── Plain English tab
+                    with _rule_tab_english:
+                        st.markdown(f"#### What `{prog_name}` Does")
+
+                        # Generate plain English from the extracted rules
+                        _validations = [r for r in rules if r.get("type") == "validation"]
+                        _calculations = [r for r in rules if r.get("type") == "calculation"]
+                        _movements = [r for r in rules if r.get("type") == "data_movement"]
+                        _calls = [r for r in rules if r.get("type") == "external_call"]
+                        _defaults = [r for r in rules if r.get("type") == "default"]
+                        _flows = [r for r in rules if r.get("type") == "process_flow"]
+                        _paragraphs = prog.get("paragraphs", [])
+                        _contract = prog.get("data_contract", {})
+
+                        # High-level purpose
+                        st.markdown("**Purpose:**")
+                        if _calculations:
+                            _calc_fields = set()
+                            for r in _calculations:
+                                _calc_fields.update(r.get("fields", []))
+                            st.markdown(f"This program performs **{len(_calculations)} calculations** involving fields like {', '.join(list(_calc_fields)[:5])}.")
+                        if _validations:
+                            st.markdown(f"It checks **{len(_validations)} conditions** to validate data before processing.")
+                        if _calls:
+                            _called = [r.get("action", "").replace("CALL ", "") for r in _calls]
+                            st.markdown(f"It calls **{len(_calls)} external program(s)**: {', '.join(_called)}.")
+                        if not _calculations and not _validations and _movements:
+                            st.markdown(f"This program primarily moves and transforms data ({len(_movements)} data movements).")
+
+                        st.divider()
+
+                        # What it needs and produces
+                        st.markdown("**Data Requirements:**")
+                        _inputs = _contract.get("inputs", [])
+                        _outputs = _contract.get("outputs", [])
+                        if _inputs:
+                            st.markdown(f"- **Needs {len(_inputs)} input fields** to run: {', '.join(i['field'] for i in _inputs[:8])}" + ("..." if len(_inputs) > 8 else ""))
+                        if _outputs:
+                            st.markdown(f"- **Produces {len(_outputs)} output fields**: {', '.join(o['field'] for o in _outputs[:8])}" + ("..." if len(_outputs) > 8 else ""))
+
+                        st.divider()
+
+                        # Key business rules in plain English
+                        st.markdown("**Key Business Rules:**")
+                        _shown = 0
+                        for r in _validations + _calculations:
+                            if _shown >= 10:
+                                st.caption(f"... and {len(_validations) + len(_calculations) - 10} more rules")
+                                break
+                            _icon = "🔍" if r.get("type") == "validation" else "🧮"
+                            st.markdown(f"{_icon} {r.get('description', '')}")
+                            _shown += 1
+
+                        if _defaults:
+                            st.divider()
+                            st.markdown(f"**Initializations:** {len(_defaults)} fields are set to default values at the start of processing.")
+
+                    # ── Flow Chart tab
+                    with _rule_tab_flow:
+                        st.markdown(f"#### Process Flow — `{prog_name}`")
+                        st.caption("How the program executes, based on PERFORM statements and paragraph structure.")
+
+                        if _paragraphs:
+                            # Build mermaid flowchart from paragraphs and PERFORM calls
+                            _mermaid_lines = ["graph TD"]
+
+                            # Create nodes for each paragraph
+                            _para_ids = {}
+                            for i, p in enumerate(_paragraphs):
+                                _pid = f"P{i}"
+                                _para_ids[p] = _pid
+                                _label = p.replace("-", " ").title()
+                                _mermaid_lines.append(f'    {_pid}["{_label}"]')
+
+                            # Create edges from PERFORM calls
+                            _current_para = ""
+                            for r in _flows:
+                                _from_para = r.get("paragraph", "")
+                                _to_para = r.get("action", "").replace("PERFORM ", "")
+                                if _from_para in _para_ids and _to_para in _para_ids:
+                                    _mermaid_lines.append(f"    {_para_ids[_from_para]} --> {_para_ids[_to_para]}")
+
+                            # Sequential flow between paragraphs (as fallback if no PERFORM edges)
+                            _has_edges = any("-->" in line for line in _mermaid_lines)
+                            if not _has_edges and len(_paragraphs) > 1:
+                                for i in range(len(_paragraphs) - 1):
+                                    _mermaid_lines.append(f"    P{i} --> P{i+1}")
+
+                            # Style nodes by type
+                            for r in rules:
+                                _para = r.get("paragraph", "")
+                                if _para in _para_ids:
+                                    if r.get("type") == "validation":
+                                        _mermaid_lines.append(f"    style {_para_ids[_para]} fill:#fff9c4")
+                                    elif r.get("type") == "calculation":
+                                        _mermaid_lines.append(f"    style {_para_ids[_para]} fill:#e8f5e9")
+                                    elif r.get("type") == "external_call":
+                                        _mermaid_lines.append(f"    style {_para_ids[_para]} fill:#ffebee")
+
+                            _mermaid = "\n".join(_mermaid_lines)
+
+                            # Render as Streamlit markdown with mermaid
+                            st.markdown(f"```mermaid\n{_mermaid}\n```")
+
+                            # Also show as text list for non-mermaid renderers
+                            with st.expander("Text view"):
+                                for i, p in enumerate(_paragraphs):
+                                    # Find what this paragraph does
+                                    _para_rules = [r for r in rules if r.get("paragraph") == p]
+                                    _types = set(r.get("type") for r in _para_rules)
+                                    _type_str = ", ".join(sorted(_types)) if _types else "no rules"
+                                    _icon = "🟢" if "calculation" in _types else "🟡" if "validation" in _types else "🔴" if "external_call" in _types else "⚪"
+                                    st.markdown(f"{i+1}. {_icon} **{p}** — {_type_str} ({len(_para_rules)} rules)")
+                        else:
+                            st.info("No paragraphs detected in this program.")
 
                     with _rule_tab_parsed:
                         if rules:
