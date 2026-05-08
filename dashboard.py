@@ -1140,8 +1140,7 @@ def render_discovery_page():
 
                     # ── Flow Chart tab
                     with _rule_tab_flow:
-                        st.markdown(f"#### Process Flow — `{prog_name}`")
-                        st.caption("How the program executes, based on PERFORM statements and paragraph structure.")
+                        st.markdown(f"#### Flow Chart — `{prog_name}`")
 
                         if _paragraphs:
                             # Build mermaid flowchart from paragraphs and PERFORM calls
