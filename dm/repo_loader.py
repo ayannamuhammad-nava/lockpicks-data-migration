@@ -228,6 +228,53 @@ def scan_repo(repo_path: str) -> List[DiscoveredArtifact]:
             except Exception:
                 pass
 
+    # Strategy 3: Extract record layouts from COBOL programs for still-unmatched data files
+    still_unpaired = [a for a in artifacts if a.artifact_type in ("datafile",) and not a.paired_with]
+    if still_unpaired:
+        try:
+            from dm.connectors.cobol_parser import extract_record_layouts
+            # Find all COBOL programs in the repo
+            cbl_files = [a.path for a in artifacts if a.artifact_type == "copybook" and a.path.endswith((".cbl", ".cob"))]
+            # Also scan for .cbl files that weren't classified as copybooks
+            for f in sorted(Path(repo_path).rglob("*")):
+                if f.suffix.lower() in (".cbl", ".cob") and str(f) not in cbl_files:
+                    cbl_files.append(str(f))
+
+            # Extract layouts from all programs
+            program_layouts = {}  # {record_length: [{layout_dict}, ...]}
+            for cbl_path in cbl_files:
+                layouts = extract_record_layouts(cbl_path)
+                for layout in layouts:
+                    rl = layout["record_length"]
+                    if rl > 0:
+                        program_layouts.setdefault(rl, []).append(layout)
+
+            # Match unmatched data files by record length against program layouts
+            for a in still_unpaired:
+                try:
+                    with open(a.path, "r", errors="replace") as f:
+                        first_line = f.readline()
+                    line_len = len(first_line.rstrip("\n\r"))
+
+                    for tolerance in (0, 1, 2):
+                        for rl in range(line_len - tolerance, line_len + tolerance + 1):
+                            if rl in program_layouts:
+                                layout = program_layouts[rl][0]
+                                # Create a virtual copybook from the program layout
+                                a.paired_with = layout["source_file"]
+                                a.table_name = _infer_table_name(layout["name"], copybook_path=None)
+                                logger.info(
+                                    f"Paired via program DATA DIVISION ({layout['name']} in {Path(layout['source_file']).name}, "
+                                    f"{rl}B): {Path(a.path).name}"
+                                )
+                                break
+                        if a.paired_with:
+                            break
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.debug(f"Strategy 3 failed: {e}")
+
     logger.info(
         f"Scanned {repo_path}: found {len(artifacts)} artifacts "
         f"({sum(1 for a in artifacts if a.artifact_type == 'copybook')} copybooks, "

@@ -524,6 +524,145 @@ def _simplify_condition(condition: str) -> str:
     return simplified
 
 
+def extract_record_layouts(source: str) -> List[Dict]:
+    """Extract record layouts from a COBOL program's DATA DIVISION.
+
+    Finds 01-level group items in FILE SECTION, WORKING-STORAGE, and LINKAGE
+    that have child fields with PIC clauses. Returns layouts compatible with
+    CopybookLayout format so they can be used to parse data files.
+
+    Args:
+        source: File path to a .cbl/.cob file.
+
+    Returns:
+        List of dicts, each with: name, section, fields (list of field dicts),
+        record_length, source_file.
+    """
+    from dm.connectors.copybook_parser import parse_copybook, _pic_length, _pic_to_sql_type
+
+    source_path = Path(source)
+    if not source_path.exists():
+        return []
+
+    text = source_path.read_text(encoding="utf-8", errors="replace")
+    lines = text.splitlines()
+
+    layouts = []
+    current_section = ""
+    current_01_name = ""
+    current_fields = []
+    current_offset = 0
+
+    for line in lines:
+        if len(line) <= 6:
+            continue
+        if line[6] == '*':
+            continue
+        content = line[6:72] if len(line) > 72 else line[6:]
+        upper = content.upper().strip()
+
+        # Track sections
+        for section in ["WORKING-STORAGE", "FILE", "LINKAGE", "LOCAL-STORAGE"]:
+            if section in upper and "SECTION" in upper:
+                # Save previous layout if it has fields
+                if current_01_name and current_fields:
+                    layouts.append({
+                        "name": current_01_name,
+                        "section": current_section,
+                        "fields": current_fields,
+                        "record_length": current_offset,
+                        "source_file": str(source_path),
+                    })
+                current_section = section
+                current_01_name = ""
+                current_fields = []
+                current_offset = 0
+                break
+
+        # Detect PROCEDURE DIVISION — stop parsing data
+        if re.match(r'^PROCEDURE\s+DIVISION', upper):
+            break
+
+        # Parse level numbers
+        level_match = re.match(r'\s*(\d{1,2})\s+([\w-]+)', upper)
+        if not level_match:
+            continue
+
+        level = int(level_match.group(1))
+        field_name = level_match.group(2)
+
+        if level == 88:
+            continue
+
+        # New 01-level = new record layout
+        if level == 1:
+            # Save previous
+            if current_01_name and current_fields:
+                layouts.append({
+                    "name": current_01_name,
+                    "section": current_section,
+                    "fields": current_fields,
+                    "record_length": current_offset,
+                    "source_file": str(source_path),
+                })
+            current_01_name = field_name
+            current_fields = []
+            current_offset = 0
+            continue
+
+        # Skip FILLER
+        if field_name in ("FILLER", "FILLER-X"):
+            # But still count the length for offset tracking
+            pic_match = re.search(r'PIC(?:TURE)?\s+([^\s.]+)', upper, re.IGNORECASE)
+            if pic_match:
+                usage = ""
+                usage_match = re.search(r'(?:USAGE\s+IS\s+|USAGE\s+)?(COMP-3|COMP|PACKED-DECIMAL|BINARY|DISPLAY)', upper, re.IGNORECASE)
+                if usage_match:
+                    usage = usage_match.group(1).upper()
+                current_offset += _pic_length(pic_match.group(1), usage=usage)
+            continue
+
+        # Parse PIC clause
+        pic_match = re.search(r'PIC(?:TURE)?\s+([^\s.]+)', upper, re.IGNORECASE)
+        if pic_match:
+            pic = pic_match.group(1)
+            usage = ""
+            usage_match = re.search(r'(?:USAGE\s+IS\s+|USAGE\s+)?(COMP-3|COMP|PACKED-DECIMAL|BINARY|DISPLAY)', upper, re.IGNORECASE)
+            if usage_match:
+                usage = usage_match.group(1).upper()
+            length = _pic_length(pic, usage=usage)
+
+            current_fields.append({
+                "column_name": field_name,
+                "data_type": _pic_to_sql_type(pic),
+                "pic": pic,
+                "offset": current_offset,
+                "length": length,
+                "is_nullable": "YES",
+            })
+            current_offset += length
+
+    # Save last layout
+    if current_01_name and current_fields:
+        layouts.append({
+            "name": current_01_name,
+            "section": current_section,
+            "fields": current_fields,
+            "record_length": current_offset,
+            "source_file": str(source_path),
+        })
+
+    # Filter to only layouts with actual data fields (not just group items)
+    layouts = [l for l in layouts if len(l["fields"]) >= 2]
+
+    logger.info(
+        f"Extracted {len(layouts)} record layouts from {source_path.name}: "
+        + ", ".join(f"{l['name']} ({l['record_length']}B, {len(l['fields'])} fields)" for l in layouts)
+    )
+
+    return layouts
+
+
 def scan_programs(repo_path: str) -> List[ProgramAnalysis]:
     """Scan a directory for COBOL programs and parse all of them.
 
