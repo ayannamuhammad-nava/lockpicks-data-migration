@@ -1599,81 +1599,83 @@ def render_modeling_page():
     # ── Entity Diagram tab
     with tab_erd:
         st.markdown("#### Entity Relationship Diagram")
-        st.caption("Table boxes with columns, primary keys, foreign keys, and relationships.")
 
         norm_path_erd = METADATA_DIR / "normalization_plan.json"
         if norm_path_erd.exists():
             _erd_plan = json.loads(norm_path_erd.read_text())
 
-            import graphviz
-
-            _dot = graphviz.Digraph("ERD", format="png")
-            _dot.attr(rankdir="LR", fontname="Helvetica", fontsize="12", bgcolor="white")
-            _dot.attr("node", fontname="Helvetica", fontsize="11")
-            _dot.attr("edge", fontname="Helvetica", fontsize="9", color="#666666")
-
-            _role_styles = {
-                "primary": {"color": "#2e7d32", "style": "filled", "fillcolor": "#e8f5e9", "shape": "box"},
-                "child": {"color": "#1565c0", "style": "filled", "fillcolor": "#e3f2fd", "shape": "box"},
-                "lookup": {"color": "#f57f17", "style": "filled", "fillcolor": "#fff9c4", "shape": "ellipse"},
-            }
+            _role_colors = {"primary": "#2e7d32", "child": "#1565c0", "lookup": "#f57f17"}
+            _role_bg = {"primary": "#e8f5e9", "child": "#e3f2fd", "lookup": "#fff9c4"}
+            _role_icons = {"primary": "🟢", "child": "🔵", "lookup": "🟡"}
 
             for _source, _plan_data in _erd_plan.items():
                 if not isinstance(_plan_data, dict):
                     continue
                 _entities = _plan_data.get("entities", [])
-
-                for _ent in _entities:
-                    _ename = _ent.get("name", "").replace(" ", "_").replace("-", "_")
-                    _role = _ent.get("role", "")
-                    _cols = _ent.get("columns", [])
-                    _style = _role_styles.get(_role, _role_styles["primary"])
-
-                    # Simple label: table name + column count + PK/FK
-                    if _role == "primary":
-                        _label = f"{_ename}\nPK: {_source}_id\n({len(_cols)} columns)"
-                    elif _role == "child":
-                        _label = f"{_ename}\nPK: {_ename}_id\nFK: {_source}_id\n({len(_cols)} columns)"
-                    else:
-                        _label = f"{_ename}"
-
-                    _dot.node(_ename, label=_label, **_style)
-
-                # Relationships
                 _primary = next((_e for _e in _entities if _e.get("role") == "primary"), None)
+                _children = [_e for _e in _entities if _e.get("role") == "child"]
+                _lookups = [_e for _e in _entities if _e.get("role") == "lookup"]
+
+                # Primary card — full width
                 if _primary:
-                    _pname = _primary["name"].replace(" ", "_").replace("-", "_")
-                    for _ent in _entities:
-                        if _ent.get("role") == "child":
-                            _cname = _ent["name"].replace(" ", "_").replace("-", "_")
-                            _dot.edge(_pname, _cname, label="1:N", arrowhead="crow")
-                        elif _ent.get("role") == "lookup":
-                            _lname = _ent["name"].replace(" ", "_").replace("-", "_")
-                            _dot.edge(_pname, _lname, label="N:1", arrowhead="normal", style="dashed")
+                    _pname = _primary["name"]
+                    _pcols = _primary.get("columns", [])
+                    _pcolor = _role_colors["primary"]
+                    _pbg = _role_bg["primary"]
+                    st.markdown(f"""
+                    <div style="border:2px solid {_pcolor};border-radius:8px;padding:16px;margin:8px 0;background:{_pbg}">
+                        <div style="font-size:1.1rem;font-weight:700;color:{_pcolor}">🟢 {_pname}</div>
+                        <div style="font-size:0.85rem;color:#444;margin-top:4px">
+                            <strong>PK:</strong> {_source}_id &nbsp;&nbsp;
+                            <strong>Columns:</strong> {len(_pcols)} &nbsp;&nbsp;
+                            <strong>Role:</strong> Primary
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
-            # Render
-            st.graphviz_chart(_dot, use_container_width=True)
+                # Child cards — grid
+                if _children:
+                    _child_cols = st.columns(min(len(_children), 3))
+                    for _ci, _child in enumerate(_children):
+                        _cname = _child["name"]
+                        _ccols = _child.get("columns", [])
+                        _ccolor = _role_colors["child"]
+                        _cbg = _role_bg["child"]
+                        with _child_cols[_ci % 3]:
+                            st.markdown(f"""
+                            <div style="border:2px solid {_ccolor};border-radius:8px;padding:12px;margin:4px 0;background:{_cbg}">
+                                <div style="font-size:0.95rem;font-weight:700;color:{_ccolor}">🔵 {_cname}</div>
+                                <div style="font-size:0.8rem;color:#444;margin-top:4px">
+                                    <strong>PK:</strong> {_cname}_id<br>
+                                    <strong>FK:</strong> {_source}_id → {_primary["name"] if _primary else _source}<br>
+                                    <strong>Columns:</strong> {len(_ccols)}<br>
+                                    <strong>Relationship:</strong> 1:N
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
 
-            # Download as PNG
-            try:
-                _png_bytes = _dot.pipe(format="png")
-                st.download_button(
-                    "Download ERD (PNG)",
-                    _png_bytes,
-                    file_name="entity_diagram.png",
-                    mime="image/png",
-                    key="dl_erd_png",
-                )
-            except Exception:
-                st.caption("Install graphviz system package for PNG download: `brew install graphviz`")
+                # Lookup cards — grid
+                if _lookups:
+                    _lookup_cols = st.columns(min(len(_lookups), 4))
+                    for _li, _lookup in enumerate(_lookups):
+                        _lname = _lookup["name"]
+                        _lcolor = _role_colors["lookup"]
+                        _lbg = _role_bg["lookup"]
+                        with _lookup_cols[_li % 4]:
+                            st.markdown(f"""
+                            <div style="border:2px solid {_lcolor};border-radius:8px;padding:10px;margin:4px 0;background:{_lbg};text-align:center">
+                                <div style="font-size:0.9rem;font-weight:700;color:{_lcolor}">🟡 {_lname}</div>
+                                <div style="font-size:0.75rem;color:#666">Lookup · N:1</div>
+                            </div>
+                            """, unsafe_allow_html=True)
 
-            # Download as DOT source
-            st.download_button(
-                "Download ERD (DOT source)",
-                _dot.source,
-                file_name="entity_diagram.dot",
-                mime="text/plain",
-                key="dl_erd_dot",
+                st.divider()
+
+            # Legend
+            st.markdown(
+                "🟢 **Primary** — main entity &nbsp;&nbsp; "
+                "🔵 **Child** — FK to primary (1:N) &nbsp;&nbsp; "
+                "🟡 **Lookup** — reference table (N:1)"
             )
         else:
             st.info("No normalization plan available. Run discovery to generate.")
