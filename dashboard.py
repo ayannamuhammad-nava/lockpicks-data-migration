@@ -1599,14 +1599,26 @@ def render_modeling_page():
     # ── Entity Diagram tab
     with tab_erd:
         st.markdown("#### Entity Relationship Diagram")
-        st.caption("Visual representation of the normalized table structure with relationships.")
+        st.caption("Table boxes with columns, primary keys, foreign keys, and relationships.")
 
         norm_path_erd = METADATA_DIR / "normalization_plan.json"
         if norm_path_erd.exists():
             _erd_plan = json.loads(norm_path_erd.read_text())
 
-            # Build Mermaid ERD
-            _erd_lines = ["erDiagram"]
+            import graphviz
+
+            _dot = graphviz.Digraph("ERD", format="png")
+            _dot.attr(rankdir="LR", fontname="Helvetica", fontsize="11", bgcolor="white")
+            _dot.attr("node", shape="none", fontname="Helvetica", fontsize="10")
+            _dot.attr("edge", fontname="Helvetica", fontsize="9", color="#666666")
+
+            _role_colors = {
+                "primary": "#2e7d32",
+                "child": "#1565c0",
+                "lookup": "#f57f17",
+            }
+
+            _all_relationships = []
 
             for _source, _plan_data in _erd_plan.items():
                 if not isinstance(_plan_data, dict):
@@ -1617,99 +1629,69 @@ def render_modeling_page():
                     _ename = _ent.get("name", "").replace(" ", "_").replace("-", "_")
                     _role = _ent.get("role", "")
                     _cols = _ent.get("columns", [])
+                    _header_color = _role_colors.get(_role, "#333333")
 
-                    # Add entity with columns
-                    _erd_lines.append(f"    {_ename} {{")
-                    # Add PK
+                    # Build HTML table for the entity box
+                    _rows = ""
+
+                    # PK row
                     if _role == "primary":
-                        _erd_lines.append(f"        int {_source}_id PK")
-                    elif _role in ("child",):
-                        _erd_lines.append(f"        int {_ename}_id PK")
-                        _erd_lines.append(f"        int {_source}_id FK")
+                        _rows += f'<TR><TD ALIGN="LEFT"><B>🔑 {_source}_id</B></TD><TD ALIGN="LEFT">PK</TD></TR>'
+                    elif _role == "child":
+                        _rows += f'<TR><TD ALIGN="LEFT"><B>🔑 {_ename}_id</B></TD><TD ALIGN="LEFT">PK</TD></TR>'
+                        _rows += f'<TR><TD ALIGN="LEFT">🔗 {_source}_id</TD><TD ALIGN="LEFT">FK</TD></TR>'
 
-                    # Add columns (limit to 8 for readability)
-                    for _col in _cols[:8]:
-                        _clean_col = _col.replace("-", "_").replace(" ", "_")
-                        _erd_lines.append(f"        string {_clean_col}")
-                    if len(_cols) > 8:
-                        _erd_lines.append(f"        string __plus_{len(_cols)-8}_more__")
-                    _erd_lines.append("    }")
+                    # Column rows (limit to 10)
+                    for _col in _cols[:10]:
+                        _clean = _col.replace("-", "_").replace(" ", "_")
+                        _rows += f'<TR><TD ALIGN="LEFT">{_clean}</TD><TD ALIGN="LEFT"></TD></TR>'
+                    if len(_cols) > 10:
+                        _rows += f'<TR><TD ALIGN="LEFT"><I>... +{len(_cols)-10} more</I></TD><TD ALIGN="LEFT"></TD></TR>'
 
-                # Add relationships
+                    _role_label = _role.upper()
+                    _label = f'''<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4">
+                        <TR><TD COLSPAN="2" BGCOLOR="{_header_color}"><FONT COLOR="white"><B>{_ename}</B> ({_role_label})</FONT></TD></TR>
+                        {_rows}
+                    </TABLE>>'''
+
+                    _dot.node(_ename, label=_label)
+
+                # Relationships
                 _primary = next((_e for _e in _entities if _e.get("role") == "primary"), None)
                 if _primary:
                     _pname = _primary["name"].replace(" ", "_").replace("-", "_")
                     for _ent in _entities:
                         if _ent.get("role") == "child":
                             _cname = _ent["name"].replace(" ", "_").replace("-", "_")
-                            _erd_lines.append(f"    {_pname} ||--o{{ {_cname} : has")
+                            _dot.edge(_pname, _cname, label="1:N", arrowhead="crow")
                         elif _ent.get("role") == "lookup":
                             _lname = _ent["name"].replace(" ", "_").replace("-", "_")
-                            _erd_lines.append(f"    {_pname} }}o--|| {_lname} : references")
+                            _dot.edge(_pname, _lname, label="N:1", arrowhead="normal", style="dashed")
 
-            _erd_mermaid = "\n".join(_erd_lines)
+            # Render
+            st.graphviz_chart(_dot, use_container_width=True)
 
-            # Display as Mermaid
-            st.markdown(f"```mermaid\n{_erd_mermaid}\n```")
-
-            # Download as text file
-            st.download_button(
-                "Download ERD (Mermaid)",
-                _erd_mermaid,
-                file_name="entity_diagram.mmd",
-                mime="text/plain",
-                key="dl_erd_mermaid",
-            )
-
-            # Also provide a PlantUML version for tools that prefer it
-            with st.expander("PlantUML version"):
-                _puml_lines = ["@startuml", ""]
-                for _source, _plan_data in _erd_plan.items():
-                    if not isinstance(_plan_data, dict):
-                        continue
-                    _entities = _plan_data.get("entities", [])
-
-                    for _ent in _entities:
-                        _ename = _ent.get("name", "").replace(" ", "_").replace("-", "_")
-                        _role = _ent.get("role", "")
-                        _cols = _ent.get("columns", [])
-
-                        _puml_lines.append(f"entity {_ename} {{")
-                        if _role == "primary":
-                            _puml_lines.append(f"  * {_source}_id : int <<PK>>")
-                        elif _role == "child":
-                            _puml_lines.append(f"  * {_ename}_id : int <<PK>>")
-                            _puml_lines.append(f"  * {_source}_id : int <<FK>>")
-                        _puml_lines.append("  --")
-                        for _col in _cols[:10]:
-                            _puml_lines.append(f"  {_col.replace('-','_')}")
-                        if len(_cols) > 10:
-                            _puml_lines.append(f"  ... +{len(_cols)-10} more")
-                        _puml_lines.append("}")
-                        _puml_lines.append("")
-
-                    _primary = next((_e for _e in _entities if _e.get("role") == "primary"), None)
-                    if _primary:
-                        _pname = _primary["name"].replace(" ", "_").replace("-", "_")
-                        for _ent in _entities:
-                            if _ent.get("role") == "child":
-                                _cname = _ent["name"].replace(" ", "_").replace("-", "_")
-                                _puml_lines.append(f"{_pname} ||--o{{ {_cname}")
-                            elif _ent.get("role") == "lookup":
-                                _lname = _ent["name"].replace(" ", "_").replace("-", "_")
-                                _puml_lines.append(f"{_pname} }}o--|| {_lname}")
-
-                _puml_lines.append("")
-                _puml_lines.append("@enduml")
-                _puml_text = "\n".join(_puml_lines)
-                st.code(_puml_text, language="text")
+            # Download as PNG
+            try:
+                _png_bytes = _dot.pipe(format="png")
                 st.download_button(
-                    "Download ERD (PlantUML)",
-                    _puml_text,
-                    file_name="entity_diagram.puml",
-                    mime="text/plain",
-                    key="dl_erd_puml",
+                    "Download ERD (PNG)",
+                    _png_bytes,
+                    file_name="entity_diagram.png",
+                    mime="image/png",
+                    key="dl_erd_png",
                 )
+            except Exception:
+                st.caption("Install graphviz system package for PNG download: `brew install graphviz`")
+
+            # Download as DOT source
+            st.download_button(
+                "Download ERD (DOT source)",
+                _dot.source,
+                file_name="entity_diagram.dot",
+                mime="text/plain",
+                key="dl_erd_dot",
+            )
         else:
             st.info("No normalization plan available. Run discovery to generate.")
 
