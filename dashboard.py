@@ -1290,8 +1290,8 @@ def render_modeling_page():
 
     st.divider()
 
-    tabs = st.tabs(["📐 Table Schemas", "🔀 Column Mapping", "📐 Normalization Plan", "📄 Full DDL", "📝 Notes"])
-    tab_schemas, tab_col_map, tab_norm, tab_ddl, tab_model_notes = tabs
+    tabs = st.tabs(["📐 Table Schemas", "🔀 Column Mapping", "📐 Normalization Plan", "📄 Full DDL", "📝 Notes", "📋 Change Log"])
+    tab_schemas, tab_col_map, tab_norm, tab_ddl, tab_model_notes, tab_changelog = tabs
 
     # ── Table Schemas tab
     with tab_schemas:
@@ -1564,6 +1564,37 @@ def render_modeling_page():
             "- PIC X(26) with timestamp values → **TIMESTAMPTZ** instead of VARCHAR(26)\n"
             "- VARCHAR columns with only numeric values → **INTEGER**"
         )
+
+    # ── Change Log tab
+    with tab_changelog:
+        st.markdown("#### Column Change Log")
+        st.caption("Manual edits made to column mappings. Shows original auto-generated name vs the name you chose.")
+
+        _cl_mappings_path = METADATA_DIR / "mappings.json"
+        if _cl_mappings_path.exists():
+            _cl_data = json.loads(_cl_mappings_path.read_text())
+            _cl_mappings = _cl_data.get("mappings", [])
+
+            # Find manually edited mappings (confidence = 1.0) where source != target
+            _changes = []
+            for m in _cl_mappings:
+                _src = m.get("source", "").lower().replace("-", "_")
+                _tgt = m.get("target", "")
+                if m.get("confidence", 0) >= 1.0 and _src != _tgt:
+                    _changes.append({
+                        "Table": m.get("table", ""),
+                        "Original (Auto)": _src,
+                        "Updated (Manual)": _tgt,
+                        "Type": m.get("type", ""),
+                    })
+
+            if _changes:
+                st.markdown(f"**{len(_changes)} column(s) manually edited**")
+                st.dataframe(pd.DataFrame(_changes), use_container_width=True, hide_index=True)
+            else:
+                st.info("No manual edits have been made. Edit column names in the Column Mapping tab and click Save.")
+        else:
+            st.info("No mappings available.")
 
     # Legend
     st.divider()
