@@ -1604,68 +1604,80 @@ def render_modeling_page():
         if norm_path_erd.exists():
             _erd_plan = json.loads(norm_path_erd.read_text())
 
-            def _render_entity(container, name, role, cols, pk, fk=None):
-                """Render an entity box using Streamlit native components."""
-                _icons = {"primary": "🟢", "child": "🔵", "lookup": "🟡"}
-                with container:
-                    st.markdown(f"**{_icons.get(role, '⚪')} {name}**")
-                    _lines = [f"🔑 `{pk}` — PK"]
+            try:
+                import graphviz
+
+                def _erd_table_node(name, role, cols, pk, fk=None):
+                    """Build an HTML-label Graphviz node that looks like a database table."""
+                    _hdr_color = "#E8A54B"
+                    _hdr_font = "#000000"
+
+                    # Header row
+                    _html = f'<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">'
+                    _html += f'<TR><TD COLSPAN="3" BGCOLOR="{_hdr_color}" ALIGN="CENTER"><B>{name}</B></TD></TR>'
+
+                    # PK row
+                    _html += f'<TR><TD BGCOLOR="#FFFFCC">🔑</TD><TD ALIGN="LEFT"><B>{pk}</B></TD><TD ALIGN="LEFT">PK</TD></TR>'
+
+                    # FK row
                     if fk:
-                        _lines.append(f"🔗 `{fk}` — FK")
-                    _lines.append("---")
+                        _html += f'<TR><TD BGCOLOR="#FFFFCC">🔗</TD><TD ALIGN="LEFT"><B><I>{fk}</I></B></TD><TD ALIGN="LEFT">FK</TD></TR>'
+
+                    # Column rows
                     for _col in cols[:8]:
-                        _lines.append(f"`{_col.replace('-', '_')}`")
+                        _c = _col.replace("-", "_")
+                        _html += f'<TR><TD> </TD><TD ALIGN="LEFT">{_c}</TD><TD ALIGN="LEFT"></TD></TR>'
                     if len(cols) > 8:
-                        _lines.append(f"*+ {len(cols) - 8} more*")
-                    st.markdown("\n\n".join(_lines))
+                        _html += f'<TR><TD> </TD><TD ALIGN="LEFT"><I>+ {len(cols)-8} more</I></TD><TD></TD></TR>'
 
-            for _source, _plan_data in _erd_plan.items():
-                if not isinstance(_plan_data, dict):
-                    continue
-                _entities = _plan_data.get("entities", [])
-                _primary = next((_e for _e in _entities if _e.get("role") == "primary"), None)
-                _children = [_e for _e in _entities if _e.get("role") == "child"]
-                _lookups = [_e for _e in _entities if _e.get("role") == "lookup"]
+                    _html += '</TABLE>>'
+                    return _html
 
-                # Primary entity
-                if _primary:
-                    _render_entity(st.container(), _primary["name"], "primary",
-                                   _primary.get("columns", []), f"{_source}_id")
+                _dot = graphviz.Digraph("ERD")
+                _dot.attr(rankdir="TB", bgcolor="white", pad="0.5")
+                _dot.attr("node", shape="none", fontname="Arial", fontsize="10")
+                _dot.attr("edge", fontname="Arial", fontsize="9", dir="both")
 
-                # Relationships
-                if _children or _lookups:
-                    st.markdown("**Relationships:**")
+                for _source, _plan_data in _erd_plan.items():
+                    if not isinstance(_plan_data, dict):
+                        continue
+                    _entities = _plan_data.get("entities", [])
+                    _primary = next((_e for _e in _entities if _e.get("role") == "primary"), None)
+                    _children = [_e for _e in _entities if _e.get("role") == "child"]
+                    _lookups = [_e for _e in _entities if _e.get("role") == "lookup"]
+
+                    if _primary:
+                        _pn = _primary["name"].replace(" ", "_")
+                        _dot.node(_pn, label=_erd_table_node(
+                            _primary["name"], "primary", _primary.get("columns", []), f"{_source}_id"
+                        ))
+
                     for _child in _children:
-                        st.markdown(f"- {_primary['name'] if _primary else _source} **1:N** → {_child['name']} (FK: {_source}_id)")
+                        _cn = _child["name"].replace(" ", "_")
+                        _dot.node(_cn, label=_erd_table_node(
+                            _child["name"], "child", _child.get("columns", []),
+                            f"{_child['name']}_id", fk=f"{_source}_id"
+                        ))
+                        if _primary:
+                            _dot.edge(_pn, _cn, arrowtail="crow", arrowhead="tee", label="1:N")
+
                     for _lookup in _lookups:
-                        st.markdown(f"- {_primary['name'] if _primary else _source} **N:1** → {_lookup['name']}")
-
-                st.divider()
-
-                # Child entities in columns
-                if _children:
-                    st.markdown("**Child Tables:**")
-                    _child_cols = st.columns(min(len(_children), 3))
-                    for _ci, _child in enumerate(_children):
-                        _render_entity(_child_cols[_ci % 3], _child["name"], "child",
-                                       _child.get("columns", []), f"{_child['name']}_id", fk=f"{_source}_id")
-
-                # Lookup entities in columns
-                if _lookups:
-                    st.markdown("**Lookup Tables:**")
-                    _lookup_cols = st.columns(min(len(_lookups), 4))
-                    for _li, _lookup in enumerate(_lookups):
+                        _ln = _lookup["name"].replace(" ", "_")
                         _lcols = _lookup.get("columns", [])
-                        _render_entity(_lookup_cols[_li % 4], _lookup["name"], "lookup",
-                                       _lcols, _lcols[0] if _lcols else "code")
+                        _dot.node(_ln, label=_erd_table_node(
+                            _lookup["name"], "lookup", _lcols,
+                            _lcols[0] if _lcols else "code"
+                        ))
+                        if _primary:
+                            _dot.edge(_pn, _ln, arrowtail="tee", arrowhead="crow",
+                                      label="N:1", style="dashed")
 
-                st.divider()
+                st.graphviz_chart(_dot, use_container_width=True)
 
-            st.markdown(
-                "🟢 **Primary** — main entity &nbsp;&nbsp; "
-                "🔵 **Child** — FK to primary (1:N) &nbsp;&nbsp; "
-                "🟡 **Lookup** — reference table (N:1)"
-            )
+            except ImportError:
+                st.warning("Install graphviz for the visual diagram: `pip install graphviz`")
+            except Exception as _erd_err:
+                st.error(f"Could not render ERD: {_erd_err}")
         else:
             st.info("No normalization plan available. Run discovery to generate.")
 
