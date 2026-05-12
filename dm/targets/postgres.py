@@ -364,6 +364,7 @@ class PostgresTargetAdapter(BaseTargetAdapter):
 from dm.targets.snowflake import SnowflakeTargetAdapter
 from dm.targets.oracle import OracleTargetAdapter
 from dm.targets.redshift import RedshiftTargetAdapter
+from dm.targets.sqlserver import SqlServerTargetAdapter
 
 BUILTIN_TARGETS = {
     "postgres": PostgresTargetAdapter,
@@ -372,6 +373,8 @@ BUILTIN_TARGETS = {
     "oracle": OracleTargetAdapter,
     "redshift": RedshiftTargetAdapter,
     "aws": RedshiftTargetAdapter,
+    "sqlserver": lambda: SqlServerTargetAdapter(is_azure=False),
+    "azuresql": lambda: SqlServerTargetAdapter(is_azure=True),
 }
 
 # Display names for the dashboard and CLI
@@ -380,6 +383,8 @@ TARGET_DISPLAY_NAMES = {
     "snowflake": "Snowflake",
     "oracle": "Oracle",
     "redshift": "AWS (Redshift)",
+    "sqlserver": "SQL Server",
+    "azuresql": "Azure SQL",
 }
 
 

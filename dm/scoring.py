@@ -56,6 +56,25 @@ TARGET_PENALTIES = {
             "DISTKEY/SORTKEY choices affect query performance, not correctness",
         ],
     },
+    "sqlserver": {
+        "structure": 1,     # BOOLEAN mapped to BIT, JSON as NVARCHAR(MAX)
+        "integrity": 0,     # FK constraints enforced
+        "governance": 0,    # CHECK constraints enforced
+        "notes": [
+            "BOOLEAN mapped to BIT (0/1) — functionally equivalent",
+            "JSON stored as NVARCHAR(MAX) — use OPENJSON for queries (SQL Server 2016+)",
+        ],
+    },
+    "azuresql": {
+        "structure": 1,     # Same as SQL Server
+        "integrity": 0,     # FK constraints enforced
+        "governance": 0,    # CHECK constraints enforced
+        "notes": [
+            "BOOLEAN mapped to BIT (0/1) — functionally equivalent",
+            "JSON stored as NVARCHAR(MAX) — use OPENJSON for queries",
+            "Azure SQL enforces all constraints — same as on-premise SQL Server",
+        ],
+    },
 }
 
 
