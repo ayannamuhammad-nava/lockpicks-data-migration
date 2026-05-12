@@ -645,11 +645,21 @@ def run_flatfile_pipeline(project_dir: str) -> Dict:
             f"-- ============================================================\n",
         ]
 
+        # Build mapping lookup: {(table, source_col): modern_name}
+        _mapping_names = {}
+        for m in all_mappings:
+            _src = m.get("source", "").lower().replace("-", "_")
+            _mapping_names[(m.get("table", ""), _src)] = m.get("target", _src)
+
         for source_name, plan_data in norm_plan.items():
             schema = all_schemas.get(source_name, [])
             col_map = _col_lookup.get(source_name, {})
             profile = all_profiles.get(source_name, {})
             type_infs = plan_data.get("type_inferences", {})
+
+            def _resolve_name(col_name):
+                """Resolve a column name through the mapping lookup."""
+                return _mapping_names.get((source_name, col_name), col_name)
 
             for entity in plan_data.get("entities", []):
                 entity_name = entity["name"]
@@ -659,7 +669,7 @@ def run_flatfile_pipeline(project_dir: str) -> Dict:
                 if role == "lookup":
                     # Lookup table: code + description columns
                     columns = [{
-                        "name": entity_cols[0] if entity_cols else "code",
+                        "name": _resolve_name(entity_cols[0]) if entity_cols else "code",
                         "data_type": adapter.map_type("varchar(50)"),
                         "nullable": False,
                         "constraints": ["PRIMARY KEY"],
@@ -729,11 +739,10 @@ def run_flatfile_pipeline(project_dir: str) -> Dict:
                     for cn in entity_cols:
                         orig_col = col_map.get(cn, {})
                         dt = adapter.map_type(orig_col.get("data_type", "varchar(50)"))
-                        # Apply type inference
                         if cn in type_infs:
                             dt = adapter.map_type(type_infs[cn]["inferred_type"].lower())
                         columns.append({
-                            "name": cn, "data_type": dt, "nullable": True,
+                            "name": _resolve_name(cn), "data_type": dt, "nullable": True,
                             "constraints": [],
                             "comment": f"Source: {orig_col.get('column_name', cn)} {orig_col.get('pic', '')}".strip(),
                         })
@@ -751,10 +760,8 @@ def run_flatfile_pipeline(project_dir: str) -> Dict:
                     for cn in entity_cols:
                         orig_col = col_map.get(cn, {})
                         dt = adapter.map_type(orig_col.get("data_type", "varchar(50)"))
-                        # Apply type inference
                         if cn in type_infs:
                             dt = adapter.map_type(type_infs[cn]["inferred_type"].lower())
-                        # Apply profiling-based boolean detection
                         stats = profile.get("columns", {}).get(orig_col.get("column_name", ""), {})
                         if stats:
                             distinct = stats.get("distinct_count", 0)
@@ -764,7 +771,7 @@ def run_flatfile_pipeline(project_dir: str) -> Dict:
                                 if vals in [{"Y", "N"}, {"YES", "NO"}, {"T", "F"}, {"TRUE", "FALSE"}, {"1", "0"}]:
                                     dt = adapter.map_type("boolean")
                         columns.append({
-                            "name": cn, "data_type": dt, "nullable": True,
+                            "name": _resolve_name(cn), "data_type": dt, "nullable": True,
                             "constraints": [],
                             "comment": f"Source: {orig_col.get('column_name', cn)} {orig_col.get('pic', '')}".strip(),
                         })
