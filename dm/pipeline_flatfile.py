@@ -478,6 +478,21 @@ def run_flatfile_pipeline(project_dir: str) -> Dict:
                 else:
                     logger.info(f"  AI: Suggestions — {len(review.get('changes', []))} changes proposed")
 
+    # Update normalization plan column names to use mapped names
+    _mapping_lookup = {}
+    for m in all_mappings:
+        _src = m.get("source", "").lower().replace("-", "_")
+        _mapping_lookup[(_src, m.get("table", ""))] = m.get("target", _src)
+        _mapping_lookup[(_src, "")] = m.get("target", _src)  # fallback without table
+
+    for source_name, plan_data in norm_plan.items():
+        for entity in plan_data.get("entities", []):
+            updated_cols = []
+            for col in entity.get("columns", []):
+                mapped = _mapping_lookup.get((col, source_name), _mapping_lookup.get((col, ""), col))
+                updated_cols.append(mapped)
+            entity["columns"] = updated_cols
+
     with open(metadata_path / "normalization_plan.json", "w") as f:
         json.dump(norm_plan, f, indent=2)
 
