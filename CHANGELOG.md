@@ -1427,3 +1427,72 @@ Users can change the mapping type per field:
 4. Click Regenerate DDL
 5. Full DDL tab shows `first_name VARCHAR(25)` across all 4 platforms
 6. Re-run PRE validation — score updates with the new mappings
+
+---
+
+## Manual Edits Preserved During Regeneration (2026-05-12)
+
+**File:** `dm/pipeline_flatfile.py`
+
+The flat file pipeline now preserves manual column mapping edits (confidence = 1.0) when regenerating. Priority order: manual override > AI mapping > rule-based. Previously, clicking Regenerate DDL would overwrite all manual edits with auto-generated names.
+
+---
+
+## DDL and Normalization Use Mapped Names (2026-05-12)
+
+**Files:** `dm/pipeline_flatfile.py`
+
+Schema generation now resolves column names through `mappings.json` when building DDL. The normalization plan's column lists are also updated to use mapped names before saving. When a user edits `ct_fnam` → `first_name`, both the CREATE TABLE statements and the normalization plan show `first_name`.
+
+---
+
+## Change Log Tab (2026-05-12)
+
+**File:** `dashboard.py`
+
+New **Change Log** tab on the Modeling page showing all manual column edits. Displays a table with Original (Auto) vs Updated (Manual) for fields where confidence = 1.0 and the source differs from the target.
+
+---
+
+## Entity Relationship Diagram (2026-05-12)
+
+**File:** `dashboard.py`
+
+New **Entity Diagram** tab on the Modeling page rendering a visual ERD using Graphviz:
+
+- **Green boxes** — Primary tables (name + PK + column count)
+- **Blue boxes** — Child tables (name + PK + FK + column count)
+- **Yellow ovals** — Lookup tables
+- **Solid arrows** — 1:N relationships (primary → child)
+- **Dashed arrows** — N:1 references (primary → lookup)
+- **Download PNG** — save diagram as image
+- **Download DOT** — source file for Graphviz tools
+
+Diagram updates when column names are edited and DDL is regenerated.
+
+---
+
+## SQL Server and Azure SQL Target Adapters (2026-05-12)
+
+**Files:** `dm/targets/sqlserver.py`, `dm/targets/postgres.py`, `dm/scoring.py`
+
+Added two new target platform adapters for Microsoft environments:
+
+| Target | Dialect | Key Differences |
+|--------|---------|-----------------|
+| **SQL Server** | T-SQL | NVARCHAR, BIT (boolean), DATETIME2, UNIQUEIDENTIFIER, INT IDENTITY(1,1), bracket quoting |
+| **Azure SQL** | T-SQL | Same as SQL Server — shared adapter with `is_azure` flag |
+
+Both use:
+- `NVARCHAR` instead of VARCHAR (Unicode by default)
+- `BIT` for boolean (0/1)
+- `DATETIME2` / `DATETIMEOFFSET` for timestamps
+- `NVARCHAR(MAX)` for JSON (use OPENJSON for queries)
+- `UNIQUEIDENTIFIER` for UUID
+- `sp_addextendedproperty` for table/column comments
+- `ISNULL` instead of COALESCE, `GETDATE()` for NOW(), `CHARINDEX` for string search
+
+Scoring penalties: structure -1 (BIT for boolean, NVARCHAR(MAX) for JSON). Integrity and governance: 0 (all constraints enforced).
+
+Dashboard now shows 6 target platforms in the dropdown:
+PostgreSQL, SQL Server, Azure SQL, Oracle, Snowflake, AWS (Redshift)
