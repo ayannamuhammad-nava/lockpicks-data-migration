@@ -1353,42 +1353,81 @@ def render_modeling_page():
     # ── Column Mapping tab
     with tab_col_map:
         st.markdown("#### Legacy → Modern Column Mapping")
-        st.caption("How each legacy column maps to the new table structure.")
+        st.caption("Edit the Modern Column names below, then click Save to update mappings and regenerate DDL.")
 
-        # Read from mappings.json (the authoritative source for column mappings)
+        # Read from mappings.json
         mappings_path = METADATA_DIR / "mappings.json"
         if mappings_path.exists():
             mappings_data = json.loads(mappings_path.read_text())
             all_mappings = mappings_data.get("mappings", [])
 
             if all_mappings:
-                # Group by type
-                by_type = {}
-                for m in all_mappings:
-                    t = m.get("type", "rename")
-                    by_type.setdefault(t, []).append(m)
-
                 # Summary counts
                 type_icons = {"rename": "→", "transform": "⚙️", "archived": "🔒", "removed": "🗑️"}
+                by_type = {}
+                for m in all_mappings:
+                    by_type.setdefault(m.get("type", "rename"), []).append(m)
                 cols_summary = st.columns(len(by_type))
                 for i, (t, items) in enumerate(sorted(by_type.items())):
-                    icon = type_icons.get(t, "")
-                    cols_summary[i].metric(f"{icon} {t.title()}", len(items))
+                    cols_summary[i].metric(f"{type_icons.get(t, '')} {t.title()}", len(items))
 
                 st.divider()
 
-                # Show all mappings in a table
-                rows = []
+                # Editable dataframe
+                _edit_rows = []
                 for m in all_mappings:
-                    icon = type_icons.get(m.get("type", ""), "")
-                    rows.append({
+                    _edit_rows.append({
                         "Table": m.get("table", ""),
                         "Legacy Column": m.get("source", ""),
                         "Modern Column": m.get("target", ""),
-                        "Type": f"{icon} {m.get('type', '')}",
-                        "Confidence": f"{int(m.get('confidence', 0) * 100)}%",
+                        "Type": m.get("type", "rename"),
                     })
-                st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+                _edit_df = pd.DataFrame(_edit_rows)
+
+                _edited = st.data_editor(
+                    _edit_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    disabled=["Table", "Legacy Column"],  # Only Modern Column and Type are editable
+                    column_config={
+                        "Type": st.column_config.SelectboxColumn(
+                            options=["rename", "transform", "archived", "removed"],
+                        ),
+                    },
+                    key="mapping_editor",
+                )
+
+                # Save and Regenerate buttons
+                _btn_col1, _btn_col2 = st.columns(2)
+                with _btn_col1:
+                    if st.button("Save Mappings", type="primary", use_container_width=True, key="btn_save_mappings"):
+                        # Update mappings.json with edited values
+                        for i, m in enumerate(all_mappings):
+                            if i < len(_edited):
+                                m["target"] = _edited.iloc[i]["Modern Column"]
+                                m["type"] = _edited.iloc[i]["Type"]
+                                m["confidence"] = 1.0  # Manual edit = full confidence
+
+                        with open(mappings_path, "w") as f:
+                            json.dump({"mappings": all_mappings}, f, indent=2)
+                        st.success("Mappings saved.")
+
+                with _btn_col2:
+                    if st.button("Regenerate DDL", use_container_width=True, key="btn_regen_ddl"):
+                        # Re-run discovery to regenerate schemas from updated mappings
+                        with st.spinner("Regenerating schemas for all target platforms..."):
+                            _regen_cmd = [
+                                sys.executable, "-m", "dm.cli", "discover",
+                                "--project", str(PROJECT_DIR),
+                            ]
+                            _regen_result = subprocess.run(_regen_cmd, capture_output=True, text=True, timeout=300)
+                        if _regen_result.returncode == 0:
+                            st.success("DDL regenerated for all 4 target platforms.")
+                            st.cache_resource.clear()
+                            st.rerun()
+                        else:
+                            st.error(f"Regeneration failed: {_regen_result.stderr[:300]}")
+
             else:
                 st.info("No column mappings found.")
         else:
