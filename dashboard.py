@@ -1290,8 +1290,8 @@ def render_modeling_page():
 
     st.divider()
 
-    tabs = st.tabs(["📐 Table Schemas", "🔀 Column Mapping", "📐 Normalization Plan", "📄 Full DDL", "📝 Notes", "📋 Change Log"])
-    tab_schemas, tab_col_map, tab_norm, tab_ddl, tab_model_notes, tab_changelog = tabs
+    tabs = st.tabs(["📐 Table Schemas", "🔀 Column Mapping", "📐 Normalization Plan", "📄 Full DDL", "📝 Notes", "📋 Change Log", "📊 Entity Diagram"])
+    tab_schemas, tab_col_map, tab_norm, tab_ddl, tab_model_notes, tab_changelog, tab_erd = tabs
 
     # ── Table Schemas tab
     with tab_schemas:
@@ -1595,6 +1595,123 @@ def render_modeling_page():
                 st.info("No manual edits have been made. Edit column names in the Column Mapping tab and click Save.")
         else:
             st.info("No mappings available.")
+
+    # ── Entity Diagram tab
+    with tab_erd:
+        st.markdown("#### Entity Relationship Diagram")
+        st.caption("Visual representation of the normalized table structure with relationships.")
+
+        norm_path_erd = METADATA_DIR / "normalization_plan.json"
+        if norm_path_erd.exists():
+            _erd_plan = json.loads(norm_path_erd.read_text())
+
+            # Build Mermaid ERD
+            _erd_lines = ["erDiagram"]
+
+            for _source, _plan_data in _erd_plan.items():
+                if not isinstance(_plan_data, dict):
+                    continue
+                _entities = _plan_data.get("entities", [])
+
+                for _ent in _entities:
+                    _ename = _ent.get("name", "").replace(" ", "_").replace("-", "_")
+                    _role = _ent.get("role", "")
+                    _cols = _ent.get("columns", [])
+
+                    # Add entity with columns
+                    _erd_lines.append(f"    {_ename} {{")
+                    # Add PK
+                    if _role == "primary":
+                        _erd_lines.append(f"        int {_source}_id PK")
+                    elif _role in ("child",):
+                        _erd_lines.append(f"        int {_ename}_id PK")
+                        _erd_lines.append(f"        int {_source}_id FK")
+
+                    # Add columns (limit to 8 for readability)
+                    for _col in _cols[:8]:
+                        _clean_col = _col.replace("-", "_").replace(" ", "_")
+                        _erd_lines.append(f"        string {_clean_col}")
+                    if len(_cols) > 8:
+                        _erd_lines.append(f"        string __plus_{len(_cols)-8}_more__")
+                    _erd_lines.append("    }")
+
+                # Add relationships
+                _primary = next((_e for _e in _entities if _e.get("role") == "primary"), None)
+                if _primary:
+                    _pname = _primary["name"].replace(" ", "_").replace("-", "_")
+                    for _ent in _entities:
+                        if _ent.get("role") == "child":
+                            _cname = _ent["name"].replace(" ", "_").replace("-", "_")
+                            _erd_lines.append(f"    {_pname} ||--o{{ {_cname} : has")
+                        elif _ent.get("role") == "lookup":
+                            _lname = _ent["name"].replace(" ", "_").replace("-", "_")
+                            _erd_lines.append(f"    {_pname} }}o--|| {_lname} : references")
+
+            _erd_mermaid = "\n".join(_erd_lines)
+
+            # Display as Mermaid
+            st.markdown(f"```mermaid\n{_erd_mermaid}\n```")
+
+            # Download as text file
+            st.download_button(
+                "Download ERD (Mermaid)",
+                _erd_mermaid,
+                file_name="entity_diagram.mmd",
+                mime="text/plain",
+                key="dl_erd_mermaid",
+            )
+
+            # Also provide a PlantUML version for tools that prefer it
+            with st.expander("PlantUML version"):
+                _puml_lines = ["@startuml", ""]
+                for _source, _plan_data in _erd_plan.items():
+                    if not isinstance(_plan_data, dict):
+                        continue
+                    _entities = _plan_data.get("entities", [])
+
+                    for _ent in _entities:
+                        _ename = _ent.get("name", "").replace(" ", "_").replace("-", "_")
+                        _role = _ent.get("role", "")
+                        _cols = _ent.get("columns", [])
+
+                        _puml_lines.append(f"entity {_ename} {{")
+                        if _role == "primary":
+                            _puml_lines.append(f"  * {_source}_id : int <<PK>>")
+                        elif _role == "child":
+                            _puml_lines.append(f"  * {_ename}_id : int <<PK>>")
+                            _puml_lines.append(f"  * {_source}_id : int <<FK>>")
+                        _puml_lines.append("  --")
+                        for _col in _cols[:10]:
+                            _puml_lines.append(f"  {_col.replace('-','_')}")
+                        if len(_cols) > 10:
+                            _puml_lines.append(f"  ... +{len(_cols)-10} more")
+                        _puml_lines.append("}")
+                        _puml_lines.append("")
+
+                    _primary = next((_e for _e in _entities if _e.get("role") == "primary"), None)
+                    if _primary:
+                        _pname = _primary["name"].replace(" ", "_").replace("-", "_")
+                        for _ent in _entities:
+                            if _ent.get("role") == "child":
+                                _cname = _ent["name"].replace(" ", "_").replace("-", "_")
+                                _puml_lines.append(f"{_pname} ||--o{{ {_cname}")
+                            elif _ent.get("role") == "lookup":
+                                _lname = _ent["name"].replace(" ", "_").replace("-", "_")
+                                _puml_lines.append(f"{_pname} }}o--|| {_lname}")
+
+                _puml_lines.append("")
+                _puml_lines.append("@enduml")
+                _puml_text = "\n".join(_puml_lines)
+                st.code(_puml_text, language="text")
+                st.download_button(
+                    "Download ERD (PlantUML)",
+                    _puml_text,
+                    file_name="entity_diagram.puml",
+                    mime="text/plain",
+                    key="dl_erd_puml",
+                )
+        else:
+            st.info("No normalization plan available. Run discovery to generate.")
 
     # Legend
     st.divider()
