@@ -1674,6 +1674,23 @@ def render_modeling_page():
 
                 st.graphviz_chart(_dot, use_container_width=True)
 
+                # Download buttons
+                _dl1, _dl2, _dl3 = st.columns(3)
+                with _dl1:
+                    try:
+                        _png = _dot.pipe(format="png")
+                        st.download_button("Download PNG", _png, file_name="erd.png", mime="image/png", key="dl_erd_png")
+                    except Exception:
+                        st.caption("PNG requires graphviz system package")
+                with _dl2:
+                    try:
+                        _svg = _dot.pipe(format="svg")
+                        st.download_button("Download SVG", _svg, file_name="erd.svg", mime="image/svg+xml", key="dl_erd_svg")
+                    except Exception:
+                        st.caption("SVG requires graphviz system package")
+                with _dl3:
+                    st.download_button("Download DOT", _dot.source, file_name="erd.dot", mime="text/plain", key="dl_erd_dot")
+
             except ImportError:
                 st.warning("Install graphviz for the visual diagram: `pip install graphviz`")
             except Exception as _erd_err:
