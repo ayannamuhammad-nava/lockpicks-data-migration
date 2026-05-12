@@ -1608,17 +1608,15 @@ def render_modeling_page():
             import graphviz
 
             _dot = graphviz.Digraph("ERD", format="png")
-            _dot.attr(rankdir="LR", fontname="Helvetica", fontsize="11", bgcolor="white")
-            _dot.attr("node", shape="none", fontname="Helvetica", fontsize="10")
+            _dot.attr(rankdir="LR", fontname="Helvetica", fontsize="12", bgcolor="white")
+            _dot.attr("node", fontname="Helvetica", fontsize="11")
             _dot.attr("edge", fontname="Helvetica", fontsize="9", color="#666666")
 
-            _role_colors = {
-                "primary": "#2e7d32",
-                "child": "#1565c0",
-                "lookup": "#f57f17",
+            _role_styles = {
+                "primary": {"color": "#2e7d32", "style": "filled", "fillcolor": "#e8f5e9", "shape": "box"},
+                "child": {"color": "#1565c0", "style": "filled", "fillcolor": "#e3f2fd", "shape": "box"},
+                "lookup": {"color": "#f57f17", "style": "filled", "fillcolor": "#fff9c4", "shape": "ellipse"},
             }
-
-            _all_relationships = []
 
             for _source, _plan_data in _erd_plan.items():
                 if not isinstance(_plan_data, dict):
@@ -1629,32 +1627,17 @@ def render_modeling_page():
                     _ename = _ent.get("name", "").replace(" ", "_").replace("-", "_")
                     _role = _ent.get("role", "")
                     _cols = _ent.get("columns", [])
-                    _header_color = _role_colors.get(_role, "#333333")
+                    _style = _role_styles.get(_role, _role_styles["primary"])
 
-                    # Build HTML table for the entity box
-                    _rows = ""
-
-                    # PK row
+                    # Simple label: table name + column count + PK/FK
                     if _role == "primary":
-                        _rows += f'<TR><TD ALIGN="LEFT"><B>🔑 {_source}_id</B></TD><TD ALIGN="LEFT">PK</TD></TR>'
+                        _label = f"{_ename}\nPK: {_source}_id\n({len(_cols)} columns)"
                     elif _role == "child":
-                        _rows += f'<TR><TD ALIGN="LEFT"><B>🔑 {_ename}_id</B></TD><TD ALIGN="LEFT">PK</TD></TR>'
-                        _rows += f'<TR><TD ALIGN="LEFT">🔗 {_source}_id</TD><TD ALIGN="LEFT">FK</TD></TR>'
+                        _label = f"{_ename}\nPK: {_ename}_id\nFK: {_source}_id\n({len(_cols)} columns)"
+                    else:
+                        _label = f"{_ename}"
 
-                    # Column rows (limit to 10)
-                    for _col in _cols[:10]:
-                        _clean = _col.replace("-", "_").replace(" ", "_")
-                        _rows += f'<TR><TD ALIGN="LEFT">{_clean}</TD><TD ALIGN="LEFT"></TD></TR>'
-                    if len(_cols) > 10:
-                        _rows += f'<TR><TD ALIGN="LEFT"><I>... +{len(_cols)-10} more</I></TD><TD ALIGN="LEFT"></TD></TR>'
-
-                    _role_label = _role.upper()
-                    _label = f'''<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4">
-                        <TR><TD COLSPAN="2" BGCOLOR="{_header_color}"><FONT COLOR="white"><B>{_ename}</B> ({_role_label})</FONT></TD></TR>
-                        {_rows}
-                    </TABLE>>'''
-
-                    _dot.node(_ename, label=_label)
+                    _dot.node(_ename, label=_label, **_style)
 
                 # Relationships
                 _primary = next((_e for _e in _entities if _e.get("role") == "primary"), None)
