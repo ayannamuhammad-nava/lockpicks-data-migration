@@ -162,6 +162,23 @@ def run_flatfile_pipeline(project_dir: str) -> Dict:
     all_mappings = []
     abbreviations = {}
 
+    # Load existing manual edits (confidence = 1.0) to preserve them
+    _manual_overrides = {}  # {(table, source): {target, type}}
+    _existing_mappings_path = metadata_path / "mappings.json"
+    if _existing_mappings_path.exists():
+        try:
+            _existing = json.load(open(_existing_mappings_path))
+            for m in _existing.get("mappings", []):
+                if m.get("confidence", 0) >= 1.0:
+                    _manual_overrides[(m.get("table", ""), m.get("source", ""))] = {
+                        "target": m.get("target", ""),
+                        "type": m.get("type", "rename"),
+                    }
+            if _manual_overrides:
+                logger.info(f"  Preserving {len(_manual_overrides)} manual mapping edits")
+        except Exception:
+            pass
+
     # AI-assisted column understanding (if available)
     ai_column_map = {}  # {table: {source_col: {modern_name, description, data_type_suggestion}}}
     if ai_client:
@@ -183,16 +200,27 @@ def run_flatfile_pipeline(project_dir: str) -> Dict:
         for col in schema:
             cn = col["column_name"]
 
-            # Use AI mapping if available, otherwise fall back to rule-based
-            if cn in ai_cols:
+            # Priority 1: Manual override (user edited in dashboard)
+            _override_key = (name, cn)
+            if _override_key in _manual_overrides:
+                _ov = _manual_overrides[_override_key]
+                modern_name = _ov["target"]
+                description = col.get("pic", col["data_type"])
+                confidence = 1.0
+                mapping_type_override = _ov["type"]
+            # Priority 2: AI mapping
+            elif cn in ai_cols:
                 ai_info = ai_cols[cn]
                 modern_name = ai_info.get("modern_name", cn.lower().replace("-", "_"))
                 description = ai_info.get("description", col.get("pic", col["data_type"]))
-                confidence = 0.95  # AI-assisted
+                confidence = 0.95
+                mapping_type_override = None
+            # Priority 3: Rule-based
             else:
                 modern_name = cn.lower().replace("-", "_")
                 description = col.get("pic", col["data_type"])
-                confidence = 0.9  # Rule-based
+                confidence = 0.9
+                mapping_type_override = None
 
             is_pii = any(kw in cn.lower() for kw in pii_keywords)
 
@@ -206,12 +234,15 @@ def run_flatfile_pipeline(project_dir: str) -> Dict:
                 "confidence": confidence,
             })
 
-            mapping_type = "rename"
-            if is_pii and any(kw in cn.lower() for kw in ["ssn"]):
-                mapping_type = "transform"
-                modern_name = modern_name + "_hash" if not modern_name.endswith("_hash") else modern_name
-            elif is_pii and any(kw in cn.lower() for kw in ["eft", "bank"]):
-                mapping_type = "archived"
+            if mapping_type_override:
+                mapping_type = mapping_type_override
+            else:
+                mapping_type = "rename"
+                if is_pii and any(kw in cn.lower() for kw in ["ssn"]):
+                    mapping_type = "transform"
+                    modern_name = modern_name + "_hash" if not modern_name.endswith("_hash") else modern_name
+                elif is_pii and any(kw in cn.lower() for kw in ["eft", "bank"]):
+                    mapping_type = "archived"
 
             rationale = f"AI: {description}" if cn in ai_cols else f"From copybook: {col.get('pic', col['data_type'])}"
             all_mappings.append({
