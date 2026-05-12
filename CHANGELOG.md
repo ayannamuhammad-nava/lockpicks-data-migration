@@ -1373,3 +1373,57 @@ Created standalone repo for CMS Home Health PPS Pricer CY2020:
 **https://github.com/ayannamuhammad-nava/hh-cy2020-pricer**
 
 Contains 4 COBOL programs (HHDRV200, HHCAL200, HHMGR200, HHOPN200) and 4 reference data tables (CBSA, HRG, revenue codes, add-on table). 356 total business rules extracted across all 4 programs.
+
+---
+
+## Program DATA DIVISION as Schema Fallback (2026-05-11)
+
+**Files:** `dm/connectors/cobol_parser.py`, `dm/repo_loader.py`
+
+When data files have no matching `.cpy` copybook, the toolkit now extracts record layouts from COBOL programs' DATA DIVISION as a fallback.
+
+### `extract_record_layouts()` — new function
+
+Parses a COBOL program's DATA DIVISION and extracts 01-level group items with child PIC fields from WORKING-STORAGE, FILE, LINKAGE, and LOCAL-STORAGE sections. Returns layouts compatible with the copybook schema format.
+
+Tracks FILLER fields for correct offset calculation. Handles COMP-3 and COMP usage clauses.
+
+### Repo Loader Strategy 3
+
+After Strategy 1 (filename match) and Strategy 2 (copybook record length), the repo loader now:
+1. Finds all `.cbl` files in the repo
+2. Extracts record layouts from each program's DATA DIVISION
+3. Matches unmatched data files by record length against program layouts
+
+**Impact:** CMS HH Pricer — 38 layouts extracted from 4 programs. Data files like `v200-rev.dat` (93 bytes) now pair with `REVENUE-TABLE` record layout defined inside `hhopn200.cbl`.
+
+---
+
+## Editable Column Mappings (2026-05-12)
+
+**File:** `dashboard.py`
+
+The Column Mapping tab on the Modeling page is now editable. Users can change column names and mapping types directly in the dashboard, then regenerate DDL.
+
+### How It Works
+
+1. **Edit** — Column Mapping tab shows an editable table (`st.data_editor`). Modern Column and Type columns are editable; Table and Legacy Column are read-only.
+2. **Save** — "Save Mappings" button writes updated values to `mappings.json` with confidence set to 1.0 (manual edit = full confidence).
+3. **Regenerate** — "Regenerate DDL" button re-runs `dm discover` to rebuild schemas for all 4 target platforms using the updated mappings.
+
+### Type Options
+
+Users can change the mapping type per field:
+- **rename** — field is renamed (no data transformation)
+- **transform** — field is transformed (e.g., SSN → SHA-256 hash)
+- **archived** — field is excluded from modern schema (PCI/HIPAA compliance)
+- **removed** — field is dropped entirely
+
+### Flow
+
+1. See `ct_fnam` → `ct_fnam` in the table
+2. Click the cell, type `first_name`
+3. Click Save Mappings
+4. Click Regenerate DDL
+5. Full DDL tab shows `first_name VARCHAR(25)` across all 4 platforms
+6. Re-run PRE validation — score updates with the new mappings
