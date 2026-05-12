@@ -1604,6 +1604,21 @@ def render_modeling_page():
         if norm_path_erd.exists():
             _erd_plan = json.loads(norm_path_erd.read_text())
 
+            def _render_entity(container, name, role, cols, pk, fk=None):
+                """Render an entity box using Streamlit native components."""
+                _icons = {"primary": "🟢", "child": "🔵", "lookup": "🟡"}
+                with container:
+                    st.markdown(f"**{_icons.get(role, '⚪')} {name}**")
+                    _lines = [f"🔑 `{pk}` — PK"]
+                    if fk:
+                        _lines.append(f"🔗 `{fk}` — FK")
+                    _lines.append("---")
+                    for _col in cols[:8]:
+                        _lines.append(f"`{_col.replace('-', '_')}`")
+                    if len(cols) > 8:
+                        _lines.append(f"*+ {len(cols) - 8} more*")
+                    st.markdown("\n\n".join(_lines))
+
             for _source, _plan_data in _erd_plan.items():
                 if not isinstance(_plan_data, dict):
                     continue
@@ -1612,66 +1627,45 @@ def render_modeling_page():
                 _children = [_e for _e in _entities if _e.get("role") == "child"]
                 _lookups = [_e for _e in _entities if _e.get("role") == "lookup"]
 
-                # Build entity boxes as HTML
-                def _render_entity_box(name, role, cols, pk, fk=None, source_table=None):
-                    _header_bg = {"primary": "#4a6fa5", "child": "#6a8caf", "lookup": "#8faabd"}.get(role, "#4a6fa5")
-                    _rows_html = ""
-                    # PK row
-                    _rows_html += f'<tr><td style="padding:3px 10px;border-bottom:1px solid #ddd;font-size:0.8rem"><b>🔑 {pk}</b></td><td style="padding:3px 10px;border-bottom:1px solid #ddd;font-size:0.75rem;color:#888">PK</td></tr>'
-                    # FK row
-                    if fk:
-                        _rows_html += f'<tr><td style="padding:3px 10px;border-bottom:1px solid #ddd;font-size:0.8rem">🔗 {fk}</td><td style="padding:3px 10px;border-bottom:1px solid #ddd;font-size:0.75rem;color:#888">FK</td></tr>'
-                    # Attribute rows
-                    for _col in cols[:6]:
-                        _c = _col.replace("-", "_")
-                        _rows_html += f'<tr><td style="padding:2px 10px;font-size:0.8rem">{_c}</td><td style="padding:2px 10px;font-size:0.75rem;color:#888"></td></tr>'
-                    if len(cols) > 6:
-                        _rows_html += f'<tr><td style="padding:2px 10px;font-size:0.75rem;color:#999;font-style:italic">+ {len(cols)-6} more</td><td></td></tr>'
-
-                    return f"""
-                    <div style="display:inline-block;border:1px solid #999;border-radius:4px;margin:8px;vertical-align:top;min-width:200px;background:white;box-shadow:1px 1px 4px rgba(0,0,0,0.1)">
-                        <div style="background:{_header_bg};color:white;padding:8px 12px;font-weight:700;font-size:0.9rem;border-radius:3px 3px 0 0">{name}</div>
-                        <table style="width:100%;border-collapse:collapse">{_rows_html}</table>
-                    </div>
-                    """
-
-                # Render all entities
-                _all_boxes = ""
-
+                # Primary entity
                 if _primary:
-                    _pname = _primary["name"]
-                    _pcols = _primary.get("columns", [])
-                    _all_boxes += _render_entity_box(_pname, "primary", _pcols, f"{_source}_id")
+                    _render_entity(st.container(), _primary["name"], "primary",
+                                   _primary.get("columns", []), f"{_source}_id")
 
-                for _child in _children:
-                    _cname = _child["name"]
-                    _ccols = _child.get("columns", [])
-                    _all_boxes += _render_entity_box(_cname, "child", _ccols, f"{_cname}_id", fk=f"{_source}_id")
-
-                for _lookup in _lookups:
-                    _lname = _lookup["name"]
-                    _lcols = _lookup.get("columns", [])
-                    _all_boxes += _render_entity_box(_lname, "lookup", _lcols, _lcols[0] if _lcols else "code")
-
-                # Wrap in a flex container
-                st.markdown(f"""
-                <div style="display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:center;padding:16px;background:#f5f5f5;border-radius:8px;margin:8px 0">
-                    {_all_boxes}
-                </div>
-                """, unsafe_allow_html=True)
-
-                # Relationship summary below the diagram
+                # Relationships
                 if _children or _lookups:
-                    _rel_lines = []
-                    for _child in _children:
-                        _rel_lines.append(f"**{_primary['name'] if _primary else _source}** ──┤ 1:N ├── **{_child['name']}** (FK: {_source}_id)")
-                    for _lookup in _lookups:
-                        _rel_lines.append(f"**{_primary['name'] if _primary else _source}** ──── N:1 ──── **{_lookup['name']}**")
                     st.markdown("**Relationships:**")
-                    for _rl in _rel_lines:
-                        st.markdown(f"- {_rl}")
+                    for _child in _children:
+                        st.markdown(f"- {_primary['name'] if _primary else _source} **1:N** → {_child['name']} (FK: {_source}_id)")
+                    for _lookup in _lookups:
+                        st.markdown(f"- {_primary['name'] if _primary else _source} **N:1** → {_lookup['name']}")
 
                 st.divider()
+
+                # Child entities in columns
+                if _children:
+                    st.markdown("**Child Tables:**")
+                    _child_cols = st.columns(min(len(_children), 3))
+                    for _ci, _child in enumerate(_children):
+                        _render_entity(_child_cols[_ci % 3], _child["name"], "child",
+                                       _child.get("columns", []), f"{_child['name']}_id", fk=f"{_source}_id")
+
+                # Lookup entities in columns
+                if _lookups:
+                    st.markdown("**Lookup Tables:**")
+                    _lookup_cols = st.columns(min(len(_lookups), 4))
+                    for _li, _lookup in enumerate(_lookups):
+                        _lcols = _lookup.get("columns", [])
+                        _render_entity(_lookup_cols[_li % 4], _lookup["name"], "lookup",
+                                       _lcols, _lcols[0] if _lcols else "code")
+
+                st.divider()
+
+            st.markdown(
+                "🟢 **Primary** — main entity &nbsp;&nbsp; "
+                "🔵 **Child** — FK to primary (1:N) &nbsp;&nbsp; "
+                "🟡 **Lookup** — reference table (N:1)"
+            )
         else:
             st.info("No normalization plan available. Run discovery to generate.")
 
