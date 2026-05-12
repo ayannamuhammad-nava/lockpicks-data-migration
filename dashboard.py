@@ -1604,10 +1604,6 @@ def render_modeling_page():
         if norm_path_erd.exists():
             _erd_plan = json.loads(norm_path_erd.read_text())
 
-            _role_colors = {"primary": "#2e7d32", "child": "#1565c0", "lookup": "#f57f17"}
-            _role_bg = {"primary": "#e8f5e9", "child": "#e3f2fd", "lookup": "#fff9c4"}
-            _role_icons = {"primary": "🟢", "child": "🔵", "lookup": "🟡"}
-
             for _source, _plan_data in _erd_plan.items():
                 if not isinstance(_plan_data, dict):
                     continue
@@ -1616,67 +1612,66 @@ def render_modeling_page():
                 _children = [_e for _e in _entities if _e.get("role") == "child"]
                 _lookups = [_e for _e in _entities if _e.get("role") == "lookup"]
 
-                # Primary card — full width
+                # Build entity boxes as HTML
+                def _render_entity_box(name, role, cols, pk, fk=None, source_table=None):
+                    _header_bg = {"primary": "#4a6fa5", "child": "#6a8caf", "lookup": "#8faabd"}.get(role, "#4a6fa5")
+                    _rows_html = ""
+                    # PK row
+                    _rows_html += f'<tr><td style="padding:3px 10px;border-bottom:1px solid #ddd;font-size:0.8rem"><b>🔑 {pk}</b></td><td style="padding:3px 10px;border-bottom:1px solid #ddd;font-size:0.75rem;color:#888">PK</td></tr>'
+                    # FK row
+                    if fk:
+                        _rows_html += f'<tr><td style="padding:3px 10px;border-bottom:1px solid #ddd;font-size:0.8rem">🔗 {fk}</td><td style="padding:3px 10px;border-bottom:1px solid #ddd;font-size:0.75rem;color:#888">FK</td></tr>'
+                    # Attribute rows
+                    for _col in cols[:6]:
+                        _c = _col.replace("-", "_")
+                        _rows_html += f'<tr><td style="padding:2px 10px;font-size:0.8rem">{_c}</td><td style="padding:2px 10px;font-size:0.75rem;color:#888"></td></tr>'
+                    if len(cols) > 6:
+                        _rows_html += f'<tr><td style="padding:2px 10px;font-size:0.75rem;color:#999;font-style:italic">+ {len(cols)-6} more</td><td></td></tr>'
+
+                    return f"""
+                    <div style="display:inline-block;border:1px solid #999;border-radius:4px;margin:8px;vertical-align:top;min-width:200px;background:white;box-shadow:1px 1px 4px rgba(0,0,0,0.1)">
+                        <div style="background:{_header_bg};color:white;padding:8px 12px;font-weight:700;font-size:0.9rem;border-radius:3px 3px 0 0">{name}</div>
+                        <table style="width:100%;border-collapse:collapse">{_rows_html}</table>
+                    </div>
+                    """
+
+                # Render all entities
+                _all_boxes = ""
+
                 if _primary:
                     _pname = _primary["name"]
                     _pcols = _primary.get("columns", [])
-                    _pcolor = _role_colors["primary"]
-                    _pbg = _role_bg["primary"]
-                    st.markdown(f"""
-                    <div style="border:2px solid {_pcolor};border-radius:8px;padding:16px;margin:8px 0;background:{_pbg}">
-                        <div style="font-size:1.1rem;font-weight:700;color:{_pcolor}">🟢 {_pname}</div>
-                        <div style="font-size:0.85rem;color:#444;margin-top:4px">
-                            <strong>PK:</strong> {_source}_id &nbsp;&nbsp;
-                            <strong>Columns:</strong> {len(_pcols)} &nbsp;&nbsp;
-                            <strong>Role:</strong> Primary
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    _all_boxes += _render_entity_box(_pname, "primary", _pcols, f"{_source}_id")
 
-                # Child cards — grid
-                if _children:
-                    _child_cols = st.columns(min(len(_children), 3))
-                    for _ci, _child in enumerate(_children):
-                        _cname = _child["name"]
-                        _ccols = _child.get("columns", [])
-                        _ccolor = _role_colors["child"]
-                        _cbg = _role_bg["child"]
-                        with _child_cols[_ci % 3]:
-                            st.markdown(f"""
-                            <div style="border:2px solid {_ccolor};border-radius:8px;padding:12px;margin:4px 0;background:{_cbg}">
-                                <div style="font-size:0.95rem;font-weight:700;color:{_ccolor}">🔵 {_cname}</div>
-                                <div style="font-size:0.8rem;color:#444;margin-top:4px">
-                                    <strong>PK:</strong> {_cname}_id<br>
-                                    <strong>FK:</strong> {_source}_id → {_primary["name"] if _primary else _source}<br>
-                                    <strong>Columns:</strong> {len(_ccols)}<br>
-                                    <strong>Relationship:</strong> 1:N
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
+                for _child in _children:
+                    _cname = _child["name"]
+                    _ccols = _child.get("columns", [])
+                    _all_boxes += _render_entity_box(_cname, "child", _ccols, f"{_cname}_id", fk=f"{_source}_id")
 
-                # Lookup cards — grid
-                if _lookups:
-                    _lookup_cols = st.columns(min(len(_lookups), 4))
-                    for _li, _lookup in enumerate(_lookups):
-                        _lname = _lookup["name"]
-                        _lcolor = _role_colors["lookup"]
-                        _lbg = _role_bg["lookup"]
-                        with _lookup_cols[_li % 4]:
-                            st.markdown(f"""
-                            <div style="border:2px solid {_lcolor};border-radius:8px;padding:10px;margin:4px 0;background:{_lbg};text-align:center">
-                                <div style="font-size:0.9rem;font-weight:700;color:{_lcolor}">🟡 {_lname}</div>
-                                <div style="font-size:0.75rem;color:#666">Lookup · N:1</div>
-                            </div>
-                            """, unsafe_allow_html=True)
+                for _lookup in _lookups:
+                    _lname = _lookup["name"]
+                    _lcols = _lookup.get("columns", [])
+                    _all_boxes += _render_entity_box(_lname, "lookup", _lcols, _lcols[0] if _lcols else "code")
+
+                # Wrap in a flex container
+                st.markdown(f"""
+                <div style="display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:center;padding:16px;background:#f5f5f5;border-radius:8px;margin:8px 0">
+                    {_all_boxes}
+                </div>
+                """, unsafe_allow_html=True)
+
+                # Relationship summary below the diagram
+                if _children or _lookups:
+                    _rel_lines = []
+                    for _child in _children:
+                        _rel_lines.append(f"**{_primary['name'] if _primary else _source}** ──┤ 1:N ├── **{_child['name']}** (FK: {_source}_id)")
+                    for _lookup in _lookups:
+                        _rel_lines.append(f"**{_primary['name'] if _primary else _source}** ──── N:1 ──── **{_lookup['name']}**")
+                    st.markdown("**Relationships:**")
+                    for _rl in _rel_lines:
+                        st.markdown(f"- {_rl}")
 
                 st.divider()
-
-            # Legend
-            st.markdown(
-                "🟢 **Primary** — main entity &nbsp;&nbsp; "
-                "🔵 **Child** — FK to primary (1:N) &nbsp;&nbsp; "
-                "🟡 **Lookup** — reference table (N:1)"
-            )
         else:
             st.info("No normalization plan available. Run discovery to generate.")
 
