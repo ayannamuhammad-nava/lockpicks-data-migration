@@ -1376,11 +1376,17 @@ def render_modeling_page():
                 # Editable dataframe
                 _edit_rows = []
                 for m in all_mappings:
+                    _src = m.get("source", "").lower().replace("-", "_")
+                    _tgt = m.get("target", "")
+                    _mtype = m.get("type", "rename")
+                    # If legacy and modern are the same, show blank type
+                    if _mtype == "rename" and _src == _tgt:
+                        _mtype = ""
                     _edit_rows.append({
                         "Table": m.get("table", ""),
                         "Legacy Column": m.get("source", ""),
-                        "Modern Column": m.get("target", ""),
-                        "Type": m.get("type", "rename"),
+                        "Modern Column": _tgt,
+                        "Type": _mtype,
                     })
                 _edit_df = pd.DataFrame(_edit_rows)
 
@@ -1391,7 +1397,7 @@ def render_modeling_page():
                     disabled=["Table", "Legacy Column"],  # Only Modern Column and Type are editable
                     column_config={
                         "Type": st.column_config.SelectboxColumn(
-                            options=["rename", "transform", "archived", "removed"],
+                            options=["", "rename", "transform", "archived", "removed"],
                         ),
                     },
                     key="mapping_editor",
