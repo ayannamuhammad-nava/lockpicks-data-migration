@@ -2098,13 +2098,22 @@ def render_transformation_page():
 
     st.divider()
 
-    tabs = st.tabs([
-        "🔀 Transform Scripts",
-        "🎯 Target DDL",
-        "⚖️ Before / After",
-        "⚠️ Warnings",
-    ])
-    tab_transforms, tab_converted, tab_compare, tab_warnings = tabs
+    _sql_mig_path = METADATA_DIR / "sql_migrations.json"
+    _has_sql_mig = _sql_mig_path.exists()
+
+    _trans_tab_names = ["🔀 Transform Scripts", "🎯 Target DDL", "⚖️ Before / After"]
+    if _has_sql_mig:
+        _trans_tab_names.append("📦 SQL Migration")
+    _trans_tab_names.append("⚠️ Warnings")
+
+    _trans_tabs = st.tabs(_trans_tab_names)
+    _tti = 0
+    tab_transforms = _trans_tabs[_tti]; _tti += 1
+    tab_converted = _trans_tabs[_tti]; _tti += 1
+    tab_compare = _trans_tabs[_tti]; _tti += 1
+    if _has_sql_mig:
+        tab_sql_mig = _trans_tabs[_tti]; _tti += 1
+    tab_warnings = _trans_tabs[_tti]
 
     # ── Transform Scripts
     with tab_transforms:
@@ -2218,6 +2227,80 @@ def render_transformation_page():
             st.info(f"No {_tgt_display} schema found. Run discovery to generate.")
 
     # ── Warnings & TODOs
+    # ── SQL Migration tab
+    if _has_sql_mig:
+        with tab_sql_mig:
+            st.markdown(f"#### SQL Object Migration — {_tgt_display}")
+            st.caption("Stored procedures and views rewritten with new column/table names for the target platform.")
+
+            try:
+                _sql_mig_data = json.loads(_sql_mig_path.read_text())
+                _sql_obj_path = METADATA_DIR / "sql_objects.json"
+                _sql_obj_data = json.loads(_sql_obj_path.read_text()) if _sql_obj_path.exists() else []
+
+                # Summary
+                _procs = [s for s in _sql_mig_data if s.get("object_type") == "procedure"]
+                _views = [s for s in _sql_mig_data if s.get("object_type") == "view"]
+                _scripts = [s for s in _sql_mig_data if s.get("object_type") == "script"]
+                _total_changes = sum(s.get("change_count", 0) for s in _sql_mig_data)
+
+                _sm1, _sm2, _sm3, _sm4 = st.columns(4)
+                _sm1.metric("Procedures", len(_procs))
+                _sm2.metric("Views", len(_views))
+                _sm3.metric("Scripts", len(_scripts))
+                _sm4.metric("Total Changes", _total_changes)
+
+                st.divider()
+
+                for _mig in _sql_mig_data:
+                    _mname = _mig.get("name", "?")
+                    _mtype = _mig.get("object_type", "")
+                    _changes = _mig.get("changes", [])
+                    _notes = _mig.get("notes", [])
+                    _type_icon = {"procedure": "⚙️", "view": "👁️", "trigger": "⚡", "script": "📄"}.get(_mtype, "📄")
+
+                    st.markdown(f"##### {_type_icon} `{_mname}` ({_mtype}) — {len(_changes)} change(s)")
+
+                    # Side by side: original vs rewritten
+                    _col_orig, _col_new = st.columns(2)
+                    with _col_orig:
+                        st.markdown("**Original SQL:**")
+                        _orig = _mig.get("original_sql", "")
+                        st.code(_orig[:3000] + ("\n-- truncated" if len(_orig) > 3000 else ""), language="sql")
+                    with _col_new:
+                        st.markdown(f"**Migrated ({_tgt_display}):**")
+                        _new = _mig.get("rewritten_sql", "")
+                        st.code(_new[:3000] + ("\n-- truncated" if len(_new) > 3000 else ""), language="sql")
+
+                    # Changes list
+                    if _changes:
+                        st.markdown("**Changes applied:**")
+                        for _ch in _changes:
+                            st.markdown(f"- {_ch}")
+
+                    # Notes — potential differences
+                    if _notes:
+                        st.markdown("**Notes — potential differences:**")
+                        for _n in _notes:
+                            st.caption(f"⚠️ {_n}")
+
+                    # Download migrated SQL
+                    st.download_button(
+                        f"Download {_mname}.sql",
+                        _new,
+                        file_name=f"{_mname}_{_active_target}.sql",
+                        mime="text/sql",
+                        key=f"dl_sqlmig_{_mname}",
+                    )
+
+                    st.divider()
+
+                if not _sql_mig_data:
+                    st.info("No SQL objects found in the source repository.")
+
+            except Exception as _e:
+                st.error(f"Could not load SQL migrations: {_e}")
+
     with tab_warnings:
         st.markdown("#### Warnings & Review Items")
         st.caption("Transform scripts and converted SQL that may need manual review.")

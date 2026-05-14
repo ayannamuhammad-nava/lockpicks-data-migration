@@ -628,6 +628,59 @@ def run_flatfile_pipeline(project_dir: str) -> Dict:
     else:
         logger.info("  No COBOL programs found in source repo")
 
+    # ── Step 5b: SQL object scanning (stored procedures, views) ──
+    logger.info("Step 5b: Scanning for SQL objects (stored procedures, views)")
+
+    from dm.connectors.sql_parser import scan_sql_files, rewrite_sql
+
+    all_sql_objects = []
+    for _rd in _repo_dirs:
+        _sql_objs = scan_sql_files(_rd)
+        all_sql_objects.extend(_sql_objs)
+
+    if all_sql_objects:
+        # Save parsed SQL objects
+        with open(metadata_path / "sql_objects.json", "w") as f:
+            json.dump([o.to_dict() for o in all_sql_objects], f, indent=2, default=str)
+
+        # Build mapping dicts for rewriting
+        _col_map = {}
+        _tbl_map = {}
+        for m in all_mappings:
+            _src = m.get("source", "").lower().replace("-", "_")
+            _tgt = m.get("target", "")
+            if _src != _tgt:
+                _col_map[_src] = _tgt
+                # Also map with original case
+                _col_map[m.get("source", "")] = _tgt
+
+        # Rewrite each SQL object for default target
+        _rewritten = []
+        for _obj in all_sql_objects:
+            _result = rewrite_sql(
+                original_sql=_obj.source_sql,
+                column_mappings=_col_map,
+                table_mappings=_tbl_map,
+                normalization_plan=norm_plan,
+                target_dialect="postgres",
+            )
+            _rewritten.append({
+                "name": _obj.name,
+                "object_type": _obj.object_type,
+                "original_sql": _obj.source_sql,
+                "rewritten_sql": _result["rewritten_sql"],
+                "changes": _result["changes"],
+                "notes": _result["notes"],
+                "change_count": _result["change_count"],
+            })
+
+        with open(metadata_path / "sql_migrations.json", "w") as f:
+            json.dump(_rewritten, f, indent=2, default=str)
+
+        logger.info(f"  Found {len(all_sql_objects)} SQL objects, {sum(r['change_count'] for r in _rewritten)} changes")
+    else:
+        logger.info("  No SQL files found in source repo")
+
     # ── Step 6: Schema generation for all targets ─────────────────
     logger.info("Step 6: Generating schemas for all target platforms")
 
